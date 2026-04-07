@@ -158,6 +158,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
         senderId: session.user.id,
         body: trimmed,
       });
+      await loadChats();
     } catch (error) {
       setLoadingError(error instanceof Error ? error.message : 'No fue posible enviar el mensaje.');
       await loadChats();
@@ -180,6 +181,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
 
       setGroupName('');
       setParticipantEmails('');
+      await loadChats();
       setSelectedChatId(chatId);
       setCreateMessage('Conversacion creada correctamente.');
     } catch (error) {

@@ -52,6 +52,22 @@ begin
 end;
 $$;
 
+create or replace function public.is_chat_member(target_chat_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.chat_members
+    where chat_id = target_chat_id
+      and user_id = auth.uid()
+  );
+$$;
+
+grant execute on function public.is_chat_member(uuid) to authenticated;
+
 drop trigger if exists on_auth_user_created on auth.users;
 
 create trigger on_auth_user_created
@@ -62,6 +78,15 @@ alter table public.profiles enable row level security;
 alter table public.chats enable row level security;
 alter table public.chat_members enable row level security;
 alter table public.messages enable row level security;
+
+drop policy if exists "profiles are viewable by authenticated users" on public.profiles;
+drop policy if exists "users can update their own profile" on public.profiles;
+drop policy if exists "members can view their chats" on public.chats;
+drop policy if exists "authenticated users can create chats" on public.chats;
+drop policy if exists "members can view chat membership" on public.chat_members;
+drop policy if exists "chat creators and admins can add members" on public.chat_members;
+drop policy if exists "members can view messages" on public.messages;
+drop policy if exists "members can send messages" on public.messages;
 
 create policy "profiles are viewable by authenticated users"
 on public.profiles
@@ -81,12 +106,7 @@ on public.chats
 for select
 to authenticated
 using (
-  exists (
-    select 1
-    from public.chat_members members
-    where members.chat_id = chats.id
-      and members.user_id = auth.uid()
-  )
+  public.is_chat_member(id)
 );
 
 create policy "authenticated users can create chats"
@@ -100,13 +120,7 @@ on public.chat_members
 for select
 to authenticated
 using (
-  user_id = auth.uid()
-  or exists (
-    select 1
-    from public.chat_members members
-    where members.chat_id = chat_members.chat_id
-      and members.user_id = auth.uid()
-  )
+  public.is_chat_member(chat_id)
 );
 
 create policy "chat creators and admins can add members"
@@ -115,6 +129,12 @@ for insert
 to authenticated
 with check (
   exists (
+    select 1
+    from public.chats
+    where chats.id = chat_members.chat_id
+      and chats.created_by = auth.uid()
+  )
+  or exists (
     select 1
     from public.chat_members members
     where members.chat_id = chat_members.chat_id
@@ -128,12 +148,7 @@ on public.messages
 for select
 to authenticated
 using (
-  exists (
-    select 1
-    from public.chat_members members
-    where members.chat_id = messages.chat_id
-      and members.user_id = auth.uid()
-  )
+  public.is_chat_member(chat_id)
 );
 
 create policy "members can send messages"
@@ -142,12 +157,7 @@ for insert
 to authenticated
 with check (
   sender_id = auth.uid()
-  and exists (
-    select 1
-    from public.chat_members members
-    where members.chat_id = messages.chat_id
-      and members.user_id = auth.uid()
-  )
+  and public.is_chat_member(chat_id)
 );
 
 create index if not exists idx_chat_members_user_id on public.chat_members (user_id);
