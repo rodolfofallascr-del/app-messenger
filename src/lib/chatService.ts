@@ -133,6 +133,14 @@ export async function createChat(params: {
   }
 
   const chatType = normalizedEmails.length > 1 ? 'group' : 'direct';
+
+  if (chatType === 'direct') {
+    const existingChatId = await findExistingDirectChat(params.currentUserId, foundProfiles[0].id);
+    if (existingChatId) {
+      return existingChatId;
+    }
+  }
+
   const { data: createdChat, error: chatError } = await supabase
     .from('chats')
     .insert({
@@ -181,6 +189,47 @@ export async function sendTextMessage(params: { chatId: string; senderId: string
   if (error) {
     throw error;
   }
+}
+
+async function findExistingDirectChat(currentUserId: string, otherUserId: string) {
+  const supabase = getSupabaseClient();
+  const { data: memberships, error } = await supabase
+    .from('chat_members')
+    .select('chat_id,user_id,chats!inner(id,type)')
+    .in('user_id', [currentUserId, otherUserId]);
+
+  if (error) {
+    throw error;
+  }
+
+  const rows = (memberships ?? []) as Array<{
+    chat_id: string;
+    user_id: string;
+    chats: { id: string; type: string } | { id: string; type: string }[];
+  }>;
+
+  const grouped = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    const chat = Array.isArray(row.chats) ? row.chats[0] : row.chats;
+    if (!chat || chat.type !== 'direct') {
+      continue;
+    }
+
+    if (!grouped.has(row.chat_id)) {
+      grouped.set(row.chat_id, new Set());
+    }
+
+    grouped.get(row.chat_id)?.add(row.user_id);
+  }
+
+  for (const [chatId, users] of grouped.entries()) {
+    if (users.has(currentUserId) && users.has(otherUserId) && users.size === 2) {
+      return chatId;
+    }
+  }
+
+  return null;
 }
 
 function normalizeProfile(profile: RawProfile) {
