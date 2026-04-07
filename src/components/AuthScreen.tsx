@@ -2,6 +2,8 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -75,97 +77,108 @@ export function AuthScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[styles.content, isDesktop && styles.contentDesktop]}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={styles.keyboardShell}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
     >
-      <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
-        <View style={[styles.authCard, isDesktop && styles.authCardDesktop]}>
-          <Image source={brandLogo} style={[styles.logo, isDesktop && styles.logoDesktop]} resizeMode="contain" />
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[styles.content, isDesktop ? styles.contentDesktop : styles.contentMobile]}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
+          <View style={[styles.authCard, isDesktop && styles.authCardDesktop]}>
+            <Image source={brandLogo} style={[styles.logo, isDesktop && styles.logoDesktop]} resizeMode="contain" />
 
-          <View style={styles.brandCopy}>
-            <Text style={styles.eyebrow}>Chat Santanita</Text>
-            <Text style={styles.title}>Entra a tu mensajeria</Text>
-            <Text style={styles.subtitle}>Accede a tus conversaciones, grupos y archivos desde el celular.</Text>
-          </View>
+            <View style={styles.brandCopy}>
+              <Text style={styles.eyebrow}>Chat Santanita</Text>
+              <Text style={styles.title}>Entra a tu mensajeria</Text>
+              <Text style={styles.subtitle}>Accede a tus conversaciones, grupos y archivos desde el celular.</Text>
+            </View>
 
-          <View style={styles.toggleRow}>
-            <ModeButton active={mode === 'login'} label="Entrar" onPress={() => setMode('login')} />
-            <ModeButton active={mode === 'register'} label="Crear cuenta" onPress={() => setMode('register')} />
-          </View>
+            <View style={styles.toggleRow}>
+              <ModeButton active={mode === 'login'} label="Entrar" onPress={() => setMode('login')} />
+              <ModeButton active={mode === 'register'} label="Crear cuenta" onPress={() => setMode('register')} />
+            </View>
 
-          {mode === 'register' ? (
+            {mode === 'register' ? (
+              <TextInput
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="Nombre completo"
+                placeholderTextColor={palette.mutedText}
+                style={styles.input}
+                returnKeyType="next"
+              />
+            ) : null}
+
             <TextInput
-              value={fullName}
-              onChangeText={setFullName}
-              placeholder="Nombre completo"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Correo"
               placeholderTextColor={palette.mutedText}
+              autoCapitalize="none"
+              keyboardType="email-address"
               style={styles.input}
+              returnKeyType="next"
             />
-          ) : null}
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Contrasena"
+              placeholderTextColor={palette.mutedText}
+              secureTextEntry
+              style={styles.input}
+              returnKeyType="done"
+              onSubmitEditing={submit}
+            />
 
-          <TextInput
-            value={email}
-            onChangeText={setEmail}
-            placeholder="Correo"
-            placeholderTextColor={palette.mutedText}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={styles.input}
-          />
-          <TextInput
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Contrasena"
-            placeholderTextColor={palette.mutedText}
-            secureTextEntry
-            style={styles.input}
-          />
+            {message ? <Text style={styles.message}>{message}</Text> : null}
 
-          {message ? <Text style={styles.message}>{message}</Text> : null}
+            <Pressable style={[styles.submitButton, busy && styles.submitButtonDisabled]} onPress={submit} disabled={busy}>
+              {busy ? (
+                <ActivityIndicator color={palette.buttonText} />
+              ) : (
+                <Text style={styles.submitText}>{mode === 'login' ? 'Entrar al chat' : 'Crear cuenta'}</Text>
+              )}
+            </Pressable>
 
-          <Pressable style={[styles.submitButton, busy && styles.submitButtonDisabled]} onPress={submit} disabled={busy}>
-            {busy ? (
-              <ActivityIndicator color={palette.buttonText} />
-            ) : (
-              <Text style={styles.submitText}>{mode === 'login' ? 'Entrar al chat' : 'Crear cuenta'}</Text>
-            )}
-          </Pressable>
-
-          <Text style={styles.helperText}>Usa tu correo registrado en Supabase.</Text>
-        </View>
-
-        {isDesktop ? (
-          <View style={[styles.introCard, styles.introCardDesktop]}>
-            <Text style={styles.panelEyebrow}>Mensajeria privada</Text>
-            <Text style={styles.panelTitle}>Tu equipo conectado en un solo lugar</Text>
-            <Text style={styles.panelCopy}>
-              Una experiencia pensada para conversaciones rapidas, grupos internos y envio de archivos sin perder historial.
-            </Text>
-
-            <View style={styles.statsRow}>
-              {quickStats.map((item) => (
-                <View key={item} style={styles.statChip}>
-                  <Text style={styles.statChipText}>{item}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={styles.previewCard}>
-              <View style={[styles.previewBubble, styles.previewBubbleIncoming]}>
-                <Text style={styles.previewAuthor}>Soporte</Text>
-                <Text style={styles.previewText}>Buenos dias. Ya revise tu pedido y lo deje listo.</Text>
-              </View>
-              <View style={[styles.previewBubble, styles.previewBubbleOutgoing]}>
-                <Text style={styles.previewText}>Perfecto, lo confirmo con el cliente y te aviso.</Text>
-              </View>
-            </View>
+            <Text style={styles.helperText}>Usa tu correo registrado en Supabase.</Text>
           </View>
-        ) : null}
-      </View>
-    </ScrollView>
+
+          {isDesktop ? (
+            <View style={[styles.introCard, styles.introCardDesktop]}>
+              <Text style={styles.panelEyebrow}>Mensajeria privada</Text>
+              <Text style={styles.panelTitle}>Tu equipo conectado en un solo lugar</Text>
+              <Text style={styles.panelCopy}>
+                Una experiencia pensada para conversaciones rapidas, grupos internos y envio de archivos sin perder historial.
+              </Text>
+
+              <View style={styles.statsRow}>
+                {quickStats.map((item) => (
+                  <View key={item} style={styles.statChip}>
+                    <Text style={styles.statChipText}>{item}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.previewCard}>
+                <View style={[styles.previewBubble, styles.previewBubbleIncoming]}>
+                  <Text style={styles.previewAuthor}>Soporte</Text>
+                  <Text style={styles.previewText}>Buenos dias. Ya revise tu pedido y lo deje listo.</Text>
+                </View>
+                <View style={[styles.previewBubble, styles.previewBubbleOutgoing]}>
+                  <Text style={styles.previewText}>Perfecto, lo confirmo con el cliente y te aviso.</Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -186,6 +199,10 @@ function ModeButton({
 }
 
 const styles = StyleSheet.create({
+  keyboardShell: {
+    flex: 1,
+    backgroundColor: palette.background,
+  },
   screen: {
     flex: 1,
     backgroundColor: palette.background,
@@ -193,11 +210,15 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 16,
-    paddingVertical: 18,
-    justifyContent: 'center',
+    paddingTop: 18,
+  },
+  contentMobile: {
+    justifyContent: 'flex-start',
+    paddingBottom: 28,
   },
   contentDesktop: {
     justifyContent: 'center',
+    paddingBottom: 18,
   },
   shell: {
     width: '100%',
