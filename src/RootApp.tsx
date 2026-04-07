@@ -56,7 +56,7 @@ export function RootApp() {
     return <AuthScreen />;
   }
 
-  return <MessagingApp currentUserEmail={session.user.email ?? 'usuario@local'} />;
+  return <MessagingApp session={session} />;
 }
 
 const styles = StyleSheet.create({

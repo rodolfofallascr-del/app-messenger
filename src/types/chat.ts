@@ -23,3 +23,39 @@ export type ChatMessage = {
   status?: MessageStatus;
   attachmentLabel?: string;
 };
+
+export type ProfileRecord = {
+  id: string;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  created_at: string;
+};
+
+export type ChatRecord = {
+  id: string;
+  name: string | null;
+  type: ChatType;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type ChatMemberRecord = {
+  chat_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  joined_at: string;
+  profile?: ProfileRecord | null;
+};
+
+export type MessageRecord = {
+  id: string;
+  chat_id: string;
+  sender_id: string;
+  body: string | null;
+  message_type: 'text' | 'image' | 'file';
+  attachment_url: string | null;
+  attachment_name: string | null;
+  created_at: string;
+  profile?: ProfileRecord | null;
+};
