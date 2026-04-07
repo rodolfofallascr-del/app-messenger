@@ -6,6 +6,7 @@ type MessageComposerProps = {
   value: string;
   attachment: PendingAttachment | null;
   busy?: boolean;
+  isDragActive?: boolean;
   onChangeText: (value: string) => void;
   onPickImage: () => void;
   onPickFile: () => void;
@@ -17,6 +18,7 @@ export function MessageComposer({
   value,
   attachment,
   busy,
+  isDragActive,
   onChangeText,
   onPickImage,
   onPickFile,
@@ -29,6 +31,12 @@ export function MessageComposer({
         <Tag label="+ Foto" onPress={onPickImage} />
         <Tag label="+ Archivo" onPress={onPickFile} />
       </View>
+      {isDragActive ? (
+        <View style={styles.dropHint}>
+          <Text style={styles.dropHintTitle}>Suelta tu archivo aqui</Text>
+          <Text style={styles.dropHintText}>Puedes arrastrar imagenes o archivos desde el escritorio.</Text>
+        </View>
+      ) : null}
       {attachment ? (
         <View style={styles.attachmentPreview}>
           <View style={styles.attachmentInfo}>
@@ -86,6 +94,25 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     fontWeight: '600',
     fontSize: 12,
+  },
+  dropHint: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: palette.accent,
+    backgroundColor: '#11231a',
+    borderRadius: 16,
+    padding: 14,
+    gap: 4,
+  },
+  dropHintTitle: {
+    color: palette.primaryText,
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  dropHintText: {
+    color: palette.secondaryText,
+    fontSize: 12,
+    lineHeight: 18,
   },
   attachmentPreview: {
     flexDirection: 'row',

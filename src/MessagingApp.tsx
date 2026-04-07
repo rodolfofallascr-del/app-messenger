@@ -4,6 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -45,6 +46,17 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const [groupName, setGroupName] = useState('');
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+
+  const replacePendingAttachment = useCallback((nextAttachment: PendingAttachment | null) => {
+    setPendingAttachment((current) => {
+      if (Platform.OS === 'web' && current?.uri.startsWith('blob:') && current.uri !== nextAttachment?.uri) {
+        URL.revokeObjectURL(current.uri);
+      }
+
+      return nextAttachment;
+    });
+  }, []);
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -142,6 +154,83 @@ export function MessagingApp({ session }: MessagingAppProps) {
     };
   }, [loadChats, selectedChatId]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    let dragDepth = 0;
+
+    const handleDragEnter = (event: DragEvent) => {
+      if (!selectedChatId) {
+        return;
+      }
+
+      event.preventDefault();
+      dragDepth += 1;
+      if (event.dataTransfer?.types?.includes('Files')) {
+        setIsDragActive(true);
+      }
+    };
+
+    const handleDragOver = (event: DragEvent) => {
+      if (!selectedChatId) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.dataTransfer) {
+        event.dataTransfer.dropEffect = 'copy';
+      }
+    };
+
+    const handleDragLeave = (event: DragEvent) => {
+      if (!selectedChatId) {
+        return;
+      }
+
+      event.preventDefault();
+      dragDepth = Math.max(0, dragDepth - 1);
+      if (dragDepth === 0) {
+        setIsDragActive(false);
+      }
+    };
+
+    const handleDrop = (event: DragEvent) => {
+      event.preventDefault();
+      dragDepth = 0;
+      setIsDragActive(false);
+
+      if (!selectedChatId) {
+        return;
+      }
+
+      const file = event.dataTransfer?.files?.[0];
+      if (!file) {
+        return;
+      }
+
+      replacePendingAttachment({
+        uri: URL.createObjectURL(file),
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        type: file.type.startsWith('image/') ? 'image' : 'file',
+      });
+    };
+
+    window.addEventListener('dragenter', handleDragEnter);
+    window.addEventListener('dragover', handleDragOver);
+    window.addEventListener('dragleave', handleDragLeave);
+    window.addEventListener('drop', handleDrop);
+
+    return () => {
+      window.removeEventListener('dragenter', handleDragEnter);
+      window.removeEventListener('dragover', handleDragOver);
+      window.removeEventListener('dragleave', handleDragLeave);
+      window.removeEventListener('drop', handleDrop);
+    };
+  }, [replacePendingAttachment, selectedChatId]);
+
   const selectedChat = useMemo(
     () => liveChats.find((chat) => chat.id === selectedChatId) ?? null,
     [selectedChatId, liveChats]
@@ -162,6 +251,18 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
   const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
 
+  const clearPendingAttachment = useCallback(() => {
+    replacePendingAttachment(null);
+  }, [replacePendingAttachment]);
+
+  useEffect(() => {
+    return () => {
+      if (Platform.OS === 'web' && pendingAttachment?.uri.startsWith('blob:')) {
+        URL.revokeObjectURL(pendingAttachment.uri);
+      }
+    };
+  }, [pendingAttachment]);
+
   const handleToggleUser = (userId: string) => {
     setSelectedUserIds((current) =>
       current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
@@ -179,7 +280,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
     }
 
     const asset = result.assets[0];
-    setPendingAttachment({
+    replacePendingAttachment({
       uri: asset.uri,
       name: asset.fileName || `imagen-${Date.now()}.jpg`,
       mimeType: asset.mimeType || 'image/jpeg',
@@ -198,7 +299,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
     }
 
     const asset = result.assets[0];
-    setPendingAttachment({
+    replacePendingAttachment({
       uri: asset.uri,
       name: asset.name,
       mimeType: asset.mimeType || 'application/octet-stream',
@@ -237,7 +338,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
     }));
 
     const nextAttachment = pendingAttachment;
-    setPendingAttachment(null);
+    clearPendingAttachment();
     setSending(true);
 
     try {
@@ -385,6 +486,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
                   value={currentDraft}
                   attachment={pendingAttachment}
                   busy={sending}
+                  isDragActive={isDragActive}
                   onChangeText={(value) =>
                     setDrafts((previous) => ({
                       ...previous,
@@ -393,7 +495,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
                   }
                   onPickImage={handlePickImage}
                   onPickFile={handlePickFile}
-                  onClearAttachment={() => setPendingAttachment(null)}
+                  onClearAttachment={clearPendingAttachment}
                   onSend={handleSend}
                 />
               </>
