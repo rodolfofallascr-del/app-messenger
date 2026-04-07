@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
@@ -8,13 +9,25 @@ type ConversationViewProps = {
 };
 
 export function ConversationView({ chat, messages }: ConversationViewProps) {
+  const scrollViewRef = useRef<ScrollView | null>(null);
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 80);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [chat.id, messages.length]);
+
   return (
     <>
       <View style={styles.header}>
         <View>
           <Text style={styles.chatName}>{chat.name}</Text>
           <Text style={styles.chatMeta}>
-            {chat.members.join(', ')} Â· {chat.type === 'group' ? 'Grupo' : 'Directo'}
+            {chat.members.join(', ')} · {chat.type === 'group' ? 'Grupo' : 'Directo'}
           </Text>
         </View>
         <View style={styles.headerBadge}>
@@ -22,7 +35,12 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={styles.body}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+      >
         {messages.map((message) => {
           const isOutgoing = message.direction === 'outgoing';
           return (
@@ -32,7 +50,7 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
               {message.attachmentLabel ? <Text style={styles.attachment}>{message.attachmentLabel}</Text> : null}
               <Text style={styles.timestamp}>
                 {message.timestamp}
-                {isOutgoing && message.status ? ` Â· ${message.status}` : ''}
+                {isOutgoing && message.status ? ` · ${message.status}` : ''}
               </Text>
             </View>
           );
