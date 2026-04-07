@@ -1,9 +1,21 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { getSupabaseClient } from '../lib/supabase';
 import { palette } from '../theme/palette';
 
 const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
+
+const quickStats = ['Mensajes en vivo', 'Grupos privados', 'Imagenes y archivos'];
 
 export function AuthScreen() {
   const { width } = useWindowDimensions();
@@ -43,7 +55,7 @@ export function AuthScreen() {
           throw error;
         }
 
-        setMessage('Cuenta creada. Revisa tu correo para confirmar el acceso si tu proyecto lo requiere.');
+        setMessage('Cuenta creada. Ya puedes iniciar sesion si tu proyecto no exige confirmar correo.');
         return;
       }
 
@@ -63,30 +75,21 @@ export function AuthScreen() {
   };
 
   return (
-    <View style={styles.screen}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.content, isDesktop && styles.contentDesktop]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
-        <View style={[styles.introCard, isDesktop && styles.introCardDesktop]}>
-          <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.eyebrow}>Chat Santanita</Text>
-          <Text style={styles.headline}>Mensajeria privada para tu equipo comercial</Text>
-          <Text style={styles.copy}>
-            La misma app te sirve en movil y computadora, con conversaciones reales, adjuntos,
-            sincronizacion en vivo y la identidad visual de tu marca desde el primer acceso.
-          </Text>
-          <View style={styles.bulletList}>
-            <Text style={styles.bullet}>Historial persistente para que ningun mensaje se pierda.</Text>
-            <Text style={styles.bullet}>Chats directos y grupos desde la misma base.</Text>
-            <Text style={styles.bullet}>Lista para crecer con imagenes, archivos y notificaciones.</Text>
-          </View>
-        </View>
+        <View style={[styles.authCard, isDesktop && styles.authCardDesktop]}>
+          <Image source={brandLogo} style={[styles.logo, isDesktop && styles.logoDesktop]} resizeMode="contain" />
 
-        <View style={[styles.card, isDesktop && styles.cardDesktop]}>
-          <Text style={styles.eyebrow}>Acceso seguro</Text>
-          <Text style={styles.title}>Entra a Chat Santanita</Text>
-          <Text style={styles.subtitle}>
-            Esta primera version usa correo y contrasena. Luego podemos agregar telefono, perfiles
-            y permisos por organizacion.
-          </Text>
+          <View style={styles.brandCopy}>
+            <Text style={styles.eyebrow}>Chat Santanita</Text>
+            <Text style={styles.title}>Entra a tu mensajeria</Text>
+            <Text style={styles.subtitle}>Accede a tus conversaciones, grupos y archivos desde el celular.</Text>
+          </View>
 
           <View style={styles.toggleRow}>
             <ModeButton active={mode === 'login'} label="Entrar" onPress={() => setMode('login')} />
@@ -124,11 +127,45 @@ export function AuthScreen() {
           {message ? <Text style={styles.message}>{message}</Text> : null}
 
           <Pressable style={[styles.submitButton, busy && styles.submitButtonDisabled]} onPress={submit} disabled={busy}>
-            {busy ? <ActivityIndicator color={palette.buttonText} /> : <Text style={styles.submitText}>{mode === 'login' ? 'Entrar' : 'Crear cuenta'}</Text>}
+            {busy ? (
+              <ActivityIndicator color={palette.buttonText} />
+            ) : (
+              <Text style={styles.submitText}>{mode === 'login' ? 'Entrar al chat' : 'Crear cuenta'}</Text>
+            )}
           </Pressable>
+
+          <Text style={styles.helperText}>Usa tu correo registrado en Supabase.</Text>
         </View>
+
+        {isDesktop ? (
+          <View style={[styles.introCard, styles.introCardDesktop]}>
+            <Text style={styles.panelEyebrow}>Mensajeria privada</Text>
+            <Text style={styles.panelTitle}>Tu equipo conectado en un solo lugar</Text>
+            <Text style={styles.panelCopy}>
+              Una experiencia pensada para conversaciones rapidas, grupos internos y envio de archivos sin perder historial.
+            </Text>
+
+            <View style={styles.statsRow}>
+              {quickStats.map((item) => (
+                <View key={item} style={styles.statChip}>
+                  <Text style={styles.statChipText}>{item}</Text>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.previewCard}>
+              <View style={[styles.previewBubble, styles.previewBubbleIncoming]}>
+                <Text style={styles.previewAuthor}>Soporte</Text>
+                <Text style={styles.previewText}>Buenos dias. Ya revise tu pedido y lo deje listo.</Text>
+              </View>
+              <View style={[styles.previewBubble, styles.previewBubbleOutgoing]}>
+                <Text style={styles.previewText}>Perfecto, lo confirmo con el cliente y te aviso.</Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -151,68 +188,52 @@ function ModeButton({
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 20,
     backgroundColor: palette.background,
   },
+  content: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
+    justifyContent: 'center',
+  },
+  contentDesktop: {
+    justifyContent: 'center',
+  },
   shell: {
-    gap: 18,
     width: '100%',
     alignSelf: 'center',
+    gap: 16,
   },
   shellDesktop: {
     maxWidth: 1180,
     flexDirection: 'row',
     alignItems: 'stretch',
   },
-  introCard: {
-    backgroundColor: '#0b1220',
-    borderRadius: 24,
+  authCard: {
+    backgroundColor: palette.card,
+    borderRadius: 26,
     borderWidth: 1,
     borderColor: palette.border,
-    padding: 20,
-    gap: 12,
+    padding: 18,
+    gap: 14,
   },
-  introCardDesktop: {
-    flex: 1,
+  authCardDesktop: {
+    width: 460,
     justifyContent: 'center',
   },
+  brandCopy: {
+    gap: 6,
+  },
   logo: {
-    width: '100%',
-    height: 190,
+    width: 170,
+    height: 78,
     alignSelf: 'center',
-    marginBottom: 6,
+    marginBottom: 2,
   },
-  headline: {
-    color: palette.primaryText,
-    fontSize: 32,
-    fontWeight: '800',
-    lineHeight: 38,
-  },
-  copy: {
-    color: palette.secondaryText,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  bulletList: {
-    gap: 10,
-    marginTop: 4,
-  },
-  bullet: {
-    color: palette.secondaryText,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  card: {
-    backgroundColor: palette.card,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 20,
-    gap: 12,
-  },
-  cardDesktop: {
-    width: 440,
+  logoDesktop: {
+    width: 220,
+    height: 100,
+    alignSelf: 'flex-start',
   },
   eyebrow: {
     color: '#facc15',
@@ -223,23 +244,23 @@ const styles = StyleSheet.create({
   },
   title: {
     color: palette.primaryText,
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '800',
+    lineHeight: 34,
   },
   subtitle: {
     color: palette.secondaryText,
     fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 4,
+    lineHeight: 21,
   },
   toggleRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   modeButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 14,
+    paddingVertical: 13,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: palette.panel,
@@ -251,7 +272,7 @@ const styles = StyleSheet.create({
   },
   modeText: {
     color: palette.secondaryText,
-    fontWeight: '700',
+    fontWeight: '800',
   },
   modeTextActive: {
     color: palette.buttonText,
@@ -259,24 +280,20 @@ const styles = StyleSheet.create({
   input: {
     backgroundColor: palette.input,
     color: palette.primaryText,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-  },
-  message: {
-    color: '#fde68a',
-    fontSize: 13,
-    lineHeight: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 15,
+    fontSize: 15,
   },
   submitButton: {
     backgroundColor: palette.accent,
-    minHeight: 52,
-    borderRadius: 16,
+    minHeight: 54,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 4,
+    marginTop: 2,
   },
   submitButtonDisabled: {
     opacity: 0.7,
@@ -285,5 +302,100 @@ const styles = StyleSheet.create({
     color: palette.buttonText,
     fontWeight: '800',
     fontSize: 15,
+  },
+  helperText: {
+    color: palette.mutedText,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  message: {
+    color: '#fde68a',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  introCard: {
+    backgroundColor: '#0b1220',
+    borderRadius: 26,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 18,
+    gap: 14,
+  },
+  introCardDesktop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 26,
+  },
+  panelEyebrow: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  panelTitle: {
+    color: palette.primaryText,
+    fontSize: 28,
+    fontWeight: '800',
+    lineHeight: 34,
+  },
+  panelCopy: {
+    color: palette.secondaryText,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  statChip: {
+    backgroundColor: '#13213a',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#21314b',
+  },
+  statChipText: {
+    color: '#bfdbfe',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  previewCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 22,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#1f2a3d',
+  },
+  previewBubble: {
+    maxWidth: '84%',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 18,
+    gap: 4,
+  },
+  previewBubbleIncoming: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#172554',
+    borderTopLeftRadius: 6,
+  },
+  previewBubbleOutgoing: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#14532d',
+    borderTopRightRadius: 6,
+  },
+  previewAuthor: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  previewText: {
+    color: palette.primaryText,
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
