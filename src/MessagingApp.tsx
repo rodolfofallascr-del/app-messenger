@@ -25,8 +25,9 @@ type MessagingAppProps = {
 };
 
 export function MessagingApp({ session }: MessagingAppProps) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
+  const isCompactHeight = height < 860;
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
@@ -249,111 +250,125 @@ export function MessagingApp({ session }: MessagingAppProps) {
           : 'Listo para crear tu primera conversacion.';
 
   return (
-    <View style={styles.root}>
-      <View style={[styles.headerShell, isDesktop && styles.headerShellDesktop]}>
-        <View style={styles.heroCard}>
-          <Text style={styles.eyebrow}>Mensajeria privada</Text>
-          <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
-          <Text style={styles.subtitle}>
-            Usuarios reales, conversaciones persistentes y sincronizacion en vivo con Supabase.
-          </Text>
-        </View>
-
-        <View style={styles.statusCard}>
-          <Text style={styles.statusLabel}>Sesion actual</Text>
-          <Text style={styles.statusEmail}>{session.user.email ?? 'usuario@local'}</Text>
-          <Text style={styles.statusCopy}>{statusText}</Text>
-          <Pressable style={styles.headerAction} onPress={handleSignOut}>
-            <Text style={styles.headerActionText}>Salir</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={[styles.workspace, isDesktop && styles.workspaceDesktop]}>
-        <View style={[styles.sidebar, isDesktop && styles.sidebarDesktop]}>
-          <View style={styles.sidebarHeader}>
-            <Text style={styles.sectionTitle}>Conversaciones</Text>
-            <Text style={styles.counter}>{liveChats.length}</Text>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={[styles.screenContent, isDesktop && styles.screenContentDesktop]}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.root}>
+        <View style={[styles.headerShell, isDesktop && styles.headerShellDesktop]}>
+          <View style={styles.heroCard}>
+            <Text style={styles.eyebrow}>Mensajeria privada</Text>
+            <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
+            <Text style={styles.subtitle}>
+              Usuarios reales, conversaciones persistentes y sincronizacion en vivo con Supabase.
+            </Text>
           </View>
-          <CreateChatCard
-            groupName={groupName}
-            selectedUserIds={selectedUserIds}
-            users={availableUsers}
-            loadingUsers={loadingUsers}
-            onChangeGroupName={setGroupName}
-            onToggleUser={handleToggleUser}
-            onCreate={handleCreateChat}
-            busy={creatingChat}
-            message={createMessage}
-          />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Buscar chat o usuario"
-            placeholderTextColor={palette.mutedText}
-            style={styles.searchInput}
-          />
-          {loadingChats ? (
-            <View style={styles.sidebarState}>
-              <ActivityIndicator color={palette.accent} />
-              <Text style={styles.sidebarStateText}>Cargando conversaciones...</Text>
-            </View>
-          ) : liveChats.length === 0 ? (
-            <View style={styles.sidebarState}>
-              <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
-              <Text style={styles.sidebarStateText}>
-                Crea un chat con usuarios registrados y aqui aparecera en tiempo real.
-              </Text>
-            </View>
-          ) : visibleChats.length === 0 ? (
-            <View style={styles.sidebarState}>
-              <Text style={styles.sidebarStateTitle}>Sin resultados</Text>
-              <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
-            </View>
-          ) : (
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatListContent}>
-              <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={setSelectedChatId} />
-            </ScrollView>
-          )}
+
+          <View style={styles.statusCard}>
+            <Text style={styles.statusLabel}>Sesion actual</Text>
+            <Text style={styles.statusEmail}>{session.user.email ?? 'usuario@local'}</Text>
+            <Text style={styles.statusCopy}>{statusText}</Text>
+            <Pressable style={styles.headerAction} onPress={handleSignOut}>
+              <Text style={styles.headerActionText}>Salir</Text>
+            </Pressable>
+          </View>
         </View>
 
-        <View style={[styles.chatPanel, isDesktop && styles.chatPanelDesktop]}>
-          {selectedChat ? (
-            <>
-              <ConversationView chat={selectedChat} messages={currentMessages} />
-              <MessageComposer
-                value={currentDraft}
-                onChangeText={(value) =>
-                  setDrafts((previous) => ({
-                    ...previous,
-                    [selectedChat.id]: value,
-                  }))
-                }
-                onSend={handleSend}
-              />
-            </>
-          ) : (
-            <View style={styles.emptyConversation}>
-              <Text style={styles.emptyConversationEyebrow}>Sin chat abierto</Text>
-              <Text style={styles.emptyConversationTitle}>Tu bandeja esta lista</Text>
-              <Text style={styles.emptyConversationText}>
-                Crea una conversacion desde la columna izquierda para empezar a enviar mensajes reales.
-              </Text>
+        <View style={[styles.workspace, isDesktop && styles.workspaceDesktop]}>
+          <View style={[styles.sidebar, isDesktop && styles.sidebarDesktop, isCompactHeight && styles.compactPanel]}>
+            <View style={styles.sidebarHeader}>
+              <Text style={styles.sectionTitle}>Conversaciones</Text>
+              <Text style={styles.counter}>{liveChats.length}</Text>
             </View>
-          )}
+            <CreateChatCard
+              groupName={groupName}
+              selectedUserIds={selectedUserIds}
+              users={availableUsers}
+              loadingUsers={loadingUsers}
+              onChangeGroupName={setGroupName}
+              onToggleUser={handleToggleUser}
+              onCreate={handleCreateChat}
+              busy={creatingChat}
+              message={createMessage}
+            />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Buscar chat o usuario"
+              placeholderTextColor={palette.mutedText}
+              style={styles.searchInput}
+            />
+            {loadingChats ? (
+              <View style={styles.sidebarState}>
+                <ActivityIndicator color={palette.accent} />
+                <Text style={styles.sidebarStateText}>Cargando conversaciones...</Text>
+              </View>
+            ) : liveChats.length === 0 ? (
+              <View style={styles.sidebarState}>
+                <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
+                <Text style={styles.sidebarStateText}>
+                  Crea un chat con usuarios registrados y aqui aparecera en tiempo real.
+                </Text>
+              </View>
+            ) : visibleChats.length === 0 ? (
+              <View style={styles.sidebarState}>
+                <Text style={styles.sidebarStateTitle}>Sin resultados</Text>
+                <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
+              </View>
+            ) : (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatListContent}>
+                <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={setSelectedChatId} />
+              </ScrollView>
+            )}
+          </View>
+
+          <View style={[styles.chatPanel, isDesktop && styles.chatPanelDesktop, isCompactHeight && styles.compactPanel]}>
+            {selectedChat ? (
+              <>
+                <ConversationView chat={selectedChat} messages={currentMessages} />
+                <MessageComposer
+                  value={currentDraft}
+                  onChangeText={(value) =>
+                    setDrafts((previous) => ({
+                      ...previous,
+                      [selectedChat.id]: value,
+                    }))
+                  }
+                  onSend={handleSend}
+                />
+              </>
+            ) : (
+              <View style={styles.emptyConversation}>
+                <Text style={styles.emptyConversationEyebrow}>Sin chat abierto</Text>
+                <Text style={styles.emptyConversationTitle}>Tu bandeja esta lista</Text>
+                <Text style={styles.emptyConversationText}>
+                  Crea una conversacion desde la columna izquierda para empezar a enviar mensajes reales.
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
+  screen: {
     flex: 1,
     backgroundColor: palette.background,
+  },
+  screenContent: {
+    flexGrow: 1,
+    paddingVertical: 16,
+  },
+  screenContentDesktop: {
+    minHeight: '100%',
+  },
+  root: {
+    backgroundColor: palette.background,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 16,
     gap: 16,
     width: '100%',
     alignSelf: 'center',
@@ -435,13 +450,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   workspace: {
-    flex: 1,
     gap: 14,
-    minHeight: 0,
   },
   workspaceDesktop: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
@@ -456,7 +469,22 @@ const styles = StyleSheet.create({
   },
   sidebarDesktop: {
     width: 380,
-    minHeight: 620,
+    minHeight: 560,
+  },
+  chatPanel: {
+    flex: 1,
+    backgroundColor: palette.panel,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.border,
+    overflow: 'hidden',
+    minHeight: 420,
+  },
+  chatPanelDesktop: {
+    minHeight: 560,
+  },
+  compactPanel: {
+    minHeight: 480,
   },
   sidebarHeader: {
     flexDirection: 'row',
@@ -512,18 +540,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  chatPanel: {
-    flex: 1,
-    backgroundColor: palette.panel,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: palette.border,
-    overflow: 'hidden',
-    minHeight: 420,
-  },
-  chatPanelDesktop: {
-    minHeight: 620,
-  },
   emptyConversation: {
     flex: 1,
     alignItems: 'center',
@@ -531,6 +547,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     gap: 10,
     backgroundColor: '#0f172a',
+    minHeight: 420,
   },
   emptyConversationEyebrow: {
     color: palette.accent,
