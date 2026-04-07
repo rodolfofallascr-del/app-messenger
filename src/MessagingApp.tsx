@@ -14,9 +14,6 @@ import { ChatList } from './components/ChatList';
 import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
-import { QuickStats } from './components/QuickStats';
-import { mockChats, mockMessages } from './data/mockData';
-import { buildChatMessages, buildChatThread } from './lib/chatMappers';
 import { createChat, fetchChatRowsForCurrentUser, sendTextMessage } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
@@ -63,8 +60,17 @@ export function MessagingApp({ session }: MessagingAppProps) {
 
       setLiveChats(nextChats);
       setLiveMessages(nextMessages);
-      setSelectedChatId((current) => current || nextChats[0]?.id || '');
+      setSelectedChatId((current) => {
+        if (nextChats.some((chat) => chat.id === current)) {
+          return current;
+        }
+
+        return nextChats[0]?.id ?? '';
+      });
     } catch (error) {
+      setLiveChats([]);
+      setLiveMessages({});
+      setSelectedChatId('');
       setLoadingError(error instanceof Error ? error.message : 'No fue posible cargar los chats.');
     } finally {
       setLoadingChats(false);
@@ -75,33 +81,24 @@ export function MessagingApp({ session }: MessagingAppProps) {
     void loadChats();
   }, [loadChats, session.user.id]);
 
-  const sourceChats = liveChats.length > 0 ? liveChats : mockChats;
-  const sourceMessages = liveChats.length > 0 ? liveMessages : mockMessages;
-
-  useEffect(() => {
-    if (!selectedChatId && sourceChats.length > 0) {
-      setSelectedChatId(sourceChats[0].id);
-    }
-  }, [selectedChatId, sourceChats]);
-
   const selectedChat = useMemo(
-    () => sourceChats.find((chat) => chat.id === selectedChatId) ?? sourceChats[0],
-    [selectedChatId, sourceChats]
+    () => liveChats.find((chat) => chat.id === selectedChatId) ?? null,
+    [selectedChatId, liveChats]
   );
 
   const visibleChats = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) {
-      return sourceChats;
+      return liveChats;
     }
 
-    return sourceChats.filter((chat) => {
+    return liveChats.filter((chat) => {
       const haystack = `${chat.name} ${chat.lastMessage} ${chat.members.join(' ')}`.toLowerCase();
       return haystack.includes(query);
     });
-  }, [search, sourceChats]);
+  }, [search, liveChats]);
 
-  const currentMessages = selectedChat ? sourceMessages[selectedChat.id] ?? [] : [];
+  const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
   const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
 
   const handleSend = async () => {
@@ -125,16 +122,12 @@ export function MessagingApp({ session }: MessagingAppProps) {
 
     setLiveMessages((previous) => ({
       ...previous,
-      [selectedChat.id]: [...(previous[selectedChat.id] ?? currentMessages), optimisticMessage],
+      [selectedChat.id]: [...(previous[selectedChat.id] ?? []), optimisticMessage],
     }));
     setDrafts((previous) => ({
       ...previous,
       [selectedChat.id]: '',
     }));
-
-    if (liveChats.length === 0) {
-      return;
-    }
 
     setSending(true);
 
@@ -166,8 +159,8 @@ export function MessagingApp({ session }: MessagingAppProps) {
 
       setGroupName('');
       setParticipantEmails('');
-      setSelectedChatId(chatId);
       await loadChats();
+      setSelectedChatId(chatId);
       setCreateMessage('Conversacion creada correctamente.');
     } catch (error) {
       setCreateMessage(error instanceof Error ? error.message : 'No fue posible crear la conversacion.');
@@ -182,24 +175,44 @@ export function MessagingApp({ session }: MessagingAppProps) {
       .catch(() => undefined);
   };
 
-  const showEmptyState = !loadingChats && liveChats.length === 0;
+  const statusText = loadingError
+    ? `Estado: ${loadingError}`
+    : sending
+      ? 'Enviando mensaje...'
+      : creatingChat
+        ? 'Creando conversacion...'
+        : liveChats.length > 0
+          ? `${liveChats.length} conversaciones cargadas.`
+          : 'Listo para crear tu primera conversacion.';
 
   return (
     <View style={styles.root}>
-      <View style={[styles.heroCard, isDesktop && styles.heroCardDesktop]}>
-        <Text style={styles.eyebrow}>MVP de mensajeria</Text>
-        <Text style={styles.title}>Base inicial para tu app tipo WhatsApp</Text>
-        <Text style={styles.subtitle}>
-          Ahora ya puede conectarse a Supabase para usuarios reales. El siguiente paso es crear el
-          primer chat y activar realtime.
-        </Text>
-        <Text style={styles.sessionText}>Sesion activa: {session.user.email ?? 'usuario@local'}</Text>
-        <QuickStats />
+      <View style={[styles.headerShell, isDesktop && styles.headerShellDesktop]}>
+        <View style={styles.heroCard}>
+          <Text style={styles.eyebrow}>Mensajeria privada</Text>
+          <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
+          <Text style={styles.subtitle}>
+            Usuarios reales, conversaciones persistentes y base lista para sincronizacion en tiempo
+            real.
+          </Text>
+        </View>
+
+        <View style={styles.statusCard}>
+          <Text style={styles.statusLabel}>Sesion actual</Text>
+          <Text style={styles.statusEmail}>{session.user.email ?? 'usuario@local'}</Text>
+          <Text style={styles.statusCopy}>{statusText}</Text>
+          <Pressable style={styles.headerAction} onPress={handleSignOut}>
+            <Text style={styles.headerActionText}>Salir</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.workspace, isDesktop && styles.workspaceDesktop]}>
         <View style={[styles.sidebar, isDesktop && styles.sidebarDesktop]}>
-          <Text style={styles.sectionTitle}>Conversaciones</Text>
+          <View style={styles.sidebarHeader}>
+            <Text style={styles.sectionTitle}>Conversaciones</Text>
+            <Text style={styles.counter}>{liveChats.length}</Text>
+          </View>
           <CreateChatCard
             groupName={groupName}
             participantEmails={participantEmails}
@@ -219,15 +232,19 @@ export function MessagingApp({ session }: MessagingAppProps) {
           {loadingChats ? (
             <View style={styles.sidebarState}>
               <ActivityIndicator color={palette.accent} />
-              <Text style={styles.sidebarStateText}>Cargando chats reales...</Text>
+              <Text style={styles.sidebarStateText}>Cargando conversaciones...</Text>
             </View>
-          ) : showEmptyState ? (
+          ) : liveChats.length === 0 ? (
             <View style={styles.sidebarState}>
-              <Text style={styles.sidebarStateTitle}>Todavia no hay chats creados</Text>
+              <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
               <Text style={styles.sidebarStateText}>
-                Usa el formulario de arriba para crear la primera conversacion con usuarios ya
-                registrados.
+                Crea un chat con usuarios registrados y aqui aparecera en tiempo real.
               </Text>
+            </View>
+          ) : visibleChats.length === 0 ? (
+            <View style={styles.sidebarState}>
+              <Text style={styles.sidebarStateTitle}>Sin resultados</Text>
+              <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
             </View>
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatListContent}>
@@ -253,56 +270,59 @@ export function MessagingApp({ session }: MessagingAppProps) {
             </>
           ) : (
             <View style={styles.emptyConversation}>
-              <Text style={styles.emptyConversationTitle}>Sin conversacion seleccionada</Text>
+              <Text style={styles.emptyConversationEyebrow}>Sin chat abierto</Text>
+              <Text style={styles.emptyConversationTitle}>Tu bandeja esta lista</Text>
               <Text style={styles.emptyConversationText}>
-                Crea el primer chat para empezar a probar mensajes reales con Supabase.
+                Crea una conversacion desde la columna izquierda para empezar a enviar mensajes reales.
               </Text>
             </View>
           )}
         </View>
       </View>
-
-      <View style={[styles.bottomBar, isDesktop && styles.bottomBarDesktop]}>
-        <Text style={styles.bottomBarText}>
-          {loadingError
-            ? `Estado: ${loadingError}`
-            : sending
-              ? 'Enviando mensaje...'
-              : liveChats.length > 0
-                ? 'Chats reales cargados desde Supabase.'
-                : 'Backend conectado. Falta crear las primeras conversaciones.'}
-        </Text>
-        <Pressable style={styles.bottomBarAction} onPress={handleSignOut}>
-          <Text style={styles.bottomBarActionText}>Salir</Text>
-        </Pressable>
-      </View>
     </View>
   );
 }
+
+import { buildChatMessages, buildChatThread } from './lib/chatMappers';
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: palette.background,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 16,
     gap: 16,
     width: '100%',
     alignSelf: 'center',
   },
+  headerShell: {
+    gap: 14,
+  },
+  headerShellDesktop: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    maxWidth: 1280,
+    width: '100%',
+    alignSelf: 'center',
+  },
   heroCard: {
+    flex: 1,
     backgroundColor: palette.card,
-    borderRadius: 24,
-    padding: 20,
+    borderRadius: 28,
+    padding: 24,
     gap: 10,
     borderWidth: 1,
     borderColor: palette.border,
   },
-  heroCardDesktop: {
-    maxWidth: 1280,
-    width: '100%',
-    alignSelf: 'center',
+  statusCard: {
+    backgroundColor: '#101a2d',
+    borderRadius: 28,
+    padding: 24,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: palette.border,
+    minWidth: 300,
   },
   eyebrow: {
     color: palette.accent,
@@ -313,18 +333,44 @@ const styles = StyleSheet.create({
   },
   title: {
     color: palette.primaryText,
-    fontSize: 28,
+    fontSize: 34,
     fontWeight: '800',
+    lineHeight: 40,
   },
   subtitle: {
     color: palette.secondaryText,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 23,
+    maxWidth: 720,
   },
-  sessionText: {
-    color: palette.accentSoft,
+  statusLabel: {
+    color: palette.mutedText,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statusEmail: {
+    color: palette.primaryText,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  statusCopy: {
+    color: palette.secondaryText,
     fontSize: 13,
-    fontWeight: '600',
+    lineHeight: 20,
+  },
+  headerAction: {
+    alignSelf: 'flex-start',
+    backgroundColor: palette.accent,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    marginTop: 6,
+  },
+  headerActionText: {
+    color: palette.buttonText,
+    fontWeight: '800',
   },
   workspace: {
     flex: 1,
@@ -340,27 +386,41 @@ const styles = StyleSheet.create({
   },
   sidebar: {
     backgroundColor: palette.panel,
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    maxHeight: 280,
+    minHeight: 420,
   },
   sidebarDesktop: {
-    width: 360,
-    maxHeight: '100%',
-    minHeight: 560,
+    width: 380,
+    minHeight: 620,
+  },
+  sidebarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   sectionTitle: {
     color: palette.primaryText,
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  counter: {
+    minWidth: 32,
+    textAlign: 'center',
+    color: palette.accentSoft,
+    backgroundColor: palette.input,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    fontWeight: '800',
   },
   searchInput: {
     backgroundColor: palette.input,
     color: palette.primaryText,
-    borderRadius: 14,
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 12,
@@ -375,12 +435,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 10,
-    paddingVertical: 24,
+    paddingVertical: 32,
+    paddingHorizontal: 12,
   },
   sidebarStateTitle: {
     color: palette.primaryText,
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '800',
     textAlign: 'center',
   },
   sidebarStateText: {
@@ -392,62 +453,40 @@ const styles = StyleSheet.create({
   chatPanel: {
     flex: 1,
     backgroundColor: palette.panel,
-    borderRadius: 22,
+    borderRadius: 24,
     borderWidth: 1,
     borderColor: palette.border,
     overflow: 'hidden',
+    minHeight: 420,
   },
   chatPanelDesktop: {
-    minHeight: 560,
+    minHeight: 620,
   },
   emptyConversation: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 40,
     gap: 10,
+    backgroundColor: '#0f172a',
+  },
+  emptyConversationEyebrow: {
+    color: palette.accent,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyConversationTitle: {
     color: palette.primaryText,
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
   },
   emptyConversationText: {
     color: palette.secondaryText,
-    fontSize: 14,
-    lineHeight: 21,
+    fontSize: 15,
+    lineHeight: 23,
     textAlign: 'center',
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: palette.card,
-    borderRadius: 18,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: palette.border,
-    gap: 12,
-  },
-  bottomBarDesktop: {
-    maxWidth: 1280,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  bottomBarText: {
-    flex: 1,
-    color: palette.secondaryText,
-    fontSize: 13,
-  },
-  bottomBarAction: {
-    backgroundColor: palette.accent,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  bottomBarActionText: {
-    color: palette.buttonText,
-    fontWeight: '700',
+    maxWidth: 420,
   },
 });
