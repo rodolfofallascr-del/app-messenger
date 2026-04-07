@@ -14,6 +14,7 @@ import { ChatList } from './components/ChatList';
 import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
+import { buildChatMessages, buildChatThread } from './lib/chatMappers';
 import { createChat, fetchChatRowsForCurrentUser, sendTextMessage } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
@@ -81,6 +82,26 @@ export function MessagingApp({ session }: MessagingAppProps) {
     void loadChats();
   }, [loadChats, session.user.id]);
 
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`messaging-realtime-${session.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => {
+        void loadChats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members' }, () => {
+        void loadChats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+        void loadChats();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [loadChats, session.user.id]);
+
   const selectedChat = useMemo(
     () => liveChats.find((chat) => chat.id === selectedChatId) ?? null,
     [selectedChatId, liveChats]
@@ -137,9 +158,9 @@ export function MessagingApp({ session }: MessagingAppProps) {
         senderId: session.user.id,
         body: trimmed,
       });
-      await loadChats();
     } catch (error) {
       setLoadingError(error instanceof Error ? error.message : 'No fue posible enviar el mensaje.');
+      await loadChats();
     } finally {
       setSending(false);
     }
@@ -159,7 +180,6 @@ export function MessagingApp({ session }: MessagingAppProps) {
 
       setGroupName('');
       setParticipantEmails('');
-      await loadChats();
       setSelectedChatId(chatId);
       setCreateMessage('Conversacion creada correctamente.');
     } catch (error) {
@@ -182,7 +202,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
       : creatingChat
         ? 'Creando conversacion...'
         : liveChats.length > 0
-          ? `${liveChats.length} conversaciones cargadas.`
+          ? `${liveChats.length} conversaciones sincronizadas.`
           : 'Listo para crear tu primera conversacion.';
 
   return (
@@ -192,8 +212,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
           <Text style={styles.eyebrow}>Mensajeria privada</Text>
           <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
           <Text style={styles.subtitle}>
-            Usuarios reales, conversaciones persistentes y base lista para sincronizacion en tiempo
-            real.
+            Usuarios reales, conversaciones persistentes y sincronizacion en vivo con Supabase.
           </Text>
         </View>
 
@@ -282,8 +301,6 @@ export function MessagingApp({ session }: MessagingAppProps) {
     </View>
   );
 }
-
-import { buildChatMessages, buildChatThread } from './lib/chatMappers';
 
 const styles = StyleSheet.create({
   root: {
