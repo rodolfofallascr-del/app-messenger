@@ -22,7 +22,7 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
   }, [chat.id, messages.length]);
 
   return (
-    <>
+    <View style={styles.container}>
       <View style={styles.header}>
         <View>
           <Text style={styles.chatName}>{chat.name}</Text>
@@ -37,6 +37,7 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
 
       <ScrollView
         ref={scrollViewRef}
+        style={styles.scrollArea}
         contentContainerStyle={styles.body}
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
@@ -62,11 +63,15 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
           );
         })}
       </ScrollView>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    minHeight: 0,
+  },
   header: {
     paddingHorizontal: 18,
     paddingVertical: 16,
@@ -97,6 +102,10 @@ const styles = StyleSheet.create({
     color: palette.accentSoft,
     fontWeight: '700',
     fontSize: 12,
+  },
+  scrollArea: {
+    flex: 1,
+    minHeight: 0,
   },
   body: {
     padding: 18,

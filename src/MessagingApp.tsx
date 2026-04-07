@@ -31,6 +31,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
+  const desktopViewportHeight = Math.max(640, height - 32);
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
@@ -407,10 +408,15 @@ export function MessagingApp({ session }: MessagingAppProps) {
   return (
     <ScrollView
       style={styles.screen}
-      contentContainerStyle={[styles.screenContent, isDesktop && styles.screenContentDesktop]}
+      contentContainerStyle={[
+        styles.screenContent,
+        isDesktop && styles.screenContentDesktop,
+        isDesktop && { minHeight: desktopViewportHeight },
+      ]}
       showsVerticalScrollIndicator={false}
+      scrollEnabled={!isDesktop}
     >
-      <View style={styles.root}>
+      <View style={[styles.root, isDesktop && styles.rootDesktop, isDesktop && { height: desktopViewportHeight }]}>
         <View style={[styles.headerShell, isDesktop && styles.headerShellDesktop]}>
           <View style={styles.heroCard}>
             <Text style={styles.eyebrow}>Mensajeria privada</Text>
@@ -472,7 +478,11 @@ export function MessagingApp({ session }: MessagingAppProps) {
                 <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
               </View>
             ) : (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatListContent}>
+              <ScrollView
+                style={styles.chatListScroller}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.chatListContent}
+              >
                 <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={setSelectedChatId} />
               </ScrollView>
             )}
@@ -534,6 +544,9 @@ const styles = StyleSheet.create({
     width: '100%',
     alignSelf: 'center',
   },
+  rootDesktop: {
+    overflow: 'hidden',
+  },
   headerShell: {
     gap: 14,
   },
@@ -543,6 +556,7 @@ const styles = StyleSheet.create({
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
+    flexShrink: 0,
   },
   heroCard: {
     flex: 1,
@@ -615,10 +629,12 @@ const styles = StyleSheet.create({
   },
   workspaceDesktop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     maxWidth: 1280,
     width: '100%',
     alignSelf: 'center',
+    flex: 1,
+    minHeight: 0,
   },
   sidebar: {
     backgroundColor: palette.panel,
@@ -630,7 +646,7 @@ const styles = StyleSheet.create({
   },
   sidebarDesktop: {
     width: 380,
-    minHeight: 560,
+    minHeight: 0,
   },
   chatPanel: {
     flex: 1,
@@ -642,7 +658,7 @@ const styles = StyleSheet.create({
     minHeight: 420,
   },
   chatPanelDesktop: {
-    minHeight: 560,
+    minHeight: 0,
   },
   compactPanel: {
     minHeight: 480,
@@ -678,6 +694,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
   },
+  chatListScroller: {
+    flex: 1,
+    minHeight: 0,
+  },
   chatListContent: {
     paddingBottom: 4,
   },
@@ -688,6 +708,7 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingVertical: 32,
     paddingHorizontal: 12,
+    minHeight: 0,
   },
   sidebarStateTitle: {
     color: palette.primaryText,
@@ -708,7 +729,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 40,
     gap: 10,
     backgroundColor: '#0f172a',
-    minHeight: 420,
+    minHeight: 0,
   },
   emptyConversationEyebrow: {
     color: palette.accent,
