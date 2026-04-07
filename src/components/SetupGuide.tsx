@@ -1,5 +1,7 @@
-import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Image, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { palette } from '../theme/palette';
+
+const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
 
 const steps = [
   'Crea un proyecto en Supabase.',
@@ -17,11 +19,12 @@ export function SetupGuide() {
     <View style={styles.screen}>
       <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
         <View style={[styles.infoCard, isDesktop && styles.infoCardDesktop]}>
-          <Text style={styles.eyebrow}>Modo configuracion</Text>
-          <Text style={styles.headline}>Conecta el backend y ya tendremos movil + web</Text>
+          <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.eyebrow}>Chat Santanita</Text>
+          <Text style={styles.headline}>Conecta el backend y tendras la app completa</Text>
           <Text style={styles.copy}>
-            Esta app ya esta lista para abrirse desde el navegador de la compu. Lo que falta es
-            conectar Supabase para activar usuarios, historial y sincronizacion real.
+            La app ya esta preparada para moverse con la identidad de tu marca tanto en movil como
+            en web. Lo que falta aqui es conectar Supabase para activar usuarios, historial y tiempo real.
           </Text>
         </View>
 
@@ -80,6 +83,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  logo: {
+    width: '100%',
+    height: 180,
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
   headline: {
     color: palette.primaryText,
     fontSize: 32,
@@ -103,7 +112,7 @@ const styles = StyleSheet.create({
     width: 480,
   },
   eyebrow: {
-    color: palette.accent,
+    color: '#facc15',
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',

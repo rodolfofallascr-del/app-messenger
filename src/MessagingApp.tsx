@@ -4,6 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -26,6 +27,8 @@ import { ChatMessage, ChatThread, PendingAttachment, SelectableUser } from './ty
 type MessagingAppProps = {
   session: Session;
 };
+
+const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
 export function MessagingApp({ session }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
@@ -419,10 +422,11 @@ export function MessagingApp({ session }: MessagingAppProps) {
       <View style={[styles.root, isDesktop && styles.rootDesktop, isDesktop && { height: desktopViewportHeight }]}>
         <View style={[styles.headerShell, isDesktop && styles.headerShellDesktop]}>
           <View style={styles.heroCard}>
-            <Text style={styles.eyebrow}>Mensajeria privada</Text>
+            <Image source={brandLogo} style={styles.heroLogo} resizeMode="contain" />
+            <Text style={styles.eyebrow}>Chat Santanita</Text>
             <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
             <Text style={styles.subtitle}>
-              Usuarios reales, conversaciones persistentes y sincronizacion en vivo con Supabase.
+              Usuarios reales, conversaciones persistentes, adjuntos y sincronizacion en vivo con la identidad de tu marca.
             </Text>
           </View>
 
@@ -567,6 +571,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
   },
+  heroLogo: {
+    width: '100%',
+    height: 118,
+    alignSelf: 'center',
+    marginBottom: 4,
+  },
   statusCard: {
     backgroundColor: '#101a2d',
     borderRadius: 28,
@@ -577,7 +587,7 @@ const styles = StyleSheet.create({
     minWidth: 300,
   },
   eyebrow: {
-    color: palette.accent,
+    color: '#facc15',
     textTransform: 'uppercase',
     letterSpacing: 1,
     fontSize: 12,

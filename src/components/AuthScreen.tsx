@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { getSupabaseClient } from '../lib/supabase';
 import { palette } from '../theme/palette';
+
+const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
 
 export function AuthScreen() {
   const { width } = useWindowDimensions();
@@ -64,22 +66,23 @@ export function AuthScreen() {
     <View style={styles.screen}>
       <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
         <View style={[styles.introCard, isDesktop && styles.introCardDesktop]}>
-          <Text style={styles.eyebrow}>Holla estilo profesional</Text>
-          <Text style={styles.headline}>Una sola app para movil y computadora</Text>
+          <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.eyebrow}>Chat Santanita</Text>
+          <Text style={styles.headline}>Mensajeria privada para tu equipo comercial</Text>
           <Text style={styles.copy}>
-            Esta base usa Expo para compartir codigo entre Android y web, y Supabase para login,
-            persistencia e historial real de conversaciones.
+            La misma app te sirve en movil y computadora, con conversaciones reales, adjuntos,
+            sincronizacion en vivo y la identidad visual de tu marca desde el primer acceso.
           </Text>
           <View style={styles.bulletList}>
-            <Text style={styles.bullet}>Mensajes persistentes y disponibles aunque el receptor no este conectado.</Text>
-            <Text style={styles.bullet}>Misma cuenta desde celular y navegador.</Text>
-            <Text style={styles.bullet}>Preparada para grupos, archivos, imagenes y notificaciones.</Text>
+            <Text style={styles.bullet}>Historial persistente para que ningun mensaje se pierda.</Text>
+            <Text style={styles.bullet}>Chats directos y grupos desde la misma base.</Text>
+            <Text style={styles.bullet}>Lista para crecer con imagenes, archivos y notificaciones.</Text>
           </View>
         </View>
 
         <View style={[styles.card, isDesktop && styles.cardDesktop]}>
-          <Text style={styles.eyebrow}>Supabase Auth</Text>
-          <Text style={styles.title}>Entra a tu app de mensajeria</Text>
+          <Text style={styles.eyebrow}>Acceso seguro</Text>
+          <Text style={styles.title}>Entra a Chat Santanita</Text>
           <Text style={styles.subtitle}>
             Esta primera version usa correo y contrasena. Luego podemos agregar telefono, perfiles
             y permisos por organizacion.
@@ -174,6 +177,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  logo: {
+    width: '100%',
+    height: 190,
+    alignSelf: 'center',
+    marginBottom: 6,
+  },
   headline: {
     color: palette.primaryText,
     fontSize: 32,
@@ -206,7 +215,7 @@ const styles = StyleSheet.create({
     width: 440,
   },
   eyebrow: {
-    color: palette.accent,
+    color: '#facc15',
     fontSize: 12,
     fontWeight: '700',
     textTransform: 'uppercase',
