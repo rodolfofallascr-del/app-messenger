@@ -55,9 +55,11 @@ export function MessagingApp({ session }: MessagingAppProps) {
     }
   }, [session.user.id]);
 
-  const loadChats = useCallback(async () => {
-    setLoadingChats(true);
-    setLoadingError(null);
+  const loadChats = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoadingChats(true);
+      setLoadingError(null);
+    }
 
     try {
       const { userId, rows } = await fetchChatRowsForCurrentUser();
@@ -89,7 +91,9 @@ export function MessagingApp({ session }: MessagingAppProps) {
       setSelectedChatId('');
       setLoadingError(error instanceof Error ? error.message : 'No fue posible cargar los chats.');
     } finally {
-      setLoadingChats(false);
+      if (!options?.silent) {
+        setLoadingChats(false);
+      }
     }
   }, []);
 
@@ -102,13 +106,13 @@ export function MessagingApp({ session }: MessagingAppProps) {
     const channel = supabase
       .channel(`messaging-realtime-${session.user.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chats' }, () => {
-        void loadChats();
+        void loadChats({ silent: true });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_members' }, () => {
-        void loadChats();
+        void loadChats({ silent: true });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        void loadChats();
+        void loadChats({ silent: true });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         void loadUsers();
@@ -119,6 +123,20 @@ export function MessagingApp({ session }: MessagingAppProps) {
       void supabase.removeChannel(channel);
     };
   }, [loadChats, loadUsers, session.user.id]);
+
+  useEffect(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      void loadChats({ silent: true });
+    }, 2500);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [loadChats, selectedChatId]);
 
   const selectedChat = useMemo(
     () => liveChats.find((chat) => chat.id === selectedChatId) ?? null,
@@ -182,10 +200,10 @@ export function MessagingApp({ session }: MessagingAppProps) {
         senderId: session.user.id,
         body: trimmed,
       });
-      await loadChats();
+      await loadChats({ silent: true });
     } catch (error) {
       setLoadingError(error instanceof Error ? error.message : 'No fue posible enviar el mensaje.');
-      await loadChats();
+      await loadChats({ silent: true });
     } finally {
       setSending(false);
     }
