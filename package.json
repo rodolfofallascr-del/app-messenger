@@ -12,6 +12,8 @@
     "@expo/metro-runtime": "~6.1.2",
     "@supabase/supabase-js": "^2.101.1",
     "expo": "~54.0.33",
+    "expo-document-picker": "~14.0.8",
+    "expo-image-picker": "~17.0.10",
     "expo-secure-store": "^55.0.11",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",

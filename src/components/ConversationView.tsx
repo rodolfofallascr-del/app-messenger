@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
 
@@ -47,7 +47,13 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
             <View key={message.id} style={[styles.bubble, isOutgoing ? styles.outgoing : styles.incoming]}>
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
               <Text style={styles.content}>{message.content}</Text>
-              {message.attachmentLabel ? <Text style={styles.attachment}>{message.attachmentLabel}</Text> : null}
+              {message.attachmentLabel && message.attachmentUrl ? (
+                <Pressable onPress={() => Linking.openURL(message.attachmentUrl ?? '')} style={styles.attachmentCard}>
+                  <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
+                  <Text style={styles.attachment}>{message.attachmentLabel}</Text>
+                  <Text style={styles.attachmentHint}>Abrir</Text>
+                </Pressable>
+              ) : null}
               <Text style={styles.timestamp}>
                 {message.timestamp}
                 {isOutgoing && message.status ? ` · ${message.status}` : ''}
@@ -122,10 +128,27 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
   },
+  attachmentCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    padding: 10,
+    gap: 2,
+  },
+  attachmentType: {
+    color: '#93c5fd',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
   attachment: {
     color: '#fdba74',
     fontSize: 12,
     fontWeight: '700',
+  },
+  attachmentHint: {
+    color: palette.secondaryText,
+    fontSize: 11,
   },
   timestamp: {
     color: palette.mutedText,

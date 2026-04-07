@@ -22,6 +22,8 @@ export type ChatMessage = {
   direction: MessageDirection;
   status?: MessageStatus;
   attachmentLabel?: string;
+  attachmentUrl?: string;
+  attachmentType?: 'image' | 'file';
 };
 
 export type ProfileRecord = {
@@ -64,4 +66,11 @@ export type SelectableUser = {
   id: string;
   email: string;
   fullName: string;
+};
+
+export type PendingAttachment = {
+  uri: string;
+  name: string;
+  mimeType: string;
+  type: 'image' | 'file';
 };

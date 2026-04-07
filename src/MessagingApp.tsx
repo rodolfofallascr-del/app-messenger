@@ -1,3 +1,5 @@
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -15,10 +17,10 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { createChat, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendTextMessage } from './lib/chatService';
+import { createChat, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
-import { ChatMessage, ChatThread, SelectableUser } from './types/chat';
+import { ChatMessage, ChatThread, PendingAttachment, SelectableUser } from './types/chat';
 
 type MessagingAppProps = {
   session: Session;
@@ -42,6 +44,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const [creatingChat, setCreatingChat] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [createMessage, setCreateMessage] = useState<string | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
@@ -165,23 +168,63 @@ export function MessagingApp({ session }: MessagingAppProps) {
     );
   };
 
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setPendingAttachment({
+      uri: asset.uri,
+      name: asset.fileName || `imagen-${Date.now()}.jpg`,
+      mimeType: asset.mimeType || 'image/jpeg',
+      type: 'image',
+    });
+  };
+
+  const handlePickFile = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setPendingAttachment({
+      uri: asset.uri,
+      name: asset.name,
+      mimeType: asset.mimeType || 'application/octet-stream',
+      type: asset.mimeType?.startsWith('image/') ? 'image' : 'file',
+    });
+  };
+
   const handleSend = async () => {
     if (!selectedChat) {
       return;
     }
 
     const trimmed = currentDraft.trim();
-    if (!trimmed) {
+    if (!trimmed && !pendingAttachment) {
       return;
     }
 
     const optimisticMessage: ChatMessage = {
       id: `local-${Date.now()}`,
       author: 'Tu',
-      content: trimmed,
+      content: trimmed || (pendingAttachment?.type === 'image' ? 'Imagen adjunta' : 'Archivo adjunto'),
       timestamp: 'Ahora',
       direction: 'outgoing',
       status: 'sending',
+      attachmentLabel: pendingAttachment?.name,
+      attachmentType: pendingAttachment?.type,
     };
 
     setLiveMessages((previous) => ({
@@ -193,14 +236,25 @@ export function MessagingApp({ session }: MessagingAppProps) {
       [selectedChat.id]: '',
     }));
 
+    const nextAttachment = pendingAttachment;
+    setPendingAttachment(null);
     setSending(true);
 
     try {
-      await sendTextMessage({
-        chatId: selectedChat.id,
-        senderId: session.user.id,
-        body: trimmed,
-      });
+      if (nextAttachment) {
+        await sendAttachmentMessage({
+          chatId: selectedChat.id,
+          senderId: session.user.id,
+          attachment: nextAttachment,
+          body: trimmed,
+        });
+      } else {
+        await sendTextMessage({
+          chatId: selectedChat.id,
+          senderId: session.user.id,
+          body: trimmed,
+        });
+      }
       await loadChats({ silent: true });
     } catch (error) {
       setLoadingError(error instanceof Error ? error.message : 'No fue posible enviar el mensaje.');
@@ -329,12 +383,17 @@ export function MessagingApp({ session }: MessagingAppProps) {
                 <ConversationView chat={selectedChat} messages={currentMessages} />
                 <MessageComposer
                   value={currentDraft}
+                  attachment={pendingAttachment}
+                  busy={sending}
                   onChangeText={(value) =>
                     setDrafts((previous) => ({
                       ...previous,
                       [selectedChat.id]: value,
                     }))
                   }
+                  onPickImage={handlePickImage}
+                  onPickFile={handlePickFile}
+                  onClearAttachment={() => setPendingAttachment(null)}
                   onSend={handleSend}
                 />
               </>

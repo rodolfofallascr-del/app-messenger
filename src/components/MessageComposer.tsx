@@ -1,19 +1,45 @@
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PendingAttachment } from '../types/chat';
 import { palette } from '../theme/palette';
 
 type MessageComposerProps = {
   value: string;
+  attachment: PendingAttachment | null;
+  busy?: boolean;
   onChangeText: (value: string) => void;
+  onPickImage: () => void;
+  onPickFile: () => void;
+  onClearAttachment: () => void;
   onSend: () => void;
 };
 
-export function MessageComposer({ value, onChangeText, onSend }: MessageComposerProps) {
+export function MessageComposer({
+  value,
+  attachment,
+  busy,
+  onChangeText,
+  onPickImage,
+  onPickFile,
+  onClearAttachment,
+  onSend,
+}: MessageComposerProps) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.attachments}>
-        <Tag label="+ Foto" />
-        <Tag label="+ Archivo" />
+        <Tag label="+ Foto" onPress={onPickImage} />
+        <Tag label="+ Archivo" onPress={onPickFile} />
       </View>
+      {attachment ? (
+        <View style={styles.attachmentPreview}>
+          <View style={styles.attachmentInfo}>
+            <Text style={styles.attachmentName}>{attachment.name}</Text>
+            <Text style={styles.attachmentMeta}>{attachment.type === 'image' ? 'Imagen lista para enviar' : 'Archivo listo para enviar'}</Text>
+          </View>
+          <Pressable onPress={onClearAttachment} style={styles.removeButton}>
+            <Text style={styles.removeButtonText}>Quitar</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <View style={styles.row}>
         <TextInput
           value={value}
@@ -23,19 +49,19 @@ export function MessageComposer({ value, onChangeText, onSend }: MessageComposer
           style={styles.input}
           multiline
         />
-        <Pressable onPress={onSend} style={styles.button}>
-          <Text style={styles.buttonText}>Enviar</Text>
+        <Pressable onPress={onSend} style={[styles.button, busy && styles.buttonDisabled]} disabled={busy}>
+          <Text style={styles.buttonText}>{busy ? 'Enviando' : 'Enviar'}</Text>
         </Pressable>
       </View>
     </View>
   );
 }
 
-function Tag({ label }: { label: string }) {
+function Tag({ label, onPress }: { label: string; onPress: () => void }) {
   return (
-    <View style={styles.tag}>
+    <Pressable onPress={onPress} style={styles.tag}>
       <Text style={styles.tagText}>{label}</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -59,6 +85,38 @@ const styles = StyleSheet.create({
   tagText: {
     color: palette.secondaryText,
     fontWeight: '600',
+    fontSize: 12,
+  },
+  attachmentPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#122033',
+    borderRadius: 16,
+    padding: 12,
+  },
+  attachmentInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  attachmentName: {
+    color: palette.primaryText,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  attachmentMeta: {
+    color: palette.secondaryText,
+    fontSize: 12,
+  },
+  removeButton: {
+    backgroundColor: palette.card,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  removeButtonText: {
+    color: palette.secondaryText,
+    fontWeight: '700',
     fontSize: 12,
   },
   row: {
@@ -86,6 +144,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     color: palette.buttonText,

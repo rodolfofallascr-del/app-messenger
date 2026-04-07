@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './supabase';
-import { ChatMemberRecord, ChatRecord, MessageRecord, ProfileRecord, SelectableUser } from '../types/chat';
+import { ChatMemberRecord, ChatRecord, MessageRecord, PendingAttachment, ProfileRecord, SelectableUser } from '../types/chat';
 
 type RawProfile = ProfileRecord | ProfileRecord[] | null;
 
@@ -12,6 +12,8 @@ type ChatRow = ChatRecord & {
   members: Array<ChatMemberRecord & { profile: ProfileRecord | null }>;
   messages: Array<MessageRecord & { profile: ProfileRecord | null }>;
 };
+
+const ATTACHMENTS_BUCKET = 'chat-attachments';
 
 export async function fetchChatRowsForCurrentUser() {
   const supabase = getSupabaseClient();
@@ -206,6 +208,41 @@ export async function sendTextMessage(params: { chatId: string; senderId: string
   }
 }
 
+export async function sendAttachmentMessage(params: {
+  chatId: string;
+  senderId: string;
+  attachment: PendingAttachment;
+  body?: string;
+}) {
+  const supabase = getSupabaseClient();
+  const path = `${params.chatId}/${Date.now()}-${sanitizeFileName(params.attachment.name)}`;
+  const fileBuffer = await readFileAsArrayBuffer(params.attachment.uri);
+
+  const { error: uploadError } = await supabase.storage.from(ATTACHMENTS_BUCKET).upload(path, fileBuffer, {
+    contentType: params.attachment.mimeType,
+    upsert: false,
+  });
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+  const { data: publicUrlData } = supabase.storage.from(ATTACHMENTS_BUCKET).getPublicUrl(path);
+
+  const { error } = await supabase.from('messages').insert({
+    chat_id: params.chatId,
+    sender_id: params.senderId,
+    body: params.body?.trim() || null,
+    message_type: params.attachment.type,
+    attachment_url: publicUrlData.publicUrl,
+    attachment_name: params.attachment.name,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
 async function findExistingDirectChat(currentUserId: string, otherUserId: string) {
   const supabase = getSupabaseClient();
   const { data: memberships, error } = await supabase
@@ -245,6 +282,16 @@ async function findExistingDirectChat(currentUserId: string, otherUserId: string
   }
 
   return null;
+}
+
+async function readFileAsArrayBuffer(uri: string) {
+  const response = await fetch(uri);
+  const blob = await response.blob();
+  return blob;
+}
+
+function sanitizeFileName(name: string) {
+  return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
 function normalizeProfile(profile: RawProfile) {

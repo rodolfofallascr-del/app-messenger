@@ -55,6 +55,8 @@ export function buildChatMessages(messages: MessageRecord[], currentUserId: stri
     timestamp: formatRelativeTime(message.created_at),
     direction: message.sender_id === currentUserId ? 'outgoing' : 'incoming',
     attachmentLabel: message.attachment_name || undefined,
+    attachmentUrl: message.attachment_url || undefined,
+    attachmentType: message.message_type === 'image' ? 'image' : message.message_type === 'file' ? 'file' : undefined,
   })) satisfies ChatMessage[];
 }
 
@@ -72,11 +74,11 @@ function messagePreview(message?: MessageRecord | null) {
 
 function attachmentFallback(message: MessageRecord) {
   if (message.message_type === 'image') {
-    return 'Imagen';
+    return 'Imagen adjunta';
   }
 
   if (message.message_type === 'file') {
-    return message.attachment_name || 'Archivo';
+    return message.attachment_name || 'Archivo adjunto';
   }
 
   return 'Mensaje';
