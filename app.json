@@ -13,9 +13,11 @@
       "backgroundColor": "#020617"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.chatsantanita.app"
     },
     "android": {
+      "package": "com.chatsantanita.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/chat-santanita-icon-square.png",
         "backgroundColor": "#020617"
@@ -25,6 +27,12 @@
     },
     "web": {
       "favicon": "./assets/chat-santanita-icon-square.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e902b560-e8d8-485a-b273-d998f6af53e1"
+      }
+    },
+    "owner": "rodolfo79"
   }
 }
