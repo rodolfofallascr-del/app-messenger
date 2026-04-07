@@ -59,3 +59,9 @@ export type MessageRecord = {
   created_at: string;
   profile?: ProfileRecord | null;
 };
+
+export type SelectableUser = {
+  id: string;
+  email: string;
+  fullName: string;
+};

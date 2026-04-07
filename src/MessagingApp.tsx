@@ -15,10 +15,10 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { createChat, fetchChatRowsForCurrentUser, sendTextMessage } from './lib/chatService';
+import { createChat, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendTextMessage } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
-import { ChatMessage, ChatThread } from './types/chat';
+import { ChatMessage, ChatThread, SelectableUser } from './types/chat';
 
 type MessagingAppProps = {
   session: Session;
@@ -32,13 +32,28 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const [search, setSearch] = useState('');
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
   const [liveMessages, setLiveMessages] = useState<Record<string, ChatMessage[]>>({});
+  const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(true);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [creatingChat, setCreatingChat] = useState(false);
   const [groupName, setGroupName] = useState('');
-  const [participantEmails, setParticipantEmails] = useState('');
   const [createMessage, setCreateMessage] = useState<string | null>(null);
+
+  const loadUsers = useCallback(async () => {
+    setLoadingUsers(true);
+
+    try {
+      const users = await fetchSelectableUsers(session.user.id);
+      setAvailableUsers(users);
+    } catch (error) {
+      setCreateMessage(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [session.user.id]);
 
   const loadChats = useCallback(async () => {
     setLoadingChats(true);
@@ -79,8 +94,8 @@ export function MessagingApp({ session }: MessagingAppProps) {
   }, []);
 
   useEffect(() => {
-    void loadChats();
-  }, [loadChats, session.user.id]);
+    void Promise.all([loadUsers(), loadChats()]);
+  }, [loadChats, loadUsers, session.user.id]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -95,12 +110,15 @@ export function MessagingApp({ session }: MessagingAppProps) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
         void loadChats();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        void loadUsers();
+      })
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadChats, session.user.id]);
+  }, [loadChats, loadUsers, session.user.id]);
 
   const selectedChat = useMemo(
     () => liveChats.find((chat) => chat.id === selectedChatId) ?? null,
@@ -121,6 +139,12 @@ export function MessagingApp({ session }: MessagingAppProps) {
 
   const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
   const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
+
+  const handleToggleUser = (userId: string) => {
+    setSelectedUserIds((current) =>
+      current.includes(userId) ? current.filter((id) => id !== userId) : [...current, userId]
+    );
+  };
 
   const handleSend = async () => {
     if (!selectedChat) {
@@ -174,13 +198,12 @@ export function MessagingApp({ session }: MessagingAppProps) {
     try {
       const chatId = await createChat({
         currentUserId: session.user.id,
-        currentUserEmail: session.user.email ?? null,
         name: groupName,
-        participantEmails: participantEmails.split(',').map((item) => item.trim()),
+        participantIds: selectedUserIds,
       });
 
       setGroupName('');
-      setParticipantEmails('');
+      setSelectedUserIds([]);
       await loadChats();
       setSelectedChatId(chatId);
       setCreateMessage('Conversacion creada correctamente.');
@@ -236,9 +259,11 @@ export function MessagingApp({ session }: MessagingAppProps) {
           </View>
           <CreateChatCard
             groupName={groupName}
-            participantEmails={participantEmails}
+            selectedUserIds={selectedUserIds}
+            users={availableUsers}
+            loadingUsers={loadingUsers}
             onChangeGroupName={setGroupName}
-            onChangeParticipantEmails={setParticipantEmails}
+            onToggleUser={handleToggleUser}
             onCreate={handleCreateChat}
             busy={creatingChat}
             message={createMessage}

@@ -1,5 +1,5 @@
 import { getSupabaseClient } from './supabase';
-import { ChatMemberRecord, ChatRecord, MessageRecord, ProfileRecord } from '../types/chat';
+import { ChatMemberRecord, ChatRecord, MessageRecord, ProfileRecord, SelectableUser } from '../types/chat';
 
 type RawProfile = ProfileRecord | ProfileRecord[] | null;
 
@@ -94,45 +94,60 @@ export async function fetchChatRowsForCurrentUser() {
   };
 }
 
+export async function fetchSelectableUsers(currentUserId: string) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,email,full_name')
+    .neq('id', currentUserId)
+    .not('email', 'is', null)
+    .order('full_name', { ascending: true })
+    .order('email', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as Array<Pick<ProfileRecord, 'id' | 'email' | 'full_name'>>).map((profile) => ({
+    id: profile.id,
+    email: profile.email ?? '',
+    fullName: profile.full_name?.trim() || profile.email || 'Usuario',
+  })) satisfies SelectableUser[];
+}
+
 export async function createChat(params: {
   currentUserId: string;
-  currentUserEmail: string | null;
   name: string;
-  participantEmails: string[];
+  participantIds: string[];
 }) {
   const supabase = getSupabaseClient();
-  const normalizedEmails = Array.from(
-    new Set(
-      params.participantEmails
-        .map((email) => email.trim().toLowerCase())
-        .filter((email) => email.length > 0)
-        .filter((email) => email !== (params.currentUserEmail ?? '').toLowerCase())
-    )
+  const normalizedParticipantIds = Array.from(
+    new Set(params.participantIds.map((id) => id.trim()).filter((id) => id.length > 0).filter((id) => id !== params.currentUserId))
   );
 
-  if (normalizedEmails.length === 0) {
-    throw new Error('Agrega al menos un correo de participante.');
+  if (normalizedParticipantIds.length === 0) {
+    throw new Error('Selecciona al menos un usuario.');
   }
 
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
     .select('id,email,full_name,avatar_url,created_at')
-    .in('email', normalizedEmails);
+    .in('id', normalizedParticipantIds);
 
   if (profilesError) {
     throw profilesError;
   }
 
   const foundProfiles = (profiles ?? []) as ProfileRecord[];
-  const missingEmails = normalizedEmails.filter(
-    (email) => !foundProfiles.some((profile) => profile.email?.toLowerCase() === email)
+  const missingParticipants = normalizedParticipantIds.filter(
+    (participantId) => !foundProfiles.some((profile) => profile.id === participantId)
   );
 
-  if (missingEmails.length > 0) {
-    throw new Error(`Estos usuarios todavia no existen en la app: ${missingEmails.join(', ')}`);
+  if (missingParticipants.length > 0) {
+    throw new Error('Algunos usuarios seleccionados ya no estan disponibles.');
   }
 
-  const chatType = normalizedEmails.length > 1 ? 'group' : 'direct';
+  const chatType = normalizedParticipantIds.length > 1 ? 'group' : 'direct';
 
   if (chatType === 'direct') {
     const existingChatId = await findExistingDirectChat(params.currentUserId, foundProfiles[0].id);
