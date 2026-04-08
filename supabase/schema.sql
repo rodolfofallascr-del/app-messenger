@@ -5,8 +5,19 @@ create table if not exists public.profiles (
   email text unique,
   full_name text,
   avatar_url text,
+  role text not null default 'client' check (role in ('admin', 'client')),
+  status text not null default 'pending' check (status in ('pending', 'approved', 'blocked')),
   created_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.profiles add column if not exists role text not null default 'client';
+alter table public.profiles add column if not exists status text not null default 'pending';
+
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles add constraint profiles_role_check check (role in ('admin', 'client'));
+
+alter table public.profiles drop constraint if exists profiles_status_check;
+alter table public.profiles add constraint profiles_status_check check (status in ('pending', 'approved', 'blocked'));
 
 create table if not exists public.chats (
   id uuid primary key default gen_random_uuid(),
@@ -40,19 +51,42 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $$
+as 
 begin
-  insert into public.profiles (id, email, full_name)
+  insert into public.profiles (id, email, full_name, role, status)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'full_name', '')
-  );
+    coalesce(new.raw_user_meta_data ->> 'full_name', ''),
+    'client',
+    'pending'
+  )
+  on conflict (id) do update set
+    email = excluded.email,
+    full_name = coalesce(nullif(excluded.full_name, ''), public.profiles.full_name),
+    role = coalesce(public.profiles.role, 'client'),
+    status = coalesce(public.profiles.status, 'pending');
   return new;
 end;
-$$;
+;
 
 create or replace function public.is_chat_member(target_chat_id uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+as 
+  select exists (
+    select 1
+    from public.chat_members
+    where chat_id = target_chat_id
+      and user_id = auth.uid()
+  );
+;
+
+grant execute on function public.is_chat_member(uuid) to authenticated;
+
+create or replace function public.is_current_user_admin()
 returns boolean
 language sql
 security definer
@@ -60,13 +94,14 @@ set search_path = public
 as $$
   select exists (
     select 1
-    from public.chat_members
-    where chat_id = target_chat_id
-      and user_id = auth.uid()
+    from public.profiles
+    where id = auth.uid()
+      and role = 'admin'
+      and status = 'approved'
   );
 $$;
 
-grant execute on function public.is_chat_member(uuid) to authenticated;
+grant execute on function public.is_current_user_admin() to authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
 
@@ -81,6 +116,7 @@ alter table public.messages enable row level security;
 
 drop policy if exists "profiles are viewable by authenticated users" on public.profiles;
 drop policy if exists "users can update their own profile" on public.profiles;
+drop policy if exists "admins can manage all profiles" on public.profiles;
 drop policy if exists "members can view their chats" on public.chats;
 drop policy if exists "authenticated users can create chats" on public.chats;
 drop policy if exists "members can view chat membership" on public.chat_members;
@@ -100,6 +136,13 @@ for update
 to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
+
+create policy "admins can manage all profiles"
+on public.profiles
+for update
+to authenticated
+using (public.is_current_user_admin())
+with check (public.is_current_user_admin());
 
 create policy "members can view their chats"
 on public.chats
@@ -162,3 +205,4 @@ with check (
 
 create index if not exists idx_chat_members_user_id on public.chat_members (user_id);
 create index if not exists idx_messages_chat_id_created_at on public.messages (chat_id, created_at desc);
+create index if not exists idx_profiles_role_status on public.profiles (role, status);

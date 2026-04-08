@@ -1,6 +1,8 @@
 export type ChatType = 'direct' | 'group';
 export type MessageDirection = 'incoming' | 'outgoing';
 export type MessageStatus = 'sending' | 'sent' | 'entregado' | 'leido';
+export type AppUserRole = 'admin' | 'client';
+export type AppUserStatus = 'pending' | 'approved' | 'blocked';
 
 export type ChatThread = {
   id: string;
@@ -31,6 +33,8 @@ export type ProfileRecord = {
   email: string | null;
   full_name: string | null;
   avatar_url: string | null;
+  role: AppUserRole;
+  status: AppUserStatus;
   created_at: string;
 };
 
