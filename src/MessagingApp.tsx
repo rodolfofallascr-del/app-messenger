@@ -29,6 +29,8 @@ type MessagingAppProps = {
   session: Session;
 };
 
+type MobileView = 'chats' | 'conversation';
+
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
 export function MessagingApp({ session }: MessagingAppProps) {
@@ -36,7 +38,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
   const desktopViewportHeight = Math.max(640, height - 32);
-  const mobileChatHeight = Math.min(Math.max(Math.floor(height * 0.44), 300), 380);
+  const [mobileView, setMobileView] = useState<MobileView>('chats');
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
@@ -159,6 +161,12 @@ export function MessagingApp({ session }: MessagingAppProps) {
       clearInterval(intervalId);
     };
   }, [loadChats, selectedChatId]);
+
+  useEffect(() => {
+    if (!selectedChatId && !isDesktop) {
+      setMobileView('chats');
+    }
+  }, [isDesktop, selectedChatId]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {
@@ -313,6 +321,13 @@ export function MessagingApp({ session }: MessagingAppProps) {
     });
   };
 
+  const handleSelectChat = (chatId: string) => {
+    setSelectedChatId(chatId);
+    if (!isDesktop) {
+      setMobileView('conversation');
+    }
+  };
+
   const handleSend = async () => {
     if (!selectedChat) {
       return;
@@ -387,6 +402,9 @@ export function MessagingApp({ session }: MessagingAppProps) {
       await loadChats();
       setSelectedChatId(chatId);
       setCreateMessage('Conversacion creada correctamente.');
+      if (!isDesktop) {
+        setMobileView('conversation');
+      }
     } catch (error) {
       setCreateMessage(error instanceof Error ? error.message : 'No fue posible crear la conversacion.');
     } finally {
@@ -445,8 +463,20 @@ export function MessagingApp({ session }: MessagingAppProps) {
     </View>
   );
 
+  const mobileSwitcher = !isDesktop ? (
+    <View style={styles.mobileSwitcher}>
+      <MobileSwitchButton active={mobileView === 'chats'} label="Chats" onPress={() => setMobileView('chats')} />
+      <MobileSwitchButton
+        active={mobileView === 'conversation'}
+        label={selectedChat ? 'Chat' : 'Sin chat'}
+        onPress={() => selectedChat && setMobileView('conversation')}
+        disabled={!selectedChat}
+      />
+    </View>
+  ) : null;
+
   const chatsPanel = (
-    <View style={[styles.sidebar, isDesktop ? styles.sidebarDesktop : styles.mobileSidebar, isCompactHeight && styles.compactPanel]}>
+    <View style={[styles.sidebar, isDesktop ? styles.sidebarDesktop : styles.mobileSidebar]}>
       <View style={styles.sidebarHeader}>
         <Text style={styles.sectionTitle}>Conversaciones</Text>
         <Text style={styles.counter}>{liveChats.length}</Text>
@@ -487,22 +517,24 @@ export function MessagingApp({ session }: MessagingAppProps) {
           <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
         </View>
       ) : (
-        <ScrollView
-          style={styles.chatListScroller}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.chatListContent}
-        >
-          <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={setSelectedChatId} />
+        <ScrollView style={styles.chatListScroller} showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatListContent}>
+          <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={handleSelectChat} />
         </ScrollView>
       )}
     </View>
   );
 
   const conversationPanel = (
-    <View style={[styles.chatPanel, isDesktop ? styles.chatPanelDesktop : styles.mobileChatPanel, !isDesktop && { height: mobileChatHeight }, isCompactHeight && styles.compactPanel]}>
+    <View style={[styles.chatPanel, isDesktop ? styles.chatPanelDesktop : styles.mobileChatPanel, isCompactHeight && isDesktop && styles.compactPanel]}>
       {selectedChat ? (
         <>
-          <ConversationView chat={selectedChat} messages={currentMessages} />
+          <ConversationView
+            chat={selectedChat}
+            messages={currentMessages}
+            showBackButton={!isDesktop}
+            onBack={!isDesktop ? () => setMobileView('chats') : undefined}
+            compact={!isDesktop}
+          />
           <MessageComposer
             value={currentDraft}
             attachment={pendingAttachment}
@@ -523,10 +555,8 @@ export function MessagingApp({ session }: MessagingAppProps) {
       ) : (
         <View style={styles.emptyConversation}>
           <Text style={styles.emptyConversationEyebrow}>Sin chat abierto</Text>
-          <Text style={styles.emptyConversationTitle}>Tu bandeja esta lista</Text>
-          <Text style={styles.emptyConversationText}>
-            Crea una conversacion desde la lista para empezar a enviar mensajes reales.
-          </Text>
+          <Text style={styles.emptyConversationTitle}>Selecciona una conversacion</Text>
+          <Text style={styles.emptyConversationText}>Entra a la pestana de chats y abre una conversacion para escribir.</Text>
         </View>
       )}
     </View>
@@ -535,39 +565,39 @@ export function MessagingApp({ session }: MessagingAppProps) {
   return (
     <KeyboardAvoidingView
       style={styles.keyboardShell}
-      behavior={!isDesktop && Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={!isDesktop && Platform.OS === 'ios' ? 12 : 0}
+      behavior={!isDesktop ? (Platform.OS === 'ios' ? 'padding' : 'height') : undefined}
+      keyboardVerticalOffset={!isDesktop ? (Platform.OS === 'ios' ? 12 : 0) : 0}
     >
-      <ScrollView
-        style={styles.screen}
-        contentContainerStyle={[
-          styles.screenContent,
-          isDesktop && styles.screenContentDesktop,
-          isDesktop && { minHeight: desktopViewportHeight },
-          !isDesktop && styles.mobileScreenContent,
-        ]}
-        showsVerticalScrollIndicator={false}
-        scrollEnabled={!isDesktop}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
-        <View style={[styles.root, isDesktop && styles.rootDesktop, isDesktop && { height: desktopViewportHeight }]}>
-          {header}
-
-          {isDesktop ? (
+      {isDesktop ? (
+        <ScrollView
+          style={styles.screen}
+          contentContainerStyle={[styles.screenContent, styles.screenContentDesktop, { minHeight: desktopViewportHeight }]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={[styles.root, styles.rootDesktop, { height: desktopViewportHeight }]}>
+            {header}
             <View style={[styles.workspace, styles.workspaceDesktop]}>
               {chatsPanel}
               {conversationPanel}
             </View>
-          ) : (
-            <View style={styles.mobileWorkspace}>
-              {conversationPanel}
-              {chatsPanel}
-            </View>
-          )}
+          </View>
+        </ScrollView>
+      ) : (
+        <View style={styles.mobileRoot}>
+          {header}
+          {mobileSwitcher}
+          <View style={styles.mobileContentArea}>{mobileView === 'chats' ? chatsPanel : conversationPanel}</View>
         </View>
-      </ScrollView>
+      )}
     </KeyboardAvoidingView>
+  );
+}
+
+function MobileSwitchButton({ active, disabled, label, onPress }: { active: boolean; disabled?: boolean; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} disabled={disabled} style={[styles.mobileSwitchButton, active && styles.mobileSwitchButtonActive, disabled && styles.mobileSwitchButtonDisabled]}>
+      <Text style={[styles.mobileSwitchText, active && styles.mobileSwitchTextActive]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -584,9 +614,6 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingVertical: 16,
   },
-  mobileScreenContent: {
-    paddingBottom: 20,
-  },
   screenContentDesktop: {
     minHeight: '100%',
   },
@@ -599,6 +626,18 @@ const styles = StyleSheet.create({
   },
   rootDesktop: {
     overflow: 'hidden',
+  },
+  mobileRoot: {
+    flex: 1,
+    backgroundColor: palette.background,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    gap: 10,
+  },
+  mobileContentArea: {
+    flex: 1,
+    minHeight: 0,
   },
   headerShell: {
     gap: 14,
@@ -640,47 +679,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: palette.card,
-    borderRadius: 22,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
   },
   mobileBrandRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   mobileLogo: {
-    width: 62,
-    height: 40,
+    width: 54,
+    height: 34,
   },
   mobileBrandCopy: {
     flex: 1,
-    gap: 2,
+    gap: 1,
   },
   mobileBrandTitle: {
     color: palette.primaryText,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
   },
   mobileBrandStatus: {
     color: palette.secondaryText,
-    fontSize: 11,
-    lineHeight: 16,
+    fontSize: 10,
+    lineHeight: 14,
   },
   mobileHeaderAction: {
     backgroundColor: palette.accent,
     borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   mobileHeaderActionText: {
     color: palette.buttonText,
     fontWeight: '800',
     fontSize: 12,
+  },
+  mobileSwitcher: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mobileSwitchButton: {
+    flex: 1,
+    backgroundColor: palette.panel,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  mobileSwitchButtonActive: {
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
+  },
+  mobileSwitchButtonDisabled: {
+    opacity: 0.55,
+  },
+  mobileSwitchText: {
+    color: palette.secondaryText,
+    fontWeight: '800',
+  },
+  mobileSwitchTextActive: {
+    color: palette.buttonText,
   },
   eyebrow: {
     color: '#facc15',
@@ -742,40 +808,36 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
-  mobileWorkspace: {
-    gap: 12,
-  },
   sidebar: {
     backgroundColor: palette.panel,
-    borderRadius: 24,
+    borderRadius: 22,
     padding: 16,
     borderWidth: 1,
     borderColor: palette.border,
-    minHeight: 420,
+    minHeight: 0,
   },
   sidebarDesktop: {
     width: 380,
-    minHeight: 0,
   },
   mobileSidebar: {
-    minHeight: 0,
+    flex: 1,
     padding: 14,
   },
   chatPanel: {
     flex: 1,
     backgroundColor: palette.panel,
-    borderRadius: 24,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: palette.border,
     overflow: 'hidden',
-    minHeight: 420,
+    minHeight: 0,
   },
   chatPanelDesktop: {
     minHeight: 0,
   },
   mobileChatPanel: {
-    minHeight: 300,
-    maxHeight: 380,
+    flex: 1,
+    minHeight: 0,
   },
   compactPanel: {
     minHeight: 480,
@@ -869,4 +931,3 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
-

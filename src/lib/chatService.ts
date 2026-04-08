@@ -1,3 +1,4 @@
+import { File } from 'expo-file-system';
 import { getSupabaseClient } from './supabase';
 import { ChatMemberRecord, ChatRecord, MessageRecord, PendingAttachment, ProfileRecord, SelectableUser } from '../types/chat';
 
@@ -285,9 +286,23 @@ async function findExistingDirectChat(currentUserId: string, otherUserId: string
 }
 
 async function readFileAsArrayBuffer(uri: string) {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  return blob;
+  if (uri.startsWith('blob:') || uri.startsWith('http://') || uri.startsWith('https://')) {
+    const response = await fetch(uri);
+
+    if (!response.ok) {
+      throw new Error('No fue posible leer el adjunto seleccionado.');
+    }
+
+    return await response.blob();
+  }
+
+  try {
+    const file = new File(uri);
+    const arrayBuffer = await file.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  } catch (error) {
+    throw new Error(error instanceof Error ? 'No fue posible preparar el archivo: ' + error.message : 'No fue posible preparar el archivo.');
+  }
 }
 
 function sanitizeFileName(name: string) {
@@ -301,3 +316,6 @@ function normalizeProfile(profile: RawProfile) {
 
   return profile;
 }
+
+
+

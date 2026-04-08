@@ -6,9 +6,12 @@ import { ChatMessage, ChatThread } from '../types/chat';
 type ConversationViewProps = {
   chat: ChatThread;
   messages: ChatMessage[];
+  compact?: boolean;
+  showBackButton?: boolean;
+  onBack?: () => void;
 };
 
-export function ConversationView({ chat, messages }: ConversationViewProps) {
+export function ConversationView({ chat, messages, compact, showBackButton, onBack }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
 
   useEffect(() => {
@@ -23,14 +26,21 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.chatName}>{chat.name}</Text>
-          <Text style={styles.chatMeta}>
-            {chat.members.join(', ')} · {chat.type === 'group' ? 'Grupo' : 'Directo'}
-          </Text>
+      <View style={[styles.header, compact && styles.headerCompact]}>
+        <View style={styles.headerInfo}>
+          {showBackButton ? (
+            <Pressable onPress={onBack} style={styles.backButton}>
+              <Text style={styles.backButtonText}>Volver</Text>
+            </Pressable>
+          ) : null}
+          <View>
+            <Text style={[styles.chatName, compact && styles.chatNameCompact]}>{chat.name}</Text>
+            <Text style={styles.chatMeta}>
+              {chat.members.join(', ')} · {chat.type === 'group' ? 'Grupo' : 'Directo'}
+            </Text>
+          </View>
         </View>
-        <View style={styles.headerBadge}>
+        <View style={[styles.headerBadge, compact && styles.headerBadgeCompact]}>
           <Text style={styles.headerBadgeText}>{chat.encryptionLabel}</Text>
         </View>
       </View>
@@ -38,14 +48,15 @@ export function ConversationView({ chat, messages }: ConversationViewProps) {
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollArea}
-        contentContainerStyle={styles.body}
+        contentContainerStyle={[styles.body, compact && styles.bodyCompact]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
         {messages.map((message) => {
           const isOutgoing = message.direction === 'outgoing';
           return (
-            <View key={message.id} style={[styles.bubble, isOutgoing ? styles.outgoing : styles.incoming]}>
+            <View key={message.id} style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}>
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
               <Text style={styles.content}>{message.content}</Text>
               {message.attachmentLabel && message.attachmentUrl ? (
@@ -82,10 +93,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  headerCompact: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  headerInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  backButton: {
+    backgroundColor: palette.input,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  backButtonText: {
+    color: palette.secondaryText,
+    fontWeight: '800',
+    fontSize: 11,
+  },
   chatName: {
     color: palette.primaryText,
     fontSize: 19,
     fontWeight: '800',
+  },
+  chatNameCompact: {
+    fontSize: 16,
   },
   chatMeta: {
     color: palette.secondaryText,
@@ -97,6 +132,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 8,
+  },
+  headerBadgeCompact: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
   },
   headerBadgeText: {
     color: palette.accentSoft,
@@ -111,11 +150,18 @@ const styles = StyleSheet.create({
     padding: 18,
     gap: 12,
   },
+  bodyCompact: {
+    padding: 14,
+    gap: 10,
+  },
   bubble: {
     maxWidth: '84%',
     padding: 14,
     borderRadius: 18,
     gap: 6,
+  },
+  bubbleCompact: {
+    padding: 12,
   },
   incoming: {
     alignSelf: 'flex-start',

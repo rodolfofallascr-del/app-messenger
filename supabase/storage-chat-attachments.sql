@@ -3,12 +3,14 @@ insert into storage.buckets (id, name, public)
 values ('chat-attachments', 'chat-attachments', true)
 on conflict (id) do update set public = true;
 
+drop policy if exists "chat attachments are publicly readable" on storage.objects;
 create policy "chat attachments are publicly readable"
 on storage.objects
 for select
 to public
 using (bucket_id = 'chat-attachments');
 
+drop policy if exists "authenticated users can upload chat attachments" on storage.objects;
 create policy "authenticated users can upload chat attachments"
 on storage.objects
 for insert
