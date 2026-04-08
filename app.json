@@ -2,7 +2,7 @@
   "expo": {
     "name": "Chat Santanita",
     "slug": "app-mesajeria",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/chat-santanita-icon-square.png",
     "userInterfaceStyle": "light",
@@ -14,10 +14,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.chatsantanita.app"
+      "bundleIdentifier": "com.chatsantanita.app",
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.chatsantanita.app",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/chat-santanita-icon-square.png",
         "backgroundColor": "#020617"

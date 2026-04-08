@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -35,6 +36,7 @@ export function MessagingApp({ session }: MessagingAppProps) {
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
   const desktopViewportHeight = Math.max(640, height - 32);
+  const mobileChatHeight = Math.min(Math.max(Math.floor(height * 0.44), 300), 380);
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
@@ -408,128 +410,172 @@ export function MessagingApp({ session }: MessagingAppProps) {
           ? `${liveChats.length} conversaciones sincronizadas.`
           : 'Listo para crear tu primera conversacion.';
 
-  return (
-    <ScrollView
-      style={styles.screen}
-      contentContainerStyle={[
-        styles.screenContent,
-        isDesktop && styles.screenContentDesktop,
-        isDesktop && { minHeight: desktopViewportHeight },
-      ]}
-      showsVerticalScrollIndicator={false}
-      scrollEnabled={!isDesktop}
-    >
-      <View style={[styles.root, isDesktop && styles.rootDesktop, isDesktop && { height: desktopViewportHeight }]}>
-        <View style={[styles.headerShell, isDesktop && styles.headerShellDesktop]}>
-          <View style={styles.heroCard}>
-            <Image source={brandLogo} style={styles.heroLogo} resizeMode="contain" />
-            <Text style={styles.eyebrow}>Chat Santanita</Text>
-            <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
-            <Text style={styles.subtitle}>
-              Usuarios reales, conversaciones persistentes, adjuntos y sincronizacion en vivo con la identidad de tu marca.
-            </Text>
-          </View>
+  const header = isDesktop ? (
+    <View style={[styles.headerShell, styles.headerShellDesktop]}>
+      <View style={styles.heroCard}>
+        <Image source={brandLogo} style={styles.heroLogo} resizeMode="contain" />
+        <Text style={styles.eyebrow}>Chat Santanita</Text>
+        <Text style={styles.title}>Comunicacion directa para tu equipo</Text>
+        <Text style={styles.subtitle}>
+          Usuarios reales, conversaciones persistentes, adjuntos y sincronizacion en vivo con la identidad de tu marca.
+        </Text>
+      </View>
 
-          <View style={styles.statusCard}>
-            <Text style={styles.statusLabel}>Sesion actual</Text>
-            <Text style={styles.statusEmail}>{session.user.email ?? 'usuario@local'}</Text>
-            <Text style={styles.statusCopy}>{statusText}</Text>
-            <Pressable style={styles.headerAction} onPress={handleSignOut}>
-              <Text style={styles.headerActionText}>Salir</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={[styles.workspace, isDesktop && styles.workspaceDesktop]}>
-          <View style={[styles.sidebar, isDesktop && styles.sidebarDesktop, isCompactHeight && styles.compactPanel]}>
-            <View style={styles.sidebarHeader}>
-              <Text style={styles.sectionTitle}>Conversaciones</Text>
-              <Text style={styles.counter}>{liveChats.length}</Text>
-            </View>
-            <CreateChatCard
-              groupName={groupName}
-              selectedUserIds={selectedUserIds}
-              users={availableUsers}
-              loadingUsers={loadingUsers}
-              onChangeGroupName={setGroupName}
-              onToggleUser={handleToggleUser}
-              onCreate={handleCreateChat}
-              busy={creatingChat}
-              message={createMessage}
-            />
-            <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Buscar chat o usuario"
-              placeholderTextColor={palette.mutedText}
-              style={styles.searchInput}
-            />
-            {loadingChats ? (
-              <View style={styles.sidebarState}>
-                <ActivityIndicator color={palette.accent} />
-                <Text style={styles.sidebarStateText}>Cargando conversaciones...</Text>
-              </View>
-            ) : liveChats.length === 0 ? (
-              <View style={styles.sidebarState}>
-                <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
-                <Text style={styles.sidebarStateText}>
-                  Crea un chat con usuarios registrados y aqui aparecera en tiempo real.
-                </Text>
-              </View>
-            ) : visibleChats.length === 0 ? (
-              <View style={styles.sidebarState}>
-                <Text style={styles.sidebarStateTitle}>Sin resultados</Text>
-                <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
-              </View>
-            ) : (
-              <ScrollView
-                style={styles.chatListScroller}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.chatListContent}
-              >
-                <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={setSelectedChatId} />
-              </ScrollView>
-            )}
-          </View>
-
-          <View style={[styles.chatPanel, isDesktop && styles.chatPanelDesktop, isCompactHeight && styles.compactPanel]}>
-            {selectedChat ? (
-              <>
-                <ConversationView chat={selectedChat} messages={currentMessages} />
-                <MessageComposer
-                  value={currentDraft}
-                  attachment={pendingAttachment}
-                  busy={sending}
-                  isDragActive={isDragActive}
-                  onChangeText={(value) =>
-                    setDrafts((previous) => ({
-                      ...previous,
-                      [selectedChat.id]: value,
-                    }))
-                  }
-                  onPickImage={handlePickImage}
-                  onPickFile={handlePickFile}
-                  onClearAttachment={clearPendingAttachment}
-                  onSend={handleSend}
-                />
-              </>
-            ) : (
-              <View style={styles.emptyConversation}>
-                <Text style={styles.emptyConversationEyebrow}>Sin chat abierto</Text>
-                <Text style={styles.emptyConversationTitle}>Tu bandeja esta lista</Text>
-                <Text style={styles.emptyConversationText}>
-                  Crea una conversacion desde la columna izquierda para empezar a enviar mensajes reales.
-                </Text>
-              </View>
-            )}
-          </View>
+      <View style={styles.statusCard}>
+        <Text style={styles.statusLabel}>Sesion actual</Text>
+        <Text style={styles.statusEmail}>{session.user.email ?? 'usuario@local'}</Text>
+        <Text style={styles.statusCopy}>{statusText}</Text>
+        <Pressable style={styles.headerAction} onPress={handleSignOut}>
+          <Text style={styles.headerActionText}>Salir</Text>
+        </Pressable>
+      </View>
+    </View>
+  ) : (
+    <View style={styles.mobileTopBar}>
+      <View style={styles.mobileBrandRow}>
+        <Image source={brandLogo} style={styles.mobileLogo} resizeMode="contain" />
+        <View style={styles.mobileBrandCopy}>
+          <Text style={styles.mobileBrandTitle}>Chat Santanita</Text>
+          <Text style={styles.mobileBrandStatus}>{statusText}</Text>
         </View>
       </View>
-    </ScrollView>
+      <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
+        <Text style={styles.mobileHeaderActionText}>Salir</Text>
+      </Pressable>
+    </View>
+  );
+
+  const chatsPanel = (
+    <View style={[styles.sidebar, isDesktop ? styles.sidebarDesktop : styles.mobileSidebar, isCompactHeight && styles.compactPanel]}>
+      <View style={styles.sidebarHeader}>
+        <Text style={styles.sectionTitle}>Conversaciones</Text>
+        <Text style={styles.counter}>{liveChats.length}</Text>
+      </View>
+      <CreateChatCard
+        groupName={groupName}
+        selectedUserIds={selectedUserIds}
+        users={availableUsers}
+        loadingUsers={loadingUsers}
+        onChangeGroupName={setGroupName}
+        onToggleUser={handleToggleUser}
+        onCreate={handleCreateChat}
+        busy={creatingChat}
+        message={createMessage}
+      />
+      <TextInput
+        value={search}
+        onChangeText={setSearch}
+        placeholder="Buscar chat o usuario"
+        placeholderTextColor={palette.mutedText}
+        style={styles.searchInput}
+      />
+      {loadingChats ? (
+        <View style={styles.sidebarState}>
+          <ActivityIndicator color={palette.accent} />
+          <Text style={styles.sidebarStateText}>Cargando conversaciones...</Text>
+        </View>
+      ) : liveChats.length === 0 ? (
+        <View style={styles.sidebarState}>
+          <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
+          <Text style={styles.sidebarStateText}>
+            Crea un chat con usuarios registrados y aqui aparecera en tiempo real.
+          </Text>
+        </View>
+      ) : visibleChats.length === 0 ? (
+        <View style={styles.sidebarState}>
+          <Text style={styles.sidebarStateTitle}>Sin resultados</Text>
+          <Text style={styles.sidebarStateText}>Prueba otro termino de busqueda.</Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={styles.chatListScroller}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.chatListContent}
+        >
+          <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={setSelectedChatId} />
+        </ScrollView>
+      )}
+    </View>
+  );
+
+  const conversationPanel = (
+    <View style={[styles.chatPanel, isDesktop ? styles.chatPanelDesktop : styles.mobileChatPanel, !isDesktop && { height: mobileChatHeight }, isCompactHeight && styles.compactPanel]}>
+      {selectedChat ? (
+        <>
+          <ConversationView chat={selectedChat} messages={currentMessages} />
+          <MessageComposer
+            value={currentDraft}
+            attachment={pendingAttachment}
+            busy={sending}
+            isDragActive={isDragActive}
+            onChangeText={(value) =>
+              setDrafts((previous) => ({
+                ...previous,
+                [selectedChat.id]: value,
+              }))
+            }
+            onPickImage={handlePickImage}
+            onPickFile={handlePickFile}
+            onClearAttachment={clearPendingAttachment}
+            onSend={handleSend}
+          />
+        </>
+      ) : (
+        <View style={styles.emptyConversation}>
+          <Text style={styles.emptyConversationEyebrow}>Sin chat abierto</Text>
+          <Text style={styles.emptyConversationTitle}>Tu bandeja esta lista</Text>
+          <Text style={styles.emptyConversationText}>
+            Crea una conversacion desde la lista para empezar a enviar mensajes reales.
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.keyboardShell}
+      behavior={!isDesktop && Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={!isDesktop && Platform.OS === 'ios' ? 12 : 0}
+    >
+      <ScrollView
+        style={styles.screen}
+        contentContainerStyle={[
+          styles.screenContent,
+          isDesktop && styles.screenContentDesktop,
+          isDesktop && { minHeight: desktopViewportHeight },
+          !isDesktop && styles.mobileScreenContent,
+        ]}
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={!isDesktop}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        <View style={[styles.root, isDesktop && styles.rootDesktop, isDesktop && { height: desktopViewportHeight }]}>
+          {header}
+
+          {isDesktop ? (
+            <View style={[styles.workspace, styles.workspaceDesktop]}>
+              {chatsPanel}
+              {conversationPanel}
+            </View>
+          ) : (
+            <View style={styles.mobileWorkspace}>
+              {conversationPanel}
+              {chatsPanel}
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  keyboardShell: {
+    flex: 1,
+    backgroundColor: palette.background,
+  },
   screen: {
     flex: 1,
     backgroundColor: palette.background,
@@ -537,6 +583,9 @@ const styles = StyleSheet.create({
   screenContent: {
     flexGrow: 1,
     paddingVertical: 16,
+  },
+  mobileScreenContent: {
+    paddingBottom: 20,
   },
   screenContentDesktop: {
     minHeight: '100%',
@@ -585,6 +634,53 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     minWidth: 300,
+  },
+  mobileTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: palette.card,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  mobileBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  mobileLogo: {
+    width: 62,
+    height: 40,
+  },
+  mobileBrandCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  mobileBrandTitle: {
+    color: palette.primaryText,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  mobileBrandStatus: {
+    color: palette.secondaryText,
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  mobileHeaderAction: {
+    backgroundColor: palette.accent,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  mobileHeaderActionText: {
+    color: palette.buttonText,
+    fontWeight: '800',
+    fontSize: 12,
   },
   eyebrow: {
     color: '#facc15',
@@ -646,6 +742,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  mobileWorkspace: {
+    gap: 12,
+  },
   sidebar: {
     backgroundColor: palette.panel,
     borderRadius: 24,
@@ -658,6 +757,10 @@ const styles = StyleSheet.create({
     width: 380,
     minHeight: 0,
   },
+  mobileSidebar: {
+    minHeight: 0,
+    padding: 14,
+  },
   chatPanel: {
     flex: 1,
     backgroundColor: palette.panel,
@@ -669,6 +772,10 @@ const styles = StyleSheet.create({
   },
   chatPanelDesktop: {
     minHeight: 0,
+  },
+  mobileChatPanel: {
+    minHeight: 300,
+    maxHeight: 380,
   },
   compactPanel: {
     minHeight: 480,
@@ -736,7 +843,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 40,
+    paddingHorizontal: 28,
     gap: 10,
     backgroundColor: '#0f172a',
     minHeight: 0,
@@ -750,14 +857,16 @@ const styles = StyleSheet.create({
   },
   emptyConversationTitle: {
     color: palette.primaryText,
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '800',
+    textAlign: 'center',
   },
   emptyConversationText: {
     color: palette.secondaryText,
-    fontSize: 15,
-    lineHeight: 23,
+    fontSize: 14,
+    lineHeight: 21,
     textAlign: 'center',
     maxWidth: 420,
   },
 });
+

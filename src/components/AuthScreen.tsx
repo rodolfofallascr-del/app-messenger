@@ -16,6 +16,7 @@ import { getSupabaseClient } from '../lib/supabase';
 import { palette } from '../theme/palette';
 
 const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
+const buildLabel = 'Build 1.0.1 / Android fix';
 
 const quickStats = ['Mensajes en vivo', 'Grupos privados', 'Imagenes y archivos'];
 
@@ -95,6 +96,7 @@ export function AuthScreen() {
 
             <View style={styles.brandCopy}>
               <Text style={styles.eyebrow}>Chat Santanita</Text>
+              <Text style={styles.buildBadge}>{buildLabel}</Text>
               <Text style={styles.title}>Entra a tu mensajeria</Text>
               <Text style={styles.subtitle}>Accede a tus conversaciones, grupos y archivos desde el celular.</Text>
             </View>
@@ -262,6 +264,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  buildBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#13213a',
+    color: '#93c5fd',
+    fontSize: 11,
+    fontWeight: '700',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
   },
   title: {
     color: palette.primaryText,
