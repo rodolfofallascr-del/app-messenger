@@ -44,10 +44,12 @@ export function AuthScreen() {
       const supabase = getSupabaseClient();
 
       if (mode === 'register') {
-        const { error } = await supabase.auth.signUp({
+        const emailRedirectTo = Platform.OS === 'web' ? globalThis.location?.origin : undefined;
+        const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
           options: {
+            emailRedirectTo,
             data: {
               full_name: fullName.trim(),
             },
@@ -58,7 +60,11 @@ export function AuthScreen() {
           throw error;
         }
 
-        setMessage('Cuenta creada. Ya puedes iniciar sesion si tu proyecto no exige confirmar correo.');
+        if (data.session) {
+          setMessage('Cuenta creada y sesion iniciada correctamente.');
+        } else {
+          setMessage('Cuenta creada. Revisa tu correo y confirma la direccion antes de iniciar sesion.');
+        }
         return;
       }
 

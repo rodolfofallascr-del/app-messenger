@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
 
@@ -24,6 +24,24 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
     };
   }, [chat.id, messages.length]);
 
+  const handleOpenAttachment = useCallback(async (url: string) => {
+    try {
+      const supported = await Linking.canOpenURL(url);
+
+      if (!supported) {
+        Alert.alert('Adjunto no disponible', 'No fue posible abrir este adjunto en el dispositivo.');
+        return;
+      }
+
+      await Linking.openURL(url);
+    } catch (error) {
+      Alert.alert(
+        'No fue posible abrir el adjunto',
+        error instanceof Error ? error.message : 'Revisa la configuracion del archivo en Supabase.'
+      );
+    }
+  }, []);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, compact && styles.headerCompact]}>
@@ -36,7 +54,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           <View>
             <Text style={[styles.chatName, compact && styles.chatNameCompact]}>{chat.name}</Text>
             <Text style={styles.chatMeta}>
-              {chat.members.join(', ')} · {chat.type === 'group' ? 'Grupo' : 'Directo'}
+              {chat.members.join(', ')} - {chat.type === 'group' ? 'Grupo' : 'Directo'}
             </Text>
           </View>
         </View>
@@ -55,20 +73,24 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
       >
         {messages.map((message) => {
           const isOutgoing = message.direction === 'outgoing';
+          const canOpenAttachment = Boolean(message.attachmentLabel && message.attachmentUrl);
+          const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
+
           return (
             <View key={message.id} style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}>
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
               <Text style={styles.content}>{message.content}</Text>
-              {message.attachmentLabel && message.attachmentUrl ? (
-                <Pressable onPress={() => Linking.openURL(message.attachmentUrl ?? '')} style={styles.attachmentCard}>
+              {isImageAttachment ? <Image source={{ uri: message.attachmentUrl as string }} style={styles.attachmentImage} resizeMode="cover" /> : null}
+              {canOpenAttachment ? (
+                <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string)} style={styles.attachmentCard}>
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
-                  <Text style={styles.attachmentHint}>Abrir</Text>
+                  <Text style={styles.attachmentHint}>{message.attachmentType === 'image' ? 'Abrir imagen' : 'Abrir archivo'}</Text>
                 </Pressable>
               ) : null}
               <Text style={styles.timestamp}>
                 {message.timestamp}
-                {isOutgoing && message.status ? ` · ${message.status}` : ''}
+                {isOutgoing && message.status ? ' - ' + message.status : ''}
               </Text>
             </View>
           );
@@ -182,6 +204,13 @@ const styles = StyleSheet.create({
     color: palette.primaryText,
     fontSize: 15,
     lineHeight: 22,
+  },
+  attachmentImage: {
+    width: 220,
+    height: 180,
+    borderRadius: 14,
+    marginTop: 2,
+    backgroundColor: '#0b1220',
   },
   attachmentCard: {
     backgroundColor: 'rgba(255,255,255,0.08)',
