@@ -1,6 +1,7 @@
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { MessagingApp } from './MessagingApp';
 import { fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
@@ -11,6 +12,8 @@ type AdminWebAppProps = {
   profile: ProfileRecord;
 };
 
+type AdminSection = 'users' | 'conversations';
+
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
 export function AdminWebApp({ session, profile }: AdminWebAppProps) {
@@ -20,6 +23,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | AppUserStatus>('all');
+  const [section, setSection] = useState<AdminSection>('users');
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -36,10 +40,18 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   }, []);
 
   useEffect(() => {
+    if (section !== 'users') {
+      return;
+    }
+
     void loadUsers();
-  }, [loadUsers]);
+  }, [loadUsers, section]);
 
   useEffect(() => {
+    if (section !== 'users') {
+      return;
+    }
+
     const supabase = getSupabaseClient();
     const channel = supabase
       .channel('admin-profiles-watch')
@@ -51,7 +63,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadUsers]);
+  }, [loadUsers, section]);
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -116,8 +128,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
             <View style={styles.heroCopy}>
               <Text style={styles.eyebrow}>Panel administrador</Text>
-              <Text style={styles.title}>Control de acceso y clientes</Text>
-              <Text style={styles.subtitle}>Aprueba usuarios, bloquea accesos y administra quien puede entrar a la app movil.</Text>
+              <Text style={styles.title}>Control de acceso y mensajeria</Text>
+              <Text style={styles.subtitle}>Aprueba usuarios, bloquea accesos y responde conversaciones desde la version web.</Text>
             </View>
             <Pressable style={styles.signOutButton} onPress={handleSignOut}>
               <Text style={styles.signOutText}>Salir</Text>
@@ -131,75 +143,94 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
           </View>
         </View>
 
-        <View style={styles.toolbar}>
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Buscar por nombre o correo"
-            placeholderTextColor={palette.mutedText}
-            style={styles.searchInput}
-          />
-          <View style={styles.filterRow}>
-            <FilterChip label="Todos" active={filter === 'all'} onPress={() => setFilter('all')} />
-            <FilterChip label="Pendientes" active={filter === 'pending'} onPress={() => setFilter('pending')} />
-            <FilterChip label="Aprobados" active={filter === 'approved'} onPress={() => setFilter('approved')} />
-            <FilterChip label="Bloqueados" active={filter === 'blocked'} onPress={() => setFilter('blocked')} />
-          </View>
+        <View style={styles.sectionTabs}>
+          <SectionTab label="Usuarios" active={section === 'users'} onPress={() => setSection('users')} />
+          <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} />
         </View>
 
-        {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
-
-        <View style={styles.listCard}>
-          <View style={styles.listHeader}>
-            <Text style={styles.listTitle}>Usuarios registrados</Text>
-            <Pressable style={styles.refreshButton} onPress={() => void loadUsers()}>
-              <Text style={styles.refreshText}>Recargar</Text>
-            </Pressable>
-          </View>
-
-          {loading ? (
-            <View style={styles.stateBox}>
-              <ActivityIndicator color={palette.accent} />
-              <Text style={styles.stateText}>Cargando usuarios...</Text>
+        {section === 'users' ? (
+          <>
+            <View style={styles.toolbar}>
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder="Buscar por nombre o correo"
+                placeholderTextColor={palette.mutedText}
+                style={styles.searchInput}
+              />
+              <View style={styles.filterRow}>
+                <FilterChip label="Todos" active={filter === 'all'} onPress={() => setFilter('all')} />
+                <FilterChip label="Pendientes" active={filter === 'pending'} onPress={() => setFilter('pending')} />
+                <FilterChip label="Aprobados" active={filter === 'approved'} onPress={() => setFilter('approved')} />
+                <FilterChip label="Bloqueados" active={filter === 'blocked'} onPress={() => setFilter('blocked')} />
+              </View>
             </View>
-          ) : visibleUsers.length === 0 ? (
-            <View style={styles.stateBox}>
-              <Text style={styles.stateTitle}>No hay usuarios para mostrar</Text>
-              <Text style={styles.stateText}>Cambia el filtro o espera nuevos registros.</Text>
-            </View>
-          ) : (
-            <View style={styles.userList}>
-              {visibleUsers.map((user) => {
-                const busy = actionUserId === user.id;
-                return (
-                  <View key={user.id} style={styles.userCard}>
-                    <View style={styles.userMain}>
-                      <View style={styles.userAvatar}>
-                        <Text style={styles.userAvatarText}>{(user.full_name || user.email || 'U').charAt(0).toUpperCase()}</Text>
+
+            {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
+
+            <View style={styles.listCard}>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>Usuarios registrados</Text>
+                <Pressable style={styles.refreshButton} onPress={() => void loadUsers()}>
+                  <Text style={styles.refreshText}>Recargar</Text>
+                </Pressable>
+              </View>
+
+              {loading ? (
+                <View style={styles.stateBox}>
+                  <ActivityIndicator color={palette.accent} />
+                  <Text style={styles.stateText}>Cargando usuarios...</Text>
+                </View>
+              ) : visibleUsers.length === 0 ? (
+                <View style={styles.stateBox}>
+                  <Text style={styles.stateTitle}>No hay usuarios para mostrar</Text>
+                  <Text style={styles.stateText}>Cambia el filtro o espera nuevos registros.</Text>
+                </View>
+              ) : (
+                <View style={styles.userList}>
+                  {visibleUsers.map((user) => {
+                    const busy = actionUserId === user.id;
+                    return (
+                      <View key={user.id} style={styles.userCard}>
+                        <View style={styles.userMain}>
+                          <View style={styles.userAvatar}>
+                            <Text style={styles.userAvatarText}>{(user.full_name || user.email || 'U').charAt(0).toUpperCase()}</Text>
+                          </View>
+                          <View style={styles.userCopy}>
+                            <Text style={styles.userName}>{user.full_name?.trim() || 'Sin nombre'}</Text>
+                            <Text style={styles.userEmail}>{user.email ?? 'Sin correo'}</Text>
+                            <Text style={styles.userMeta}>Rol: {user.role} | Estado: {user.status}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.actionsRow}>
+                          <ActionButton label="Aprobar" tone="approve" disabled={busy || user.status === 'approved'} onPress={() => void handleUpdateStatus(user.id, 'approved')} />
+                          <ActionButton label="Pendiente" tone="neutral" disabled={busy || user.status === 'pending'} onPress={() => void handleUpdateStatus(user.id, 'pending')} />
+                          <ActionButton label="Bloquear" tone="block" disabled={busy || user.status === 'blocked'} onPress={() => void handleUpdateStatus(user.id, 'blocked')} />
+                        </View>
                       </View>
-                      <View style={styles.userCopy}>
-                        <Text style={styles.userName}>{user.full_name?.trim() || 'Sin nombre'}</Text>
-                        <Text style={styles.userEmail}>{user.email ?? 'Sin correo'}</Text>
-                        <Text style={styles.userMeta}>Rol: {user.role} | Estado: {user.status}</Text>
-                      </View>
-                    </View>
-                    <View style={styles.actionsRow}>
-                      <ActionButton label="Aprobar" tone="approve" disabled={busy || user.status === 'approved'} onPress={() => void handleUpdateStatus(user.id, 'approved')} />
-                      <ActionButton label="Pendiente" tone="neutral" disabled={busy || user.status === 'pending'} onPress={() => void handleUpdateStatus(user.id, 'pending')} />
-                      <ActionButton label="Bloquear" tone="block" disabled={busy || user.status === 'blocked'} onPress={() => void handleUpdateStatus(user.id, 'blocked')} />
-                    </View>
-                  </View>
-                );
-              })}
+                    );
+                  })}
+                </View>
+              )}
             </View>
-          )}
-        </View>
 
-        <View style={styles.noteCard}>
-          <Text style={styles.noteTitle}>Siguiente paso recomendado</Text>
-          <Text style={styles.noteText}>El siguiente bloque ideal es convertir esta web en una bandeja administrativa completa: conversaciones, biblioteca de imagenes precargadas, tags y respuestas rapidas.</Text>
-          <Text style={styles.noteText}>Sesion actual: {session.user.email ?? 'admin'}.</Text>
-        </View>
+            <View style={styles.noteCard}>
+              <Text style={styles.noteTitle}>Siguiente paso recomendado</Text>
+              <Text style={styles.noteText}>Despues de esto conviene anadir biblioteca de imagenes precargadas, tags y respuestas rapidas para que el admin responda mas rapido.</Text>
+              <Text style={styles.noteText}>Sesion actual: {session.user.email ?? 'admin'}.</Text>
+            </View>
+          </>
+        ) : (
+          <View style={styles.messagingCard}>
+            <View style={styles.messagingHeader}>
+              <Text style={styles.messagingTitle}>Bandeja del administrador</Text>
+              <Text style={styles.messagingCopy}>Aqui puedes responder conversaciones desde la web. En el siguiente bloque podemos especializarla para clientes solamente, con biblioteca y tags.</Text>
+            </View>
+            <View style={styles.messagingViewport}>
+              <MessagingApp session={session} />
+            </View>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -211,6 +242,14 @@ function MetricCard({ label, value }: { label: string; value: string }) {
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
+  );
+}
+
+function SectionTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.sectionTab, active && styles.sectionTabActive]}>
+      <Text style={[styles.sectionTabText, active && styles.sectionTabTextActive]}>{label}</Text>
+    </Pressable>
   );
 }
 
@@ -315,6 +354,30 @@ const styles = StyleSheet.create({
   metricLabel: {
     color: palette.secondaryText,
     fontSize: 13,
+  },
+  sectionTabs: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  sectionTab: {
+    backgroundColor: '#13213a',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#22304a',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  sectionTabActive: {
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
+  },
+  sectionTabText: {
+    color: '#bfdbfe',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  sectionTabTextActive: {
+    color: palette.buttonText,
   },
   toolbar: {
     backgroundColor: palette.panel,
@@ -504,5 +567,32 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     fontSize: 14,
     lineHeight: 21,
+  },
+  messagingCard: {
+    backgroundColor: palette.panel,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 16,
+    gap: 14,
+  },
+  messagingHeader: {
+    gap: 6,
+  },
+  messagingTitle: {
+    color: palette.primaryText,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  messagingCopy: {
+    color: palette.secondaryText,
+    fontSize: 14,
+    lineHeight: 21,
+    maxWidth: 860,
+  },
+  messagingViewport: {
+    minHeight: 820,
+    borderRadius: 22,
+    overflow: 'hidden',
   },
 });
