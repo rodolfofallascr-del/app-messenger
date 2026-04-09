@@ -10,6 +10,7 @@ import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
 const tagColorOptions = ['#facc15', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#f97316'];
+const tagSymbolPresets = ['?', '?', '??', '??', '??', '??', '??', '??', '??', '??'];
 
 type AdminWebAppProps = {
   session: Session;
@@ -189,6 +190,10 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     } finally {
       setResourceBusy(false);
     }
+  };
+
+  const handleAppendReplySymbol = (symbol: string) => {
+    setReplyEmoji((current) => `${current}${symbol}`.trim());
   };
 
   const handlePickLibraryImage = async () => {
@@ -432,12 +437,19 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <TextInput value={replyLabel} onChangeText={setReplyLabel} placeholder="Etiqueta visible" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <TextInput value={replyTag} onChangeText={setReplyTag} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <View style={styles.visualRow}>
-                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} placeholder="Emoji, ejemplo ?" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={4} />
+                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} placeholder="Emojis o simbolos, ejemplo ????" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={24} />
                 <View style={styles.colorPickerRow}>
                   {tagColorOptions.map((color) => (
                     <Pressable key={color} onPress={() => setReplyColor(color)} style={[styles.colorChip, { backgroundColor: color }, replyColor === color && styles.colorChipActive]} />
                   ))}
                 </View>
+              </View>
+              <View style={styles.symbolPresetRow}>
+                {tagSymbolPresets.map((symbol) => (
+                  <Pressable key={symbol} onPress={() => handleAppendReplySymbol(symbol)} style={styles.symbolPresetChip}>
+                    <Text style={styles.symbolPresetText}>{symbol}</Text>
+                  </Pressable>
+                ))}
               </View>
               <View style={styles.previewBadge}>
                 <View style={[styles.previewDot, { backgroundColor: replyColor }]} />
@@ -705,6 +717,25 @@ const styles = StyleSheet.create({
     gap: 8,
     flexWrap: 'wrap',
     flex: 1,
+  },
+  symbolPresetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  symbolPresetChip: {
+    minWidth: 42,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: '#13213a',
+    borderWidth: 1,
+    borderColor: '#22304a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  symbolPresetText: {
+    fontSize: 15,
   },
   colorChip: {
     width: 26,
@@ -1085,6 +1116,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+
+
 
 
 
