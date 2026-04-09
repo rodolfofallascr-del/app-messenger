@@ -2,17 +2,18 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MessagingApp } from './MessagingApp';
+import { createMediaLibraryItem, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
-import { AppUserStatus, ProfileRecord } from './types/chat';
+import { AppUserStatus, MediaLibraryRecord, ProfileRecord, QuickReplyRecord } from './types/chat';
 
 type AdminWebAppProps = {
   session: Session;
   profile: ProfileRecord;
 };
 
-type AdminSection = 'users' | 'conversations';
+type AdminSection = 'users' | 'conversations' | 'library';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
@@ -24,6 +25,16 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | AppUserStatus>('all');
   const [section, setSection] = useState<AdminSection>('users');
+  const [quickReplies, setQuickReplies] = useState<QuickReplyRecord[]>([]);
+  const [mediaLibrary, setMediaLibrary] = useState<MediaLibraryRecord[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [resourceBusy, setResourceBusy] = useState(false);
+  const [replyLabel, setReplyLabel] = useState('');
+  const [replyTag, setReplyTag] = useState('');
+  const [replyBody, setReplyBody] = useState('');
+  const [imageTitle, setImageTitle] = useState('');
+  const [imageTag, setImageTag] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -39,31 +50,55 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   }, []);
 
+  const loadLibrary = useCallback(async () => {
+    setLibraryLoading(true);
+
+    try {
+      const [nextReplies, nextMedia] = await Promise.all([fetchQuickReplies(), fetchMediaLibrary()]);
+      setQuickReplies(nextReplies);
+      setMediaLibrary(nextMedia);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible cargar la biblioteca.');
+    } finally {
+      setLibraryLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (section !== 'users') {
-      return;
+    if (section === 'users') {
+      void loadUsers();
     }
 
-    void loadUsers();
-  }, [loadUsers, section]);
+    if (section === 'library' || section === 'conversations') {
+      void loadLibrary();
+    }
+  }, [loadLibrary, loadUsers, section]);
 
   useEffect(() => {
-    if (section !== 'users') {
-      return;
-    }
-
     const supabase = getSupabaseClient();
     const channel = supabase
-      .channel('admin-profiles-watch')
+      .channel('admin-backoffice-watch')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-        void loadUsers();
+        if (section === 'users') {
+          void loadUsers();
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quick_replies' }, () => {
+        if (section === 'library' || section === 'conversations') {
+          void loadLibrary();
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'media_library' }, () => {
+        if (section === 'library' || section === 'conversations') {
+          void loadLibrary();
+        }
       })
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadUsers, section]);
+  }, [loadLibrary, loadUsers, section]);
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -116,6 +151,92 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   };
 
+  const handleCreateReply = async () => {
+    if (!replyLabel.trim() || !replyBody.trim()) {
+      setFeedback('Ingresa etiqueta y mensaje para la respuesta rapida.');
+      return;
+    }
+
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      await createQuickReply({
+        label: replyLabel,
+        tag: replyTag,
+        body: replyBody,
+        createdBy: profile.id,
+      });
+      setReplyLabel('');
+      setReplyTag('');
+      setReplyBody('');
+      await loadLibrary();
+      setFeedback('Respuesta rapida guardada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible guardar la respuesta.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
+  const handleCreateImage = async () => {
+    if (!imageTitle.trim() || !imageUrl.trim()) {
+      setFeedback('Ingresa titulo y URL de la imagen.');
+      return;
+    }
+
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      await createMediaLibraryItem({
+        title: imageTitle,
+        tag: imageTag,
+        imageUrl,
+        createdBy: profile.id,
+      });
+      setImageTitle('');
+      setImageTag('');
+      setImageUrl('');
+      await loadLibrary();
+      setFeedback('Imagen precargada guardada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible guardar la imagen.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
+  const handleDeleteReply = async (id: string) => {
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      await deleteQuickReply(id);
+      await loadLibrary();
+      setFeedback('Respuesta rapida eliminada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar la respuesta.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
+  const handleDeleteImage = async (id: string) => {
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      await deleteMediaLibraryItem(id);
+      await loadLibrary();
+      setFeedback('Imagen precargada eliminada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar la imagen.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
   const handleSignOut = () => {
     getSupabaseClient().auth.signOut().catch(() => undefined);
   };
@@ -129,7 +250,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             <View style={styles.heroCopy}>
               <Text style={styles.eyebrow}>Panel administrador</Text>
               <Text style={styles.title}>Control de acceso y mensajeria</Text>
-              <Text style={styles.subtitle}>Aprueba usuarios, bloquea accesos y responde conversaciones desde la version web.</Text>
+              <Text style={styles.subtitle}>Aprueba usuarios, responde conversaciones y usa biblioteca con tags, mensajes e imagenes precargadas.</Text>
             </View>
             <Pressable style={styles.signOutButton} onPress={handleSignOut}>
               <Text style={styles.signOutText}>Salir</Text>
@@ -146,7 +267,10 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         <View style={styles.sectionTabs}>
           <SectionTab label="Usuarios" active={section === 'users'} onPress={() => setSection('users')} />
           <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} />
+          <SectionTab label="Biblioteca" active={section === 'library'} onPress={() => setSection('library')} />
         </View>
+
+        {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
 
         {section === 'users' ? (
           <>
@@ -165,8 +289,6 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 <FilterChip label="Bloqueados" active={filter === 'blocked'} onPress={() => setFilter('blocked')} />
               </View>
             </View>
-
-            {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
 
             <View style={styles.listCard}>
               <View style={styles.listHeader}>
@@ -213,24 +335,87 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 </View>
               )}
             </View>
-
-            <View style={styles.noteCard}>
-              <Text style={styles.noteTitle}>Siguiente paso recomendado</Text>
-              <Text style={styles.noteText}>Despues de esto conviene anadir biblioteca de imagenes precargadas, tags y respuestas rapidas para que el admin responda mas rapido.</Text>
-              <Text style={styles.noteText}>Sesion actual: {session.user.email ?? 'admin'}.</Text>
-            </View>
           </>
-        ) : (
+        ) : null}
+
+        {section === 'conversations' ? (
           <View style={styles.messagingCard}>
             <View style={styles.messagingHeader}>
               <Text style={styles.messagingTitle}>Bandeja del administrador</Text>
-              <Text style={styles.messagingCopy}>Aqui puedes responder conversaciones desde la web. En el siguiente bloque podemos especializarla para clientes solamente, con biblioteca y tags.</Text>
+              <Text style={styles.messagingCopy}>Usa la biblioteca lateral para insertar tags, mensajes precargados e imagenes guardadas en la conversacion activa.</Text>
             </View>
             <View style={styles.messagingViewport}>
-              <MessagingApp session={session} />
+              <MessagingApp session={session} adminMode />
             </View>
           </View>
-        )}
+        ) : null}
+
+        {section === 'library' ? (
+          <View style={styles.libraryLayout}>
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Nuevo mensaje rapido</Text>
+              <TextInput value={replyLabel} onChangeText={setReplyLabel} placeholder="Etiqueta visible" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={replyTag} onChangeText={setReplyTag} placeholder="Tag, ejemplo #promo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={replyBody} onChangeText={setReplyBody} placeholder="Mensaje precargado" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.textArea]} multiline />
+              <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateReply()} disabled={resourceBusy}>
+                <Text style={styles.primaryButtonText}>Guardar mensaje rapido</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>Nueva imagen precargada</Text>
+              <TextInput value={imageTitle} onChangeText={setImageTitle} placeholder="Titulo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={imageTag} onChangeText={setImageTag} placeholder="Tag opcional, ejemplo #catalogo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="URL publica de la imagen" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateImage()} disabled={resourceBusy}>
+                <Text style={styles.primaryButtonText}>Guardar imagen</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.libraryListCard}>
+              <View style={styles.listHeader}>
+                <Text style={styles.listTitle}>Biblioteca guardada</Text>
+                {libraryLoading ? <ActivityIndicator color={palette.accent} /> : null}
+              </View>
+              <View style={styles.libraryColumns}>
+                <View style={styles.libraryColumn}>
+                  <Text style={styles.sectionMiniTitle}>Mensajes rapidos</Text>
+                  <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
+                    <View style={styles.libraryStack}>
+                      {quickReplies.map((reply) => (
+                        <View key={reply.id} style={styles.libraryItemCard}>
+                          <Text style={styles.libraryTag}>{reply.tag}</Text>
+                          <Text style={styles.libraryItemTitle}>{reply.label}</Text>
+                          <Text style={styles.libraryBody}>{reply.body}</Text>
+                          <Pressable style={styles.deleteButton} onPress={() => void handleDeleteReply(reply.id)}>
+                            <Text style={styles.deleteButtonText}>Eliminar</Text>
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+                <View style={styles.libraryColumn}>
+                  <Text style={styles.sectionMiniTitle}>Imagenes</Text>
+                  <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
+                    <View style={styles.libraryStack}>
+                      {mediaLibrary.map((item) => (
+                        <View key={item.id} style={styles.libraryItemCard}>
+                          <Image source={{ uri: item.image_url }} style={styles.savedImage} resizeMode="cover" />
+                          <Text style={styles.libraryItemTitle}>{item.title}</Text>
+                          <Text style={styles.libraryTag}>{item.tag || '#imagen'}</Text>
+                          <Pressable style={styles.deleteButton} onPress={() => void handleDeleteImage(item.id)}>
+                            <Text style={styles.deleteButtonText}>Eliminar</Text>
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              </View>
+            </View>
+          </View>
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -278,7 +463,7 @@ const styles = StyleSheet.create({
     padding: 18,
   },
   shell: {
-    maxWidth: 1280,
+    maxWidth: 1380,
     width: '100%',
     alignSelf: 'center',
     gap: 16,
@@ -396,6 +581,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
+  },
+  textArea: {
+    minHeight: 110,
+    textAlignVertical: 'top',
   },
   filterRow: {
     flexDirection: 'row',
@@ -550,24 +739,6 @@ const styles = StyleSheet.create({
   actionTextDark: {
     color: '#111827',
   },
-  noteCard: {
-    backgroundColor: '#0b1220',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 18,
-    gap: 8,
-  },
-  noteTitle: {
-    color: palette.primaryText,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  noteText: {
-    color: palette.secondaryText,
-    fontSize: 14,
-    lineHeight: 21,
-  },
   messagingCard: {
     backgroundColor: palette.panel,
     borderRadius: 24,
@@ -594,5 +765,110 @@ const styles = StyleSheet.create({
     minHeight: 820,
     borderRadius: 22,
     overflow: 'hidden',
+  },
+  libraryLayout: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'flex-start',
+  },
+  formCard: {
+    width: 320,
+    backgroundColor: palette.panel,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 16,
+    gap: 12,
+  },
+  formTitle: {
+    color: palette.primaryText,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  primaryButton: {
+    backgroundColor: palette.accent,
+    borderRadius: 16,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonText: {
+    color: palette.buttonText,
+    fontWeight: '800',
+  },
+  libraryListCard: {
+    flex: 1,
+    backgroundColor: palette.panel,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 16,
+    gap: 14,
+    minHeight: 640,
+  },
+  libraryColumns: {
+    flexDirection: 'row',
+    gap: 16,
+    minHeight: 0,
+    flex: 1,
+  },
+  libraryColumn: {
+    flex: 1,
+    gap: 10,
+    minHeight: 0,
+  },
+  sectionMiniTitle: {
+    color: palette.primaryText,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  libraryScroll: {
+    flex: 1,
+    minHeight: 0,
+  },
+  libraryStack: {
+    gap: 12,
+    paddingBottom: 6,
+  },
+  libraryItemCard: {
+    backgroundColor: '#101a2d',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: 12,
+    gap: 6,
+  },
+  libraryItemTitle: {
+    color: palette.primaryText,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  libraryTag: {
+    color: '#facc15',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  libraryBody: {
+    color: palette.secondaryText,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  savedImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 14,
+    backgroundColor: '#0f172a',
+  },
+  deleteButton: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#1f2937',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  deleteButtonText: {
+    color: '#fca5a5',
+    fontWeight: '800',
+    fontSize: 12,
   },
 });

@@ -78,3 +78,21 @@ export type PendingAttachment = {
   mimeType: string;
   type: 'image' | 'file';
 };
+
+export type QuickReplyRecord = {
+  id: string;
+  label: string;
+  tag: string;
+  body: string;
+  created_by: string | null;
+  created_at: string;
+};
+
+export type MediaLibraryRecord = {
+  id: string;
+  title: string;
+  tag: string | null;
+  image_url: string;
+  created_by: string | null;
+  created_at: string;
+};

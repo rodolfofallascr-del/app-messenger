@@ -27,13 +27,14 @@ import { ChatMessage, ChatThread, PendingAttachment, SelectableUser } from './ty
 
 type MessagingAppProps = {
   session: Session;
+  adminMode?: boolean;
 };
 
 type MobileView = 'chats' | 'conversation';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
-export function MessagingApp({ session }: MessagingAppProps) {
+export function MessagingApp({ session, adminMode }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
@@ -481,17 +482,19 @@ export function MessagingApp({ session }: MessagingAppProps) {
         <Text style={styles.sectionTitle}>Conversaciones</Text>
         <Text style={styles.counter}>{liveChats.length}</Text>
       </View>
-      <CreateChatCard
-        groupName={groupName}
-        selectedUserIds={selectedUserIds}
-        users={availableUsers}
-        loadingUsers={loadingUsers}
-        onChangeGroupName={setGroupName}
-        onToggleUser={handleToggleUser}
-        onCreate={handleCreateChat}
-        busy={creatingChat}
-        message={createMessage}
-      />
+      {!adminMode ? (
+        <CreateChatCard
+          groupName={groupName}
+          selectedUserIds={selectedUserIds}
+          users={availableUsers}
+          loadingUsers={loadingUsers}
+          onChangeGroupName={setGroupName}
+          onToggleUser={handleToggleUser}
+          onCreate={handleCreateChat}
+          busy={creatingChat}
+          message={createMessage}
+        />
+      ) : null}
       <TextInput
         value={search}
         onChangeText={setSearch}
@@ -508,7 +511,9 @@ export function MessagingApp({ session }: MessagingAppProps) {
         <View style={styles.sidebarState}>
           <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
           <Text style={styles.sidebarStateText}>
-            Crea un chat con usuarios registrados y aqui aparecera en tiempo real.
+            {adminMode
+              ? 'Cuando los clientes tengan conversaciones, apareceran aqui para atenderlas desde la web.'
+              : 'Crea un chat con usuarios registrados y aqui aparecera en tiempo real.'}
           </Text>
         </View>
       ) : visibleChats.length === 0 ? (
