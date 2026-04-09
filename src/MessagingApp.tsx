@@ -23,18 +23,21 @@ import { buildChatMessages, buildChatThread } from './lib/chatMappers';
 import { createChat, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
-import { ChatMessage, ChatThread, PendingAttachment, SelectableUser } from './types/chat';
+import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
 
 type MessagingAppProps = {
   session: Session;
   adminMode?: boolean;
+  quickReplyToInsert?: QuickReplyRecord | null;
+  mediaToInsert?: MediaLibraryRecord | null;
+  onResourceApplied?: () => void;
 };
 
 type MobileView = 'chats' | 'conversation';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
-export function MessagingApp({ session, adminMode }: MessagingAppProps) {
+export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
@@ -168,6 +171,66 @@ export function MessagingApp({ session, adminMode }: MessagingAppProps) {
       setMobileView('chats');
     }
   }, [isDesktop, selectedChatId]);
+
+  useEffect(() => {
+    if (!quickReplyToInsert) {
+      return;
+    }
+
+    if (!selectedChatId) {
+      setLoadingError('Selecciona una conversacion antes de insertar un mensaje rapido.');
+      onResourceApplied?.();
+      return;
+    }
+
+    setDrafts((current) => {
+      const previous = current[selectedChatId] ?? '';
+      const nextText = previous.trim().length > 0 ? `${previous.trim()}\n\n${quickReplyToInsert.body}` : quickReplyToInsert.body;
+
+      return {
+        ...current,
+        [selectedChatId]: nextText,
+      };
+    });
+    setLoadingError(null);
+    onResourceApplied?.();
+  }, [onResourceApplied, quickReplyToInsert, selectedChatId]);
+
+  useEffect(() => {
+    if (!mediaToInsert) {
+      return;
+    }
+
+    if (!selectedChatId) {
+      setLoadingError('Selecciona una conversacion antes de insertar una imagen.');
+      onResourceApplied?.();
+      return;
+    }
+
+    const safeTag = mediaToInsert.tag?.trim();
+    const extension = mediaToInsert.image_url.split('.').pop()?.split('?')[0]?.trim() || 'jpg';
+    replacePendingAttachment({
+      uri: mediaToInsert.image_url,
+      name: `${mediaToInsert.title}.${extension}`,
+      mimeType: 'image/jpeg',
+      type: 'image',
+    });
+    setDrafts((current) => {
+      if (!safeTag) {
+        return current;
+      }
+
+      const previous = current[selectedChatId] ?? '';
+      const nextText = previous.trim().length > 0 ? `${previous.trim()}\n${safeTag}` : safeTag;
+
+      return {
+        ...current,
+        [selectedChatId]: nextText,
+      };
+    });
+    setLoadingError(null);
+    onResourceApplied?.();
+  }, [mediaToInsert, onResourceApplied, replacePendingAttachment, selectedChatId]);
 
   useEffect(() => {
     if (Platform.OS !== 'web') {

@@ -2,6 +2,7 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MessagingApp } from './MessagingApp';
+import { AdminResourcePanel } from './components/AdminResourcePanel';
 import { createMediaLibraryItem, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
@@ -35,6 +36,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [imageTitle, setImageTitle] = useState('');
   const [imageTag, setImageTag] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [queuedQuickReply, setQueuedQuickReply] = useState<QuickReplyRecord | null>(null);
+  const [queuedMedia, setQueuedMedia] = useState<MediaLibraryRecord | null>(null);
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -342,10 +345,33 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
           <View style={styles.messagingCard}>
             <View style={styles.messagingHeader}>
               <Text style={styles.messagingTitle}>Bandeja del administrador</Text>
-              <Text style={styles.messagingCopy}>Usa la biblioteca lateral para insertar tags, mensajes precargados e imagenes guardadas en la conversacion activa.</Text>
+              <Text style={styles.messagingCopy}>Abre una conversacion y usa la biblioteca lateral para insertar tags, mensajes precargados e imagenes guardadas directamente en el chat activo.</Text>
             </View>
-            <View style={styles.messagingViewport}>
-              <MessagingApp session={session} adminMode />
+            <View style={styles.messagingLayout}>
+              <View style={styles.messagingViewport}>
+                <MessagingApp
+                  session={session}
+                  adminMode
+                  quickReplyToInsert={queuedQuickReply}
+                  mediaToInsert={queuedMedia}
+                  onResourceApplied={() => {
+                    setQueuedQuickReply(null);
+                    setQueuedMedia(null);
+                  }}
+                />
+              </View>
+              <AdminResourcePanel
+                quickReplies={quickReplies}
+                mediaLibrary={mediaLibrary}
+                onUseQuickReply={(reply) => {
+                  setQueuedMedia(null);
+                  setQueuedQuickReply(reply);
+                }}
+                onUseMedia={(item) => {
+                  setQueuedQuickReply(null);
+                  setQueuedMedia(item);
+                }}
+              />
             </View>
           </View>
         ) : null}
@@ -761,7 +787,14 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     maxWidth: 860,
   },
+  messagingLayout: {
+    flexDirection: 'row',
+    gap: 16,
+    alignItems: 'stretch',
+    minHeight: 0,
+  },
   messagingViewport: {
+    flex: 1,
     minHeight: 820,
     borderRadius: 22,
     overflow: 'hidden',
