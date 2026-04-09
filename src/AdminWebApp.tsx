@@ -18,6 +18,7 @@ type AdminWebAppProps = {
 };
 
 type AdminSection = 'users' | 'conversations' | 'library';
+type ReplyTargetField = 'label' | 'tag' | 'emoji' | 'body';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
@@ -37,6 +38,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [replyTag, setReplyTag] = useState('');
   const [replyBody, setReplyBody] = useState('');
   const [replyEmoji, setReplyEmoji] = useState('');
+  const [activeReplyField, setActiveReplyField] = useState<ReplyTargetField>('body');
   const [replyColor, setReplyColor] = useState(tagColorOptions[0]);
   const [imageTitle, setImageTitle] = useState('');
   const [imageTag, setImageTag] = useState('');
@@ -161,8 +163,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   };
 
   const handleCreateReply = async () => {
-    if (!replyLabel.trim() || !replyBody.trim()) {
-      setFeedback('Ingresa etiqueta y mensaje para la respuesta rapida.');
+    if (!replyBody.trim()) {
+      setFeedback('Ingresa el mensaje precargado antes de guardarlo.');
       return;
     }
 
@@ -434,16 +436,17 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
           <View style={styles.libraryLayout}>
             <View style={styles.formCard}>
               <Text style={styles.formTitle}>Nuevo mensaje rapido</Text>
-              <TextInput value={replyLabel} onChangeText={setReplyLabel} placeholder="Etiqueta visible" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
-              <TextInput value={replyTag} onChangeText={setReplyTag} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={replyLabel} onChangeText={setReplyLabel} onFocus={() => setActiveReplyField('label')} placeholder="Etiqueta visible opcional" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={replyTag} onChangeText={setReplyTag} onFocus={() => setActiveReplyField('tag')} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <View style={styles.visualRow}>
-                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} placeholder="Emojis o simbolos, ejemplo \u274C\u2705\uD83D\uDCB8" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={24} />
+                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} onFocus={() => setActiveReplyField('emoji')} placeholder="Insignia visual opcional" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={24} />
                 <View style={styles.colorPickerRow}>
                   {tagColorOptions.map((color) => (
                     <Pressable key={color} onPress={() => setReplyColor(color)} style={[styles.colorChip, { backgroundColor: color }, replyColor === color && styles.colorChipActive]} />
                   ))}
                 </View>
               </View>
+              <Text style={styles.helperText}>Los simbolos se pegan en el campo que tengas activo. Si no seleccionas otro, van al mensaje.</Text>
               <View style={styles.symbolPresetRow}>
                 {tagSymbolPresets.map((symbol) => (
                   <Pressable key={symbol} onPress={() => handleAppendReplySymbol(symbol)} style={styles.symbolPresetChip}>
@@ -456,7 +459,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 {replyEmoji ? <Text style={styles.previewEmoji}>{replyEmoji}</Text> : null}
                 <Text style={styles.previewBadgeText}>{replyTag.trim() || '#general'}</Text>
               </View>
-              <TextInput value={replyBody} onChangeText={setReplyBody} placeholder="Mensaje precargado" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.textArea]} multiline />
+              <TextInput value={replyBody} onChangeText={setReplyBody} onFocus={() => setActiveReplyField('body')} placeholder="Mensaje precargado" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.textArea]} multiline />
               <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateReply()} disabled={resourceBusy}>
                 <Text style={styles.primaryButtonText}>Guardar mensaje rapido</Text>
               </Pressable>
@@ -1116,6 +1119,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+
+
 
 
 

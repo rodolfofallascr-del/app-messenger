@@ -1,4 +1,4 @@
-import { File } from 'expo-file-system';
+﻿import { File } from 'expo-file-system';
 import { MediaLibraryRecord, PendingAttachment, QuickReplyRecord } from '../types/chat';
 import { getSupabaseClient } from './supabase';
 
@@ -19,7 +19,7 @@ export async function fetchQuickReplies() {
 }
 
 export async function createQuickReply(input: {
-  label: string;
+  label?: string;
   tag: string;
   body: string;
   tagColor?: string;
@@ -28,7 +28,7 @@ export async function createQuickReply(input: {
 }) {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from('quick_replies').insert({
-    label: input.label.trim(),
+    label: normalizeQuickReplyLabel(input.label, input.body, input.tag),
     tag: normalizeTag(input.tag),
     body: input.body.trim(),
     tag_color: normalizeOptionalText(input.tagColor),
@@ -152,3 +152,18 @@ function normalizeOptionalText(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : null;
 }
+
+function normalizeQuickReplyLabel(label: string | undefined, body: string, tag: string) {
+  const explicit = label?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const normalizedBody = body.trim().replace(/\s+/g, ' ');
+  if (normalizedBody) {
+    return normalizedBody.length > 42 ? `${normalizedBody.slice(0, 39)}...` : normalizedBody;
+  }
+
+  return normalizeTag(tag);
+}
+
