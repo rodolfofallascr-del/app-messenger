@@ -81,6 +81,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   const [latestIncomingByChat, setLatestIncomingByChat] = useState<Record<string, string>>({});
   const selectedChatIdRef = useRef(selectedChatId);
   const readMarkersRef = useRef(readMarkers);
+  const latestIncomingByChatRef = useRef(latestIncomingByChat);
   const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
 
   useEffect(() => {
@@ -90,6 +91,10 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   useEffect(() => {
     readMarkersRef.current = readMarkers;
   }, [readMarkers]);
+
+  useEffect(() => {
+    latestIncomingByChatRef.current = latestIncomingByChat;
+  }, [latestIncomingByChat]);
 
   useEffect(() => {
     conversationVisibleRef.current = isDesktop || mobileView === 'conversation';
@@ -109,7 +114,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
 
   const markChatAsRead = useCallback(
     (chatId: string, explicitTimestamp?: string) => {
-      const latestIncoming = explicitTimestamp ?? latestIncomingByChat[chatId];
+      const latestIncoming = explicitTimestamp ?? latestIncomingByChatRef.current[chatId];
       if (!latestIncoming) {
         return;
       }
@@ -124,7 +129,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         [chatId]: latestIncoming,
       });
     },
-    [latestIncomingByChat, persistReadMarkers]
+    [persistReadMarkers]
   );
 
   const replacePendingAttachment = useCallback((nextAttachment: PendingAttachment | null) => {
@@ -1099,3 +1104,6 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
+
+
