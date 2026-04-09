@@ -1,4 +1,4 @@
-import * as DocumentPicker from 'expo-document-picker';
+﻿import * as DocumentPicker from 'expo-document-picker';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -10,7 +10,7 @@ import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
 const tagColorOptions = ['#facc15', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#f97316'];
-const tagSymbolPresets = ['?', '?', '??', '??', '??', '??', '??', '??', '??', '??'];
+const tagSymbolPresets = ['\u274C', '\u2705', '\uD83D\uDCB8', '\uD83D\uDCB0', '\uD83D\uDCCC', '\u26A0\uFE0F', '\uD83D\uDCCD', '\uD83D\uDFE2', '\uD83D\uDD34', '\uD83D\uDFE1'];
 
 type AdminWebAppProps = {
   session: Session;
@@ -437,7 +437,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <TextInput value={replyLabel} onChangeText={setReplyLabel} placeholder="Etiqueta visible" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <TextInput value={replyTag} onChangeText={setReplyTag} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <View style={styles.visualRow}>
-                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} placeholder="Emojis o simbolos, ejemplo ????" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={24} />
+                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} placeholder="Emojis o simbolos, ejemplo \u274C\u2705\uD83D\uDCB8" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={24} />
                 <View style={styles.colorPickerRow}>
                   {tagColorOptions.map((color) => (
                     <Pressable key={color} onPress={() => setReplyColor(color)} style={[styles.colorChip, { backgroundColor: color }, replyColor === color && styles.colorChipActive]} />
