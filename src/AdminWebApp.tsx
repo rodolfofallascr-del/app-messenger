@@ -1,4 +1,4 @@
-﻿import * as DocumentPicker from 'expo-document-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
   },
   messagingViewport: {
     flex: 1,
-    minHeight: 820,
+    minHeight: 720,
     borderRadius: 22,
     overflow: 'hidden',
   },

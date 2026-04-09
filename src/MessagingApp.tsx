@@ -104,6 +104,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
   const desktopViewportHeight = Math.max(640, height - 32);
+  const embeddedDesktopAdmin = Boolean(adminMode && isDesktop);
   const [mobileView, setMobileView] = useState<MobileView>('chats');
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
@@ -671,7 +672,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
           ? `${liveChats.length} conversaciones sincronizadas.`
           : 'Listo para crear tu primera conversacion.';
 
-  const header = isDesktop ? (
+  const header = embeddedDesktopAdmin ? null : isDesktop ? (
     <View style={[styles.headerShell, styles.headerShellDesktop]}>
       <View style={styles.heroCard}>
         <Image source={brandLogo} style={styles.heroLogo} resizeMode="contain" />
@@ -816,19 +817,30 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
       keyboardVerticalOffset={!isDesktop ? (Platform.OS === 'ios' ? 12 : 0) : 0}
     >
       {isDesktop ? (
-        <ScrollView
-          style={styles.screen}
-          contentContainerStyle={[styles.screenContent, styles.screenContentDesktop, { minHeight: desktopViewportHeight }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.root, styles.rootDesktop, { height: desktopViewportHeight }]}>
-            {header}
-            <View style={[styles.workspace, styles.workspaceDesktop]}>
-              {chatsPanel}
-              {conversationPanel}
+        embeddedDesktopAdmin ? (
+          <View style={[styles.screen, styles.embeddedDesktopScreen]}>
+            <View style={[styles.root, styles.rootEmbeddedDesktop]}>
+              <View style={[styles.workspace, styles.workspaceDesktop, styles.workspaceEmbeddedDesktop]}>
+                {chatsPanel}
+                {conversationPanel}
+              </View>
             </View>
           </View>
-        </ScrollView>
+        ) : (
+          <ScrollView
+            style={styles.screen}
+            contentContainerStyle={[styles.screenContent, styles.screenContentDesktop, { minHeight: desktopViewportHeight }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={[styles.root, styles.rootDesktop, { height: desktopViewportHeight }]}>
+              {header}
+              <View style={[styles.workspace, styles.workspaceDesktop]}>
+                {chatsPanel}
+                {conversationPanel}
+              </View>
+            </View>
+          </ScrollView>
+        )
       ) : (
         <View style={styles.mobileRoot}>
           {header}
@@ -864,6 +876,10 @@ const styles = StyleSheet.create({
   screenContentDesktop: {
     minHeight: '100%',
   },
+  embeddedDesktopScreen: {
+    flex: 1,
+    minHeight: 820,
+  },
   root: {
     backgroundColor: palette.background,
     paddingHorizontal: 16,
@@ -873,6 +889,12 @@ const styles = StyleSheet.create({
   },
   rootDesktop: {
     overflow: 'hidden',
+  },
+  rootEmbeddedDesktop: {
+    flex: 1,
+    paddingHorizontal: 0,
+    gap: 0,
+    maxWidth: '100%',
   },
   mobileRoot: {
     flex: 1,
@@ -1054,6 +1076,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     flex: 1,
     minHeight: 0,
+  },
+  workspaceEmbeddedDesktop: {
+    maxWidth: '100%',
+    alignSelf: 'stretch',
   },
   sidebar: {
     backgroundColor: palette.panel,
