@@ -55,6 +55,23 @@ function loadStoredReadMarkers(userId: string) {
   }
 }
 
+function isTransientSupabaseLockError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+
+  return message.includes('was released because another request stole it') || message.includes('Lock "lock:');
+}
+
+function formatStatusError(message: string | null) {
+  if (!message) {
+    return null;
+  }
+
+  if (message.includes('was released because another request stole it') || message.includes('Lock "lock:')) {
+    return 'Sincronizando conversaciones...';
+  }
+
+  return message;
+}
 export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
@@ -205,6 +222,10 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         return nextChats[0]?.id ?? '';
       });
     } catch (error) {
+      if (isTransientSupabaseLockError(error)) {
+        setLoadingError(null);
+        return;
+      }
       setLiveChats([]);
       setLiveMessages({});
       setSelectedChatId('');
@@ -599,8 +620,8 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
       .catch(() => undefined);
   };
 
-  const statusText = loadingError
-    ? `Estado: ${loadingError}`
+  const statusText = formatStatusError(loadingError)
+    ? `Estado: ${formatStatusError(loadingError)}`
     : sending
       ? 'Enviando mensaje...'
       : creatingChat
@@ -1116,6 +1137,8 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
+
 
 
 
