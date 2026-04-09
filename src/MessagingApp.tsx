@@ -1,4 +1,4 @@
-﻿import * as DocumentPicker from 'expo-document-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,7 +20,7 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { createChat, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage } from './lib/chatService';
+import { createChat, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
@@ -53,6 +53,22 @@ function loadStoredReadMarkers(userId: string) {
     window.localStorage.removeItem(readMarkersStorageKey(userId));
     return {} as Record<string, string>;
   }
+}
+
+function mergeReadMarkers(current: Record<string, string>, incoming: Record<string, string>) {
+  const merged = { ...current };
+
+  for (const [chatId, timestamp] of Object.entries(incoming)) {
+    if (!timestamp) {
+      continue;
+    }
+
+    if (!merged[chatId] || merged[chatId] < timestamp) {
+      merged[chatId] = timestamp;
+    }
+  }
+
+  return merged;
 }
 
 function isTransientSupabaseLockError(error: unknown) {
@@ -152,10 +168,13 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         return;
       }
 
-      persistReadMarkers({
+      const nextMarkers = {
         ...readMarkersRef.current,
         [chatId]: latestIncoming,
-      });
+      };
+
+      persistReadMarkers(nextMarkers);
+      void upsertChatReadMarker(chatId, latestIncoming).catch(() => undefined);
     },
     [persistReadMarkers]
   );
@@ -190,7 +209,14 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
     }
 
     try {
-      const { userId, rows } = await fetchChatRowsForCurrentUser();
+      const [{ userId, rows }, serverReadMarkers] = await Promise.all([
+        fetchChatRowsForCurrentUser(),
+        fetchChatReadMarkers(),
+      ]);
+      const effectiveReadMarkers = mergeReadMarkers(readMarkersRef.current, serverReadMarkers);
+      if (JSON.stringify(effectiveReadMarkers) !== JSON.stringify(readMarkersRef.current)) {
+        persistReadMarkers(effectiveReadMarkers);
+      }
       const nextLatestIncomingByChat = Object.fromEntries(
         rows.map((row) => {
           const latestIncoming = [...row.messages].reverse().find((message) => message.sender_id !== userId);
@@ -206,7 +232,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
       const nextChats = rows.map((row) => {
         const lastMessage = row.messages[row.messages.length - 1] ?? null;
         const unreadCount = row.messages.filter(
-          (message) => message.sender_id !== userId && (!readMarkersRef.current[row.id] || message.created_at > readMarkersRef.current[row.id])
+          (message) => message.sender_id !== userId && (!effectiveReadMarkers[row.id] || message.created_at > effectiveReadMarkers[row.id])
         ).length;
 
         return buildChatThread({
@@ -246,7 +272,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         setLoadingChats(false);
       }
     }
-  }, [markChatAsRead]);
+  }, [markChatAsRead, persistReadMarkers]);
 
   useEffect(() => {
     void Promise.all([loadUsers(), loadChats()]);
@@ -267,6 +293,9 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         void loadUsers();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_read_markers' }, () => {
+        void loadChats({ silent: true });
       })
       .subscribe();
 

@@ -317,5 +317,69 @@ function normalizeProfile(profile: RawProfile) {
   return profile;
 }
 
+export async function fetchChatReadMarkers() {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
+  if (authError) {
+    throw authError;
+  }
 
+  if (!user) {
+    throw new Error('No hay un usuario autenticado.');
+  }
+
+  const { data, error } = await supabase
+    .from('chat_read_markers')
+    .select('chat_id,last_read_message_at')
+    .eq('user_id', user.id);
+
+  if (error) {
+    if (isMissingReadMarkersTable(error)) {
+      return {} as Record<string, string>;
+    }
+
+    throw error;
+  }
+
+  return Object.fromEntries(
+    (data ?? []).map((row) => [row.chat_id, row.last_read_message_at])
+  ) as Record<string, string>;
+}
+
+export async function upsertChatReadMarker(chatId: string, lastReadMessageAt: string) {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) {
+    throw authError;
+  }
+
+  if (!user) {
+    throw new Error('No hay un usuario autenticado.');
+  }
+
+  const { error } = await supabase.from('chat_read_markers').upsert(
+    {
+      user_id: user.id,
+      chat_id: chatId,
+      last_read_message_at: lastReadMessageAt,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,chat_id' }
+  );
+
+  if (error && !isMissingReadMarkersTable(error)) {
+    throw error;
+  }
+}
+
+function isMissingReadMarkersTable(error: { message?: string; code?: string }) {
+  return error.code === '42P01' || error.message?.includes('chat_read_markers') || false;
+}
