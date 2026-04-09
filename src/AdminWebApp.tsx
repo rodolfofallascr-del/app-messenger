@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
   },
   messagingViewport: {
     flex: 1,
-    minHeight: 720,
+    minHeight: 820,
     borderRadius: 22,
     overflow: 'hidden',
   },
