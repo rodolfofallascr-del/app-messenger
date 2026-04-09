@@ -43,7 +43,7 @@ function readMarkersStorageKey(userId: string) {
 
 function loadStoredReadMarkers(userId: string) {
   if (Platform.OS !== 'web') {
-    return {};
+    return {} as Record<string, string>;
   }
 
   try {
@@ -51,7 +51,7 @@ function loadStoredReadMarkers(userId: string) {
     return stored ? (JSON.parse(stored) as Record<string, string>) : {};
   } catch {
     window.localStorage.removeItem(readMarkersStorageKey(userId));
-    return {};
+    return {} as Record<string, string>;
   }
 }
 
@@ -78,6 +78,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [readMarkers, setReadMarkers] = useState<Record<string, string>>(() => loadStoredReadMarkers(session.user.id));
+  const [latestIncomingByChat, setLatestIncomingByChat] = useState<Record<string, string>>({});
   const selectedChatIdRef = useRef(selectedChatId);
   const readMarkersRef = useRef(readMarkers);
   const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
@@ -93,6 +94,39 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   useEffect(() => {
     conversationVisibleRef.current = isDesktop || mobileView === 'conversation';
   }, [isDesktop, mobileView]);
+
+  const persistReadMarkers = useCallback(
+    (nextMarkers: Record<string, string>) => {
+      setReadMarkers(nextMarkers);
+      readMarkersRef.current = nextMarkers;
+
+      if (Platform.OS === 'web') {
+        window.localStorage.setItem(readMarkersStorageKey(session.user.id), JSON.stringify(nextMarkers));
+      }
+    },
+    [session.user.id]
+  );
+
+  const markChatAsRead = useCallback(
+    (chatId: string, explicitTimestamp?: string) => {
+      const latestIncoming = explicitTimestamp ?? latestIncomingByChat[chatId];
+      if (!latestIncoming) {
+        return;
+      }
+
+      const currentMarker = readMarkersRef.current[chatId];
+      if (currentMarker && currentMarker >= latestIncoming) {
+        return;
+      }
+
+      persistReadMarkers({
+        ...readMarkersRef.current,
+        [chatId]: latestIncoming,
+      });
+    },
+    [latestIncomingByChat, persistReadMarkers]
+  );
+
   const replacePendingAttachment = useCallback((nextAttachment: PendingAttachment | null) => {
     setPendingAttachment((current) => {
       if (Platform.OS === 'web' && current?.uri.startsWith('blob:') && current.uri !== nextAttachment?.uri) {
@@ -124,20 +158,22 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
 
     try {
       const { userId, rows } = await fetchChatRowsForCurrentUser();
-      const activeChatId = selectedChatIdRef.current;
-      const nextReadMarkers = { ...readMarkersRef.current };
+      const nextLatestIncomingByChat = Object.fromEntries(
+        rows.map((row) => {
+          const latestIncoming = [...row.messages].reverse().find((message) => message.sender_id !== userId);
+          return [row.id, latestIncoming?.created_at ?? ''];
+        })
+      ) as Record<string, string>;
 
-      for (const row of rows) {
-        const latestIncoming = [...row.messages].reverse().find((message) => message.sender_id !== userId);
-        if (latestIncoming && row.id === activeChatId && conversationVisibleRef.current) {
-          nextReadMarkers[row.id] = latestIncoming.created_at;
-        }
+      const activeChatId = selectedChatIdRef.current;
+      if (activeChatId && conversationVisibleRef.current && nextLatestIncomingByChat[activeChatId]) {
+        markChatAsRead(activeChatId, nextLatestIncomingByChat[activeChatId]);
       }
 
       const nextChats = rows.map((row) => {
         const lastMessage = row.messages[row.messages.length - 1] ?? null;
         const unreadCount = row.messages.filter(
-          (message) => message.sender_id !== userId && (!nextReadMarkers[row.id] || message.created_at > nextReadMarkers[row.id])
+          (message) => message.sender_id !== userId && (!readMarkersRef.current[row.id] || message.created_at > readMarkersRef.current[row.id])
         ).length;
 
         return buildChatThread({
@@ -153,8 +189,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         rows.map((row) => [row.id, buildChatMessages(row.messages, userId)])
       ) as Record<string, ChatMessage[]>;
 
-      readMarkersRef.current = nextReadMarkers;
-      setReadMarkers(nextReadMarkers);
+      setLatestIncomingByChat(nextLatestIncomingByChat);
       setLiveChats(nextChats);
       setLiveMessages(nextMessages);
       setSelectedChatId((current) => {
@@ -174,7 +209,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         setLoadingChats(false);
       }
     }
-  }, []);
+  }, [markChatAsRead]);
 
   useEffect(() => {
     void Promise.all([loadUsers(), loadChats()]);
@@ -232,8 +267,9 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
       return;
     }
 
+    markChatAsRead(selectedChatId);
     void loadChats({ silent: true });
-  }, [isDesktop, loadChats, mobileView, selectedChatId]);
+  }, [isDesktop, loadChats, markChatAsRead, mobileView, selectedChatId]);
 
   useEffect(() => {
     if (!quickReplyToInsert) {
@@ -450,6 +486,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
 
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
+    markChatAsRead(chatId);
     if (!isDesktop) {
       setMobileView('conversation');
     }
@@ -1062,14 +1099,3 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
-
-
-
-
-
-
-
-
-
-
-
