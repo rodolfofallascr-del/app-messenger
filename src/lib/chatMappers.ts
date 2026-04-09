@@ -24,8 +24,9 @@ export function buildChatThread(params: {
   members: ChatMemberRecord[];
   lastMessage?: MessageRecord | null;
   currentUserId: string;
+  unreadCount?: number;
 }) {
-  const { chat, members, lastMessage, currentUserId } = params;
+  const { chat, members, lastMessage, currentUserId, unreadCount = 0 } = params;
   const otherMembers = members.filter((member) => member.user_id !== currentUserId);
   const visibleMembers = members.map((member) => profileDisplayName(member.profile));
 
@@ -39,7 +40,7 @@ export function buildChatThread(params: {
     name,
     lastMessage: messagePreview(lastMessage),
     lastActivity: lastMessage ? formatRelativeTime(lastMessage.created_at) : formatRelativeTime(chat.created_at),
-    unreadCount: 0,
+    unreadCount,
     type: chat.type,
     members: visibleMembers,
     avatarColor: avatarPalette[Math.abs(hashString(chat.id)) % avatarPalette.length],
@@ -94,3 +95,4 @@ function hashString(value: string) {
 
   return hash;
 }
+

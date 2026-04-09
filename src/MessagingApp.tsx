@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Session } from '@supabase/supabase-js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -59,7 +59,22 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [readMarkers, setReadMarkers] = useState<Record<string, string>>({});
+  const selectedChatIdRef = useRef(selectedChatId);
+  const readMarkersRef = useRef(readMarkers);
+  const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
 
+  useEffect(() => {
+    selectedChatIdRef.current = selectedChatId;
+  }, [selectedChatId]);
+
+  useEffect(() => {
+    readMarkersRef.current = readMarkers;
+  }, [readMarkers]);
+
+  useEffect(() => {
+    conversationVisibleRef.current = isDesktop || mobileView === 'conversation';
+  }, [isDesktop, mobileView]);
   const replacePendingAttachment = useCallback((nextAttachment: PendingAttachment | null) => {
     setPendingAttachment((current) => {
       if (Platform.OS === 'web' && current?.uri.startsWith('blob:') && current.uri !== nextAttachment?.uri) {
@@ -91,19 +106,37 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
 
     try {
       const { userId, rows } = await fetchChatRowsForCurrentUser();
-      const nextChats = rows.map((row) =>
-        buildChatThread({
+      const activeChatId = selectedChatIdRef.current;
+      const nextReadMarkers = { ...readMarkersRef.current };
+
+      for (const row of rows) {
+        const latestIncoming = [...row.messages].reverse().find((message) => message.sender_id !== userId);
+        if (latestIncoming && row.id === activeChatId && conversationVisibleRef.current) {
+          nextReadMarkers[row.id] = latestIncoming.created_at;
+        }
+      }
+
+      const nextChats = rows.map((row) => {
+        const lastMessage = row.messages[row.messages.length - 1] ?? null;
+        const unreadCount = row.messages.filter(
+          (message) => message.sender_id !== userId && (!nextReadMarkers[row.id] || message.created_at > nextReadMarkers[row.id])
+        ).length;
+
+        return buildChatThread({
           chat: row,
           members: row.members,
-          lastMessage: row.messages[row.messages.length - 1] ?? null,
+          lastMessage,
           currentUserId: userId,
-        })
-      );
+          unreadCount,
+        });
+      });
 
       const nextMessages = Object.fromEntries(
         rows.map((row) => [row.id, buildChatMessages(row.messages, userId)])
       ) as Record<string, ChatMessage[]>;
 
+      readMarkersRef.current = nextReadMarkers;
+      setReadMarkers(nextReadMarkers);
       setLiveChats(nextChats);
       setLiveMessages(nextMessages);
       setSelectedChatId((current) => {
@@ -171,6 +204,18 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
       setMobileView('chats');
     }
   }, [isDesktop, selectedChatId]);
+
+  useEffect(() => {
+    if (!selectedChatId) {
+      return;
+    }
+
+    if (!(isDesktop || mobileView === 'conversation')) {
+      return;
+    }
+
+    void loadChats({ silent: true });
+  }, [isDesktop, loadChats, mobileView, selectedChatId]);
 
   useEffect(() => {
     if (!quickReplyToInsert) {
@@ -999,3 +1044,8 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
+
+
+
+

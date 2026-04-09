@@ -13,26 +13,27 @@ export function ChatList({ chats, selectedChatId, onSelect }: ChatListProps) {
     <View style={styles.list}>
       {chats.map((chat) => {
         const isActive = chat.id === selectedChatId;
+        const hasUnread = chat.unreadCount > 0;
 
         return (
           <Pressable
             key={chat.id}
             onPress={() => onSelect(chat.id)}
-            style={[styles.item, isActive && styles.itemActive]}
+            style={[styles.item, isActive && styles.itemActive, hasUnread && !isActive && styles.itemUnread]}
           >
-            <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}>
+            <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}> 
               <Text style={styles.avatarText}>{chat.name.slice(0, 1)}</Text>
             </View>
             <View style={styles.content}>
               <View style={styles.row}>
-                <Text style={styles.name}>{chat.name}</Text>
-                <Text style={styles.time}>{chat.lastActivity}</Text>
+                <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>{chat.name}</Text>
+                <Text style={[styles.time, hasUnread && styles.timeUnread]}>{chat.lastActivity}</Text>
               </View>
-              <Text style={styles.message} numberOfLines={1}>
+              <Text style={[styles.message, hasUnread && styles.messageUnread]} numberOfLines={1}>
                 {chat.lastMessage}
               </Text>
             </View>
-            {chat.unreadCount > 0 ? (
+            {hasUnread ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{chat.unreadCount}</Text>
               </View>
@@ -62,6 +63,10 @@ const styles = StyleSheet.create({
     borderColor: palette.accent,
     backgroundColor: palette.cardActive,
   },
+  itemUnread: {
+    borderColor: '#2f6b46',
+    backgroundColor: '#0f1d18',
+  },
   avatar: {
     width: 44,
     height: 44,
@@ -86,14 +91,26 @@ const styles = StyleSheet.create({
     color: palette.primaryText,
     fontWeight: '700',
     fontSize: 15,
+    flex: 1,
+  },
+  nameUnread: {
+    color: '#dcfce7',
   },
   time: {
     color: palette.mutedText,
     fontSize: 12,
   },
+  timeUnread: {
+    color: palette.accentSoft,
+    fontWeight: '700',
+  },
   message: {
     color: palette.secondaryText,
     fontSize: 13,
+  },
+  messageUnread: {
+    color: palette.primaryText,
+    fontWeight: '700',
   },
   badge: {
     minWidth: 24,
