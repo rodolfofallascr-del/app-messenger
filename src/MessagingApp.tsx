@@ -432,6 +432,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
 
   const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
   const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
+  const latestUnreadChat = useMemo(() => liveChats.find((chat) => chat.unreadCount > 0) ?? null, [liveChats]);
 
   const clearPendingAttachment = useCallback(() => {
     replacePendingAttachment(null);
@@ -1104,6 +1105,9 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
+
+
 
 
 
