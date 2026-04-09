@@ -200,6 +200,14 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     setReplyEmoji((current) => `${current}${symbol}`.trim());
   };
 
+
+  const handleBackspaceReplyEmoji = () => {
+    setReplyEmoji((current) => Array.from(current).slice(0, -1).join('')); 
+  };
+
+  const handleClearReplyEmoji = () => {
+    setReplyEmoji('');
+  };
   const handlePickLibraryImage = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
@@ -463,6 +471,14 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 </View>
               ) : null}
               <Text style={styles.helperText}>Los simbolos se pegan en el campo que tengas activo. Si no seleccionas otro, van al mensaje.</Text>
+              <View style={styles.emojiActionsRow}>
+                <Pressable style={styles.emojiActionButton} onPress={handleBackspaceReplyEmoji}>
+                  <Text style={styles.emojiActionText}>Borrar ultimo</Text>
+                </Pressable>
+                <Pressable style={styles.emojiActionButton} onPress={handleClearReplyEmoji}>
+                  <Text style={styles.emojiActionText}>Limpiar insignia</Text>
+                </Pressable>
+              </View>
               <View style={styles.symbolPresetRow}>
                 {tagSymbolPresets.map((symbol) => (
                   <Pressable key={symbol} onPress={() => handleAppendReplySymbol(symbol)} style={styles.symbolPresetChip}>
@@ -785,6 +801,24 @@ const styles = StyleSheet.create({
   },
   emojiLibraryText: {
     fontSize: 20,
+  },
+  emojiActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  emojiActionButton: {
+    backgroundColor: '#13213a',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#22304a',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  emojiActionText: {
+    color: palette.primaryText,
+    fontWeight: '700',
+    fontSize: 12,
   },
   colorChip: {
     width: 26,
@@ -1165,6 +1199,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
 
 
 
