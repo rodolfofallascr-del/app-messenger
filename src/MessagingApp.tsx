@@ -41,6 +41,20 @@ function readMarkersStorageKey(userId: string) {
   return 'messaging-read-markers:' + userId;
 }
 
+function loadStoredReadMarkers(userId: string) {
+  if (Platform.OS !== 'web') {
+    return {};
+  }
+
+  try {
+    const stored = window.localStorage.getItem(readMarkersStorageKey(userId));
+    return stored ? (JSON.parse(stored) as Record<string, string>) : {};
+  } catch {
+    window.localStorage.removeItem(readMarkersStorageKey(userId));
+    return {};
+  }
+}
+
 export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
@@ -63,7 +77,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [readMarkers, setReadMarkers] = useState<Record<string, string>>({});
+  const [readMarkers, setReadMarkers] = useState<Record<string, string>>(() => loadStoredReadMarkers(session.user.id));
   const selectedChatIdRef = useRef(selectedChatId);
   const readMarkersRef = useRef(readMarkers);
   const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
@@ -1048,6 +1062,9 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
+
+
 
 
 
