@@ -37,6 +37,10 @@ type MobileView = 'chats' | 'conversation';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
+function readMarkersStorageKey(userId: string) {
+  return 'messaging-read-markers:' + userId;
+}
+
 export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
@@ -1044,6 +1048,9 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
+
+
 
 
 
