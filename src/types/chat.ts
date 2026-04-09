@@ -9,6 +9,7 @@ export type ChatThread = {
   name: string;
   lastMessage: string;
   lastActivity: string;
+  lastActivityAt: string;
   unreadCount: number;
   type: ChatType;
   members: string[];
@@ -98,3 +99,4 @@ export type MediaLibraryRecord = {
   created_by: string | null;
   created_at: string;
 };
+

@@ -419,20 +419,31 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   );
 
   const visibleChats = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) {
-      return liveChats;
+  const orderedChats = [...liveChats].sort((left, right) => {
+    if (adminMode && left.unreadCount !== right.unreadCount) {
+      return right.unreadCount - left.unreadCount;
     }
 
-    return liveChats.filter((chat) => {
-      const haystack = `${chat.name} ${chat.lastMessage} ${chat.members.join(' ')}`.toLowerCase();
-      return haystack.includes(query);
-    });
-  }, [search, liveChats]);
+    const leftTime = new Date(left.lastActivityAt).getTime();
+    const rightTime = new Date(right.lastActivityAt).getTime();
 
-  const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
-  const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
-  const latestUnreadChat = useMemo(() => liveChats.find((chat) => chat.unreadCount > 0) ?? null, [liveChats]);
+    return rightTime - leftTime;
+  });
+
+  const query = search.trim().toLowerCase();
+  if (!query) {
+    return orderedChats;
+  }
+
+  return orderedChats.filter((chat) => {
+    const haystack = `${chat.name} ${chat.lastMessage} ${chat.members.join(' ')}`.toLowerCase();
+    return haystack.includes(query);
+  });
+}, [adminMode, search, liveChats]);
+
+const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
+const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
+const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
 
   const clearPendingAttachment = useCallback(() => {
     replacePendingAttachment(null);
@@ -1105,6 +1116,7 @@ const styles = StyleSheet.create({
     maxWidth: 420,
   },
 });
+
 
 
 

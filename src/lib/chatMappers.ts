@@ -40,6 +40,7 @@ export function buildChatThread(params: {
     name,
     lastMessage: messagePreview(lastMessage),
     lastActivity: lastMessage ? formatRelativeTime(lastMessage.created_at) : formatRelativeTime(chat.created_at),
+    lastActivityAt: lastMessage?.created_at ?? chat.created_at,
     unreadCount,
     type: chat.type,
     members: visibleMembers,
@@ -95,4 +96,5 @@ function hashString(value: string) {
 
   return hash;
 }
+
 

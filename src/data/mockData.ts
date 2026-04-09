@@ -6,6 +6,7 @@ export const mockChats: ChatThread[] = [
     name: 'Equipo Ventas',
     lastMessage: 'Comparti el PDF con la promo actual.',
     lastActivity: '5:32 PM',
+    lastActivityAt: '2026-04-09T17:32:00.000Z',
     unreadCount: 3,
     type: 'group',
     members: ['Carla', 'Luis', 'Sofia', 'Tu'],
@@ -17,6 +18,7 @@ export const mockChats: ChatThread[] = [
     name: 'Paola',
     lastMessage: 'Te mande las fotos del pedido.',
     lastActivity: '4:18 PM',
+    lastActivityAt: '2026-04-09T16:18:00.000Z',
     unreadCount: 0,
     type: 'direct',
     members: ['Paola', 'Tu'],
@@ -28,6 +30,7 @@ export const mockChats: ChatThread[] = [
     name: 'Operaciones',
     lastMessage: 'Adjunto el reporte de cierre.',
     lastActivity: '11:20 AM',
+    lastActivityAt: '2026-04-09T11:20:00.000Z',
     unreadCount: 1,
     type: 'group',
     members: ['Mario', 'Ana', 'Tu'],
@@ -99,3 +102,4 @@ export const mockMessages: Record<string, ChatMessage[]> = {
     },
   ],
 };
+
