@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { MessagingApp } from './MessagingApp';
 import { AdminResourcePanel } from './components/AdminResourcePanel';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
+import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
 import { fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
@@ -39,6 +40,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [replyBody, setReplyBody] = useState('');
   const [replyEmoji, setReplyEmoji] = useState('');
   const [activeReplyField, setActiveReplyField] = useState<ReplyTargetField>('body');
+  const [showEmojiLibrary, setShowEmojiLibrary] = useState(false);
   const [replyColor, setReplyColor] = useState(tagColorOptions[0]);
   const [imageTitle, setImageTitle] = useState('');
   const [imageTag, setImageTag] = useState('');
@@ -446,6 +448,20 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   ))}
                 </View>
               </View>
+              <Pressable style={styles.secondaryButton} onPress={() => setShowEmojiLibrary((current) => !current)}> 
+                <Text style={styles.secondaryButtonText}>{showEmojiLibrary ? 'Ocultar biblioteca de emojis' : 'Abrir biblioteca de emojis'}</Text>
+              </Pressable>
+              {showEmojiLibrary ? (
+                <View style={styles.emojiLibraryCard}>
+                  <ScrollView style={styles.emojiLibraryScroll} contentContainerStyle={styles.emojiLibraryGrid} showsVerticalScrollIndicator={false}>
+                    {ADMIN_EMOJI_LIBRARY.map((emoji) => (
+                      <Pressable key={emoji} onPress={() => handleAppendReplySymbol(emoji)} style={styles.emojiLibraryChip}>
+                        <Text style={styles.emojiLibraryText}>{emoji}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              ) : null}
               <Text style={styles.helperText}>Los simbolos se pegan en el campo que tengas activo. Si no seleccionas otro, van al mensaje.</Text>
               <View style={styles.symbolPresetRow}>
                 {tagSymbolPresets.map((symbol) => (
@@ -739,6 +755,36 @@ const styles = StyleSheet.create({
   },
   symbolPresetText: {
     fontSize: 15,
+  },
+  emojiLibraryCard: {
+    backgroundColor: '#101a2d',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#22304a',
+    maxHeight: 220,
+    overflow: 'hidden',
+  },
+  emojiLibraryScroll: {
+    maxHeight: 220,
+  },
+  emojiLibraryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 12,
+  },
+  emojiLibraryChip: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#13213a',
+    borderWidth: 1,
+    borderColor: '#22304a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiLibraryText: {
+    fontSize: 20,
   },
   colorChip: {
     width: 26,
@@ -1119,6 +1165,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+
+
 
 
 
