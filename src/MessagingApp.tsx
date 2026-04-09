@@ -1,4 +1,4 @@
-import * as DocumentPicker from 'expo-document-picker';
+﻿import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -71,6 +71,17 @@ function formatStatusError(message: string | null) {
   }
 
   return message;
+}
+
+function buildQuickReplyInsertText(reply: QuickReplyRecord) {
+  const badge = [reply.tag_emoji?.trim(), reply.tag?.trim()].filter(Boolean).join(' ');
+  const body = reply.body.trim();
+
+  if (badge && body) {
+    return `${badge}\n${body}`;
+  }
+
+  return badge || body;
 }
 export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
@@ -310,7 +321,8 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
 
     setDrafts((current) => {
       const previous = current[selectedChatId] ?? '';
-      const nextText = previous.trim().length > 0 ? `${previous.trim()}\n\n${quickReplyToInsert.body}` : quickReplyToInsert.body;
+      const quickReplyText = buildQuickReplyInsertText(quickReplyToInsert);
+      const nextText = previous.trim().length > 0 ? `${previous.trim()}\n\n${quickReplyText}` : quickReplyText;
 
       return {
         ...current,
