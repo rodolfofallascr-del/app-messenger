@@ -1,13 +1,15 @@
+import * as DocumentPicker from 'expo-document-picker';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MessagingApp } from './MessagingApp';
 import { AdminResourcePanel } from './components/AdminResourcePanel';
-import { createMediaLibraryItem, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
+import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
-import { AppUserStatus, MediaLibraryRecord, ProfileRecord, QuickReplyRecord } from './types/chat';
+import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
+const tagColorOptions = ['#facc15', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#f97316'];
 
 type AdminWebAppProps = {
   session: Session;
@@ -33,9 +35,12 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [replyLabel, setReplyLabel] = useState('');
   const [replyTag, setReplyTag] = useState('');
   const [replyBody, setReplyBody] = useState('');
+  const [replyEmoji, setReplyEmoji] = useState('');
+  const [replyColor, setReplyColor] = useState(tagColorOptions[0]);
   const [imageTitle, setImageTitle] = useState('');
   const [imageTag, setImageTag] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [selectedLibraryImage, setSelectedLibraryImage] = useState<PendingAttachment | null>(null);
   const [queuedQuickReply, setQueuedQuickReply] = useState<QuickReplyRecord | null>(null);
   const [queuedMedia, setQueuedMedia] = useState<MediaLibraryRecord | null>(null);
 
@@ -168,11 +173,15 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         label: replyLabel,
         tag: replyTag,
         body: replyBody,
+        tagColor: replyColor,
+        tagEmoji: replyEmoji,
         createdBy: profile.id,
       });
       setReplyLabel('');
       setReplyTag('');
       setReplyBody('');
+      setReplyEmoji('');
+      setReplyColor(tagColorOptions[0]);
       await loadLibrary();
       setFeedback('Respuesta rapida guardada.');
     } catch (error) {
@@ -182,9 +191,39 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   };
 
+  const handlePickLibraryImage = async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      copyToCacheDirectory: true,
+      multiple: false,
+      type: ['image/*'],
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    const asset = result.assets[0];
+    setSelectedLibraryImage({
+      uri: asset.uri,
+      name: asset.name,
+      mimeType: asset.mimeType || 'image/jpeg',
+      type: 'image',
+    });
+
+    if (!imageTitle.trim()) {
+      setImageTitle(asset.name.replace(/\.[^.]+$/, ''));
+    }
+
+    setFeedback(null);
+  };
   const handleCreateImage = async () => {
-    if (!imageTitle.trim() || !imageUrl.trim()) {
-      setFeedback('Ingresa titulo y URL de la imagen.');
+    if (!imageTitle.trim()) {
+      setFeedback('Ingresa titulo para la imagen.');
+      return;
+    }
+
+    if (!imageUrl.trim() && !selectedLibraryImage) {
+      setFeedback('Carga una imagen desde tu computadora o pega una URL publica.');
       return;
     }
 
@@ -192,15 +231,25 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     setFeedback(null);
 
     try {
-      await createMediaLibraryItem({
-        title: imageTitle,
-        tag: imageTag,
-        imageUrl,
-        createdBy: profile.id,
-      });
+      if (selectedLibraryImage) {
+        await createMediaLibraryItemFromUpload({
+          title: imageTitle,
+          tag: imageTag,
+          file: selectedLibraryImage,
+          createdBy: profile.id,
+        });
+      } else {
+        await createMediaLibraryItem({
+          title: imageTitle,
+          tag: imageTag,
+          imageUrl,
+          createdBy: profile.id,
+        });
+      }
       setImageTitle('');
       setImageTag('');
       setImageUrl('');
+      setSelectedLibraryImage(null);
       await loadLibrary();
       setFeedback('Imagen precargada guardada.');
     } catch (error) {
@@ -381,7 +430,20 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             <View style={styles.formCard}>
               <Text style={styles.formTitle}>Nuevo mensaje rapido</Text>
               <TextInput value={replyLabel} onChangeText={setReplyLabel} placeholder="Etiqueta visible" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
-              <TextInput value={replyTag} onChangeText={setReplyTag} placeholder="Tag, ejemplo #promo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <TextInput value={replyTag} onChangeText={setReplyTag} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <View style={styles.visualRow}>
+                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} placeholder="Emoji, ejemplo ?" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={4} />
+                <View style={styles.colorPickerRow}>
+                  {tagColorOptions.map((color) => (
+                    <Pressable key={color} onPress={() => setReplyColor(color)} style={[styles.colorChip, { backgroundColor: color }, replyColor === color && styles.colorChipActive]} />
+                  ))}
+                </View>
+              </View>
+              <View style={styles.previewBadge}>
+                <View style={[styles.previewDot, { backgroundColor: replyColor }]} />
+                {replyEmoji ? <Text style={styles.previewEmoji}>{replyEmoji}</Text> : null}
+                <Text style={styles.previewBadgeText}>{replyTag.trim() || '#general'}</Text>
+              </View>
               <TextInput value={replyBody} onChangeText={setReplyBody} placeholder="Mensaje precargado" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.textArea]} multiline />
               <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateReply()} disabled={resourceBusy}>
                 <Text style={styles.primaryButtonText}>Guardar mensaje rapido</Text>
@@ -392,6 +454,19 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <Text style={styles.formTitle}>Nueva imagen precargada</Text>
               <TextInput value={imageTitle} onChangeText={setImageTitle} placeholder="Titulo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <TextInput value={imageTag} onChangeText={setImageTag} placeholder="Tag opcional, ejemplo #catalogo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+              <Pressable style={styles.secondaryButton} onPress={() => void handlePickLibraryImage()}>
+                <Text style={styles.secondaryButtonText}>{selectedLibraryImage ? 'Cambiar imagen desde la computadora' : 'Cargar imagen desde la computadora'}</Text>
+              </Pressable>
+              {selectedLibraryImage ? (
+                <View style={styles.filePreview}>
+                  <Text style={styles.filePreviewTitle}>{selectedLibraryImage.name}</Text>
+                  <Text style={styles.filePreviewCopy}>Lista para subir a la biblioteca.</Text>
+                  <Pressable onPress={() => setSelectedLibraryImage(null)} style={styles.inlineLinkButton}>
+                    <Text style={styles.inlineLinkText}>Quitar</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              <Text style={styles.helperText}>Opcionalmente puedes seguir usando una URL publica si ya la tienes.</Text>
               <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="URL publica de la imagen" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
               <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateImage()} disabled={resourceBusy}>
                 <Text style={styles.primaryButtonText}>Guardar imagen</Text>
@@ -410,7 +485,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                     <View style={styles.libraryStack}>
                       {quickReplies.map((reply) => (
                         <View key={reply.id} style={styles.libraryItemCard}>
-                          <Text style={styles.libraryTag}>{reply.tag}</Text>
+                          <View style={styles.savedReplyHeader}>
+                            <View style={[styles.previewDot, { backgroundColor: reply.tag_color || tagColorOptions[0] }]} />
+                            {reply.tag_emoji ? <Text style={styles.previewEmoji}>{reply.tag_emoji}</Text> : null}
+                            <Text style={styles.libraryTag}>{reply.tag}</Text>
+                          </View>
                           <Text style={styles.libraryItemTitle}>{reply.label}</Text>
                           <Text style={styles.libraryBody}>{reply.body}</Text>
                           <Pressable style={styles.deleteButton} onPress={() => void handleDeleteReply(reply.id)}>
@@ -611,6 +690,101 @@ const styles = StyleSheet.create({
   textArea: {
     minHeight: 110,
     textAlignVertical: 'top',
+  },
+  visualRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  emojiInput: {
+    width: 110,
+    marginBottom: 0,
+  },
+  colorPickerRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  colorChip: {
+    width: 26,
+    height: 26,
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  colorChipActive: {
+    borderColor: '#f8fafc',
+  },
+  previewBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#13213a',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#22304a',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  previewDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+  },
+  previewEmoji: {
+    fontSize: 14,
+  },
+  previewBadgeText: {
+    color: palette.primaryText,
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  secondaryButton: {
+    backgroundColor: '#13213a',
+    borderRadius: 16,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#22304a',
+    paddingHorizontal: 14,
+  },
+  secondaryButtonText: {
+    color: palette.primaryText,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  filePreview: {
+    backgroundColor: '#13213a',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#22304a',
+    padding: 12,
+    gap: 4,
+  },
+  filePreviewTitle: {
+    color: palette.primaryText,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  filePreviewCopy: {
+    color: palette.secondaryText,
+    fontSize: 12,
+  },
+  inlineLinkButton: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  inlineLinkText: {
+    color: '#fca5a5',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  helperText: {
+    color: palette.mutedText,
+    fontSize: 12,
+    lineHeight: 18,
   },
   filterRow: {
     flexDirection: 'row',
@@ -871,6 +1045,12 @@ const styles = StyleSheet.create({
     padding: 12,
     gap: 6,
   },
+  savedReplyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
   libraryItemTitle: {
     color: palette.primaryText,
     fontSize: 14,
@@ -905,3 +1085,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+
+
+
+
+
+
+
+
+
+

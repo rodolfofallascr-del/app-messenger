@@ -3,9 +3,14 @@ create table if not exists public.quick_replies (
   label text not null,
   tag text not null,
   body text not null,
+  tag_color text,
+  tag_emoji text,
   created_by uuid references public.profiles (id) on delete set null,
   created_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.quick_replies add column if not exists tag_color text;
+alter table public.quick_replies add column if not exists tag_emoji text;
 
 create table if not exists public.media_library (
   id uuid primary key default gen_random_uuid(),

@@ -84,6 +84,8 @@ export type QuickReplyRecord = {
   label: string;
   tag: string;
   body: string;
+  tag_color: string | null;
+  tag_emoji: string | null;
   created_by: string | null;
   created_at: string;
 };

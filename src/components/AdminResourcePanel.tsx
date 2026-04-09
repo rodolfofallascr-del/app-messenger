@@ -17,14 +17,20 @@ export function AdminResourcePanel({ quickReplies, mediaLibrary, onUseQuickReply
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tags y respuestas</Text>
+          <Text style={styles.sectionTitle}>Etiquetas y respuestas</Text>
           {quickReplies.length === 0 ? (
             <Text style={styles.emptyText}>Todavia no hay respuestas precargadas.</Text>
           ) : (
             quickReplies.map((reply) => (
               <Pressable key={reply.id} onPress={() => onUseQuickReply(reply)} style={styles.replyCard}>
-                <Text style={styles.replyTag}>{reply.tag}</Text>
-                <Text style={styles.replyLabel}>{reply.label}</Text>
+                <View style={styles.replyHeader}>
+                  <View style={styles.replyBadgeRow}>
+                    <View style={[styles.replyDot, reply.tag_color ? { backgroundColor: reply.tag_color } : null]} />
+                    {reply.tag_emoji ? <Text style={styles.replyEmoji}>{reply.tag_emoji}</Text> : null}
+                    <Text style={styles.replyTag}>{reply.tag}</Text>
+                  </View>
+                  <Text style={styles.replyLabel}>{reply.label}</Text>
+                </View>
                 <Text style={styles.replyBody} numberOfLines={4}>{reply.body}</Text>
               </Pressable>
             ))
@@ -95,7 +101,25 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#22304a',
     padding: 12,
-    gap: 4,
+    gap: 8,
+  },
+  replyHeader: {
+    gap: 6,
+  },
+  replyBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  replyDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 999,
+    backgroundColor: '#facc15',
+  },
+  replyEmoji: {
+    fontSize: 14,
   },
   replyTag: {
     color: '#facc15',
