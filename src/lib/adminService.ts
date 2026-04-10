@@ -17,12 +17,16 @@ export async function fetchAdminUsers() {
 
 export async function updateUserAccess(userId: string, status: AppUserStatus) {
   const supabase = getSupabaseClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ status })
-    .eq('id', userId);
+  const { data, error } = await supabase.rpc('admin_set_user_status', {
+    target_user_id: userId,
+    new_status: status,
+  });
 
   if (error) {
     throw error;
+  }
+
+  if (!data) {
+    throw new Error('Supabase no confirmo el cambio de estado del usuario.');
   }
 }
