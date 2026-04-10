@@ -103,11 +103,17 @@ export async function fetchChatRowsForCurrentUser() {
 
 export async function fetchSelectableUsers(currentUserId: string, options?: { onlyAdmins?: boolean }) {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from('profiles')
     .select('id,email,full_name')
     .neq('id', currentUserId)
-    .not('email', 'is', null)
+    .not('email', 'is', null);
+
+  if (options?.onlyAdmins) {
+    query = query.eq('role', 'admin').eq('status', 'approved');
+  }
+
+  const { data, error } = await query
     .order('full_name', { ascending: true })
     .order('email', { ascending: true });
 

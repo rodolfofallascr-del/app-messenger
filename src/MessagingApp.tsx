@@ -751,10 +751,27 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
   const chatsPanel = (
     <View style={[styles.sidebar, isDesktop ? styles.sidebarDesktop : styles.mobileSidebar]}>
       <View style={styles.sidebarHeader}>
-        <Text style={styles.sectionTitle}>Conversaciones</Text>
+        <Text style={styles.sectionTitle}>{clientMode ? 'Tu chat' : 'Conversaciones'}</Text>
         <Text style={styles.counter}>{liveChats.length}</Text>
       </View>
-      {!adminMode ? (
+      {clientMode ? (
+        <View style={styles.clientSupportCard}>
+          <Text style={styles.clientSupportTitle}>{primaryAdmin ? primaryAdmin.fullName : 'Administrador'}</Text>
+          <Text style={styles.clientSupportText}>
+            {primaryAdmin
+              ? 'Tu unico contacto disponible dentro de la app es el administrador.'
+              : 'En cuanto haya un administrador aprobado disponible, podras iniciar tu conversacion aqui.'}
+          </Text>
+          {createMessage ? <Text style={styles.message}>{createMessage}</Text> : null}
+          <Pressable
+            style={[styles.button, (!primaryAdmin || creatingChat) && styles.buttonDisabled]}
+            onPress={handleCreateChat}
+            disabled={!primaryAdmin || creatingChat}
+          >
+            <Text style={styles.buttonText}>{creatingChat ? 'Abriendo...' : clientActionTitle}</Text>
+          </Pressable>
+        </View>
+      ) : !adminMode ? (
         <CreateChatCard
           groupName={groupName}
           selectedUserIds={selectedUserIds}
@@ -770,7 +787,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
       <TextInput
         value={search}
         onChangeText={setSearch}
-        placeholder="Buscar chat o usuario"
+        placeholder={clientMode ? 'Buscar en tu chat' : 'Buscar chat o usuario'}
         placeholderTextColor={palette.mutedText}
         style={styles.searchInput}
       />
@@ -781,11 +798,13 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
         </View>
       ) : liveChats.length === 0 ? (
         <View style={styles.sidebarState}>
-          <Text style={styles.sidebarStateTitle}>Aun no tienes conversaciones</Text>
+          <Text style={styles.sidebarStateTitle}>{clientMode ? 'Aun no has iniciado tu chat' : 'Aun no tienes conversaciones'}</Text>
           <Text style={styles.sidebarStateText}>
             {adminMode
               ? 'Cuando los clientes tengan conversaciones, apareceran aqui para atenderlas desde la web.'
-              : 'Crea un chat con usuarios registrados y aqui aparecera en tiempo real.'}
+              : clientMode
+                ? 'Pulsa el boton superior para abrir tu conversacion directa con el administrador.'
+                : 'Crea un chat con usuarios registrados y aqui aparecera en tiempo real.'}
           </Text>
         </View>
       ) : visibleChats.length === 0 ? (
