@@ -216,7 +216,12 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
         fetchChatReadMarkers(),
       ]);
       const scopedRows = clientMode
-        ? rows.filter((row) => row.members.some((member) => member.user_id !== userId && member.profile?.role === 'admin'))
+        ? rows.filter((row) =>
+            row.type === 'direct' &&
+            row.members.length === 2 &&
+            row.members.some((member) => member.user_id !== userId && member.profile?.role === 'admin') &&
+            row.members.every((member) => member.user_id === userId || member.profile?.role === 'admin')
+          )
         : rows;
       const effectiveReadMarkers = mergeReadMarkers(readMarkersRef.current, serverReadMarkers);
       if (JSON.stringify(effectiveReadMarkers) !== JSON.stringify(readMarkersRef.current)) {
@@ -656,18 +661,18 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
     setCreatingChat(true);
 
     try {
+      const participantIds = clientMode ? [adminContactId].filter(Boolean) : selectedUserIds;
       const chatId = await createChat({
         currentUserId: session.user.id,
-        name: groupName,
-        participantIds: selectedUserIds,
+        name: clientMode ? 'Administrador' : groupName,
+        participantIds,
       });
 
       setGroupName('');
       setSelectedUserIds([]);
-      setAdminContactId(clientMode ? adminContactId : '');
       await loadChats();
       setSelectedChatId(chatId);
-      setCreateMessage('Conversacion creada correctamente.');
+      setCreateMessage(clientMode ? 'Chat con administracion listo.' : 'Conversacion creada correctamente.');
       if (!isDesktop) {
         setMobileView('conversation');
       }
