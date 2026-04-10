@@ -28,6 +28,7 @@ import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickRe
 type MessagingAppProps = {
   session: Session;
   adminMode?: boolean;
+  clientMode?: boolean;
   quickReplyToInsert?: QuickReplyRecord | null;
   mediaToInsert?: MediaLibraryRecord | null;
   onResourceApplied?: () => void;
@@ -99,7 +100,7 @@ function buildQuickReplyInsertText(reply: QuickReplyRecord) {
 
   return badge || body;
 }
-export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
+export function MessagingApp({ session, adminMode, clientMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
@@ -113,6 +114,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [adminContactId, setAdminContactId] = useState<string>('');
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -193,14 +195,14 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
     setLoadingUsers(true);
 
     try {
-      const users = await fetchSelectableUsers(session.user.id);
+      const users = await fetchSelectableUsers(session.user.id, { onlyAdmins: Boolean(clientMode) });
       setAvailableUsers(users);
     } catch (error) {
       setCreateMessage(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
     } finally {
       setLoadingUsers(false);
     }
-  }, [session.user.id]);
+  }, [clientMode, session.user.id]);
 
   const loadChats = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -213,12 +215,15 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         fetchChatRowsForCurrentUser(),
         fetchChatReadMarkers(),
       ]);
+      const scopedRows = clientMode
+        ? rows.filter((row) => row.members.some((member) => member.user_id !== userId && member.profile?.role === 'admin'))
+        : rows;
       const effectiveReadMarkers = mergeReadMarkers(readMarkersRef.current, serverReadMarkers);
       if (JSON.stringify(effectiveReadMarkers) !== JSON.stringify(readMarkersRef.current)) {
         persistReadMarkers(effectiveReadMarkers);
       }
       const nextLatestIncomingByChat = Object.fromEntries(
-        rows.map((row) => {
+        scopedRows.map((row) => {
           const latestIncoming = [...row.messages].reverse().find((message) => message.sender_id !== userId);
           return [row.id, latestIncoming?.created_at ?? ''];
         })
@@ -229,7 +234,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         markChatAsRead(activeChatId, nextLatestIncomingByChat[activeChatId]);
       }
 
-      const nextChats = rows.map((row) => {
+      const nextChats = scopedRows.map((row) => {
         const lastMessage = row.messages[row.messages.length - 1] ?? null;
         const unreadCount = row.messages.filter(
           (message) => message.sender_id !== userId && (!effectiveReadMarkers[row.id] || message.created_at > effectiveReadMarkers[row.id])
@@ -245,7 +250,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
       });
 
       const nextMessages = Object.fromEntries(
-        rows.map((row) => [row.id, buildChatMessages(row.messages, userId)])
+        scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId)])
       ) as Record<string, ChatMessage[]>;
 
       setLatestIncomingByChat(nextLatestIncomingByChat);
@@ -272,7 +277,7 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
         setLoadingChats(false);
       }
     }
-  }, [markChatAsRead, persistReadMarkers]);
+  }, [clientMode, markChatAsRead, persistReadMarkers]);
 
   useEffect(() => {
     void Promise.all([loadUsers(), loadChats()]);
@@ -503,6 +508,23 @@ export function MessagingApp({ session, adminMode, quickReplyToInsert, mediaToIn
   });
 }, [adminMode, search, liveChats]);
 
+const primaryAdmin = useMemo(() => availableUsers[0] ?? null, [availableUsers]);
+const clientHasAdminChat = useMemo(() => {
+  if (!clientMode || !primaryAdmin) {
+    return true;
+  }
+
+  return liveChats.some((chat) => chat.members.some((member) => member.toLowerCase().includes(primaryAdmin.fullName.toLowerCase()) || member.toLowerCase().includes(primaryAdmin.email.toLowerCase())));
+}, [clientMode, liveChats, primaryAdmin]);
+
+  useEffect(() => {
+    if (!clientMode) {
+      return;
+    }
+
+    setAdminContactId(primaryAdmin?.id ?? '');
+  }, [clientMode, primaryAdmin]);
+
 const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
 const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
 const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
@@ -642,6 +664,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
 
       setGroupName('');
       setSelectedUserIds([]);
+      setAdminContactId(clientMode ? adminContactId : '');
       await loadChats();
       setSelectedChatId(chatId);
       setCreateMessage('Conversacion creada correctamente.');
@@ -654,6 +677,8 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
       setCreatingChat(false);
     }
   };
+
+  const clientActionTitle = primaryAdmin ? (clientHasAdminChat ? `Abrir chat con ${primaryAdmin.fullName}` : `Iniciar chat con ${primaryAdmin.fullName}`) : 'Hablar con administracion';
 
   const handleSignOut = () => {
     getSupabaseClient()
@@ -1149,7 +1174,44 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
   },
-  emptyConversation: {
+  clientSupportCard: {
+    backgroundColor: palette.card,
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    gap: 10,
+    marginBottom: 12,
+  },
+  clientSupportTitle: {
+    color: palette.primaryText,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  clientSupportText: {
+    color: palette.secondaryText,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  message: {
+    color: '#fde68a',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  button: {
+    backgroundColor: palette.accent,
+    minHeight: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    color: palette.buttonText,
+    fontWeight: '800',
+  },  emptyConversation: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',

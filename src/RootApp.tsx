@@ -169,7 +169,7 @@ export function RootApp() {
     );
   }
 
-  return <MessagingApp session={session} />;
+  return <MessagingApp session={session} clientMode />;
 }
 
 const styles = StyleSheet.create({

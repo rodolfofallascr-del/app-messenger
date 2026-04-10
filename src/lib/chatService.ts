@@ -50,6 +50,8 @@ export async function fetchChatRowsForCurrentUser() {
             email,
             full_name,
             avatar_url,
+            role,
+            status,
             created_at
           )
         ),
@@ -67,6 +69,8 @@ export async function fetchChatRowsForCurrentUser() {
             email,
             full_name,
             avatar_url,
+            role,
+            status,
             created_at
           )
         )
@@ -97,7 +101,7 @@ export async function fetchChatRowsForCurrentUser() {
   };
 }
 
-export async function fetchSelectableUsers(currentUserId: string) {
+export async function fetchSelectableUsers(currentUserId: string, options?: { onlyAdmins?: boolean }) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('profiles')
