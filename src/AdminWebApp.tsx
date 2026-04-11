@@ -22,6 +22,7 @@ type ReplyTargetField = 'label' | 'tag' | 'emoji' | 'body';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 const ADMIN_THEME_STORAGE_KEY = 'chat-santanita-admin-theme';
+const ADMIN_SECTION_STORAGE_KEY = 'chat-santanita-admin-section';
 
 export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [themeMode, setThemeMode] = useState<AdminThemeMode>(() => {
@@ -38,7 +39,14 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | AppUserStatus>('all');
-  const [section, setSection] = useState<AdminSection>('users');
+  const [section, setSection] = useState<AdminSection>(() => {
+    if (typeof window === 'undefined') {
+      return 'users';
+    }
+
+    const savedSection = window.localStorage.getItem(ADMIN_SECTION_STORAGE_KEY);
+    return savedSection === 'conversations' || savedSection === 'library' ? savedSection : 'users';
+  });
   const [quickReplies, setQuickReplies] = useState<QuickReplyRecord[]>([]);
   const [mediaLibrary, setMediaLibrary] = useState<MediaLibraryRecord[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
@@ -104,6 +112,12 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       window.localStorage.setItem(ADMIN_THEME_STORAGE_KEY, themeMode);
     }
   }, [themeMode]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, section);
+    }
+  }, [section]);
 
   useEffect(() => {
     const timer = setInterval(() => {

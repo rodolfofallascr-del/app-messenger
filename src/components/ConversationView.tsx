@@ -26,6 +26,11 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
 
   const handleOpenAttachment = useCallback(async (url: string) => {
     try {
+      if (typeof window !== 'undefined') {
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
       const supported = await Linking.canOpenURL(url);
 
       if (!supported) {
