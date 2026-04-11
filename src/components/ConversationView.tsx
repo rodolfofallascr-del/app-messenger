@@ -104,16 +104,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     minHeight: 0,
+    backgroundColor: '#0e1628',
   },
   header: {
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: palette.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     gap: 12,
+    backgroundColor: '#101a2d',
   },
   headerCompact: {
     paddingHorizontal: 14,
@@ -128,8 +130,8 @@ const styles = StyleSheet.create({
   backButton: {
     backgroundColor: palette.input,
     borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   backButtonText: {
     color: palette.secondaryText,
@@ -138,7 +140,7 @@ const styles = StyleSheet.create({
   },
   chatName: {
     color: palette.primaryText,
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '800',
   },
   chatNameCompact: {
@@ -146,13 +148,13 @@ const styles = StyleSheet.create({
   },
   chatMeta: {
     color: palette.secondaryText,
-    fontSize: 13,
-    marginTop: 4,
+    fontSize: 12,
+    marginTop: 3,
   },
   headerBadge: {
-    backgroundColor: palette.input,
+    backgroundColor: '#16253e',
     borderRadius: 999,
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
   },
   headerBadgeCompact: {
@@ -169,31 +171,37 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   body: {
-    padding: 18,
-    gap: 12,
+    paddingHorizontal: 22,
+    paddingVertical: 18,
+    gap: 14,
+    backgroundColor: '#0e1628',
   },
   bodyCompact: {
     padding: 14,
     gap: 10,
   },
   bubble: {
-    maxWidth: '84%',
-    padding: 14,
-    borderRadius: 18,
-    gap: 6,
+    maxWidth: '78%',
+    paddingHorizontal: 15,
+    paddingVertical: 13,
+    borderRadius: 22,
+    gap: 7,
+    borderWidth: 1,
   },
   bubbleCompact: {
     padding: 12,
   },
   incoming: {
     alignSelf: 'flex-start',
-    backgroundColor: '#172554',
-    borderTopLeftRadius: 6,
+    backgroundColor: '#152544',
+    borderColor: '#22395f',
+    borderTopLeftRadius: 8,
   },
   outgoing: {
     alignSelf: 'flex-end',
     backgroundColor: '#14532d',
-    borderTopRightRadius: 6,
+    borderColor: '#1c7a45',
+    borderTopRightRadius: 8,
   },
   author: {
     color: '#93c5fd',
@@ -206,17 +214,17 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   attachmentImage: {
-    width: 220,
-    height: 180,
-    borderRadius: 14,
-    marginTop: 2,
+    width: 260,
+    height: 190,
+    borderRadius: 16,
+    marginTop: 4,
     backgroundColor: '#0b1220',
   },
   attachmentCard: {
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 14,
-    padding: 10,
-    gap: 2,
+    borderRadius: 16,
+    padding: 11,
+    gap: 3,
   },
   attachmentType: {
     color: '#93c5fd',
@@ -237,5 +245,6 @@ const styles = StyleSheet.create({
   timestamp: {
     color: palette.mutedText,
     fontSize: 11,
+    marginTop: 2,
   },
 });

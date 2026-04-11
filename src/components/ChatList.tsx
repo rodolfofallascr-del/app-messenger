@@ -47,49 +47,59 @@ export function ChatList({ chats, selectedChatId, onSelect }: ChatListProps) {
 
 const styles = StyleSheet.create({
   list: {
-    gap: 10,
+    gap: 8,
   },
   item: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
-    padding: 12,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: palette.card,
+    backgroundColor: '#111c30',
   },
   itemActive: {
     borderColor: palette.accent,
-    backgroundColor: palette.cardActive,
+    backgroundColor: '#16253e',
+    shadowColor: '#000000',
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5,
   },
   itemUnread: {
-    borderColor: '#2f6b46',
-    backgroundColor: '#0f1d18',
+    borderColor: '#27563b',
+    backgroundColor: '#102118',
   },
   avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 46,
+    height: 46,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 2,
   },
   avatarText: {
     color: palette.buttonText,
     fontWeight: '800',
+    fontSize: 16,
   },
   content: {
     flex: 1,
-    gap: 4,
+    gap: 5,
+    minWidth: 0,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
+    alignItems: 'center',
   },
   name: {
     color: palette.primaryText,
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 15,
     flex: 1,
   },
@@ -98,7 +108,8 @@ const styles = StyleSheet.create({
   },
   time: {
     color: palette.mutedText,
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: '600',
   },
   timeUnread: {
     color: palette.accentSoft,
@@ -107,6 +118,7 @@ const styles = StyleSheet.create({
   message: {
     color: palette.secondaryText,
     fontSize: 13,
+    lineHeight: 18,
   },
   messageUnread: {
     color: palette.primaryText,
@@ -120,6 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: palette.accent,
     paddingHorizontal: 8,
+    marginTop: 10,
   },
   badgeText: {
     color: palette.buttonText,
