@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputKeyPressEventData, NativeSyntheticEvent, View } from 'react-native';
 import { PendingAttachment } from '../types/chat';
 import { palette } from '../theme/palette';
 import { ADMIN_EMOJI_LIBRARY } from '../constants/adminEmojiLibrary';
@@ -18,6 +18,7 @@ type MessageComposerProps = {
   onSend: () => void;
   onToggleEmojiPicker?: () => void;
   onInsertEmoji?: (emoji: string) => void;
+  sendOnEnter?: boolean;
 };
 
 export function MessageComposer({
@@ -35,7 +36,25 @@ export function MessageComposer({
   onSend,
   onToggleEmojiPicker,
   onInsertEmoji,
+  sendOnEnter,
 }: MessageComposerProps) {
+  const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
+    if (!sendOnEnter || event.nativeEvent.key !== 'Enter') {
+      return;
+    }
+
+    const originalEvent = event as NativeSyntheticEvent<TextInputKeyPressEventData> & {
+      nativeEvent: TextInputKeyPressEventData & { shiftKey?: boolean };
+    };
+
+    if (originalEvent.nativeEvent.shiftKey) {
+      return;
+    }
+
+    event.preventDefault?.();
+    onSend();
+  };
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.attachments}>
@@ -76,6 +95,7 @@ export function MessageComposer({
         <TextInput
           value={value}
           onChangeText={onChangeText}
+          onKeyPress={handleKeyPress}
           placeholder="Escribe un mensaje"
           placeholderTextColor={palette.mutedText}
           style={styles.input}

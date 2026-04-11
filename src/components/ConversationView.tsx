@@ -75,13 +75,18 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           const isOutgoing = message.direction === 'outgoing';
           const canOpenAttachment = Boolean(message.attachmentLabel && message.attachmentUrl);
           const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
+          const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
 
           return (
             <View key={message.id} style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}>
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
-              <Text style={styles.content}>{message.content}</Text>
-              {isImageAttachment ? <Image source={{ uri: message.attachmentUrl as string }} style={styles.attachmentImage} resizeMode="cover" /> : null}
-              {canOpenAttachment ? (
+              {hasVisibleText ? <Text style={styles.content}>{message.content}</Text> : null}
+              {isImageAttachment ? (
+                <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string)} style={styles.imageOnlyWrap}>
+                  <Image source={{ uri: message.attachmentUrl as string }} style={styles.attachmentImage} resizeMode="cover" />
+                </Pressable>
+              ) : null}
+              {canOpenAttachment && !isImageAttachment ? (
                 <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string)} style={styles.attachmentCard}>
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
@@ -219,6 +224,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     marginTop: 4,
     backgroundColor: '#0b1220',
+  },
+  imageOnlyWrap: {
+    marginTop: 4,
   },
   attachmentCard: {
     backgroundColor: 'rgba(255,255,255,0.08)',

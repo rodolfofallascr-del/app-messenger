@@ -876,6 +876,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
             busy={sending}
             isDragActive={isDragActive}
             clipboardPasteEnabled={Boolean(adminMode && Platform.OS === 'web')}
+            sendOnEnter={Boolean(adminMode && Platform.OS === 'web')}
             showEmojiPicker={Boolean(adminMode)}
             emojiPickerOpen={emojiPickerOpen}
             onChangeText={(value) =>
