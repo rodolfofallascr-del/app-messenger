@@ -8,6 +8,7 @@ type MessageComposerProps = {
   attachment: PendingAttachment | null;
   busy?: boolean;
   isDragActive?: boolean;
+  clipboardPasteEnabled?: boolean;
   showEmojiPicker?: boolean;
   emojiPickerOpen?: boolean;
   onChangeText: (value: string) => void;
@@ -24,6 +25,7 @@ export function MessageComposer({
   attachment,
   busy,
   isDragActive,
+  clipboardPasteEnabled,
   showEmojiPicker,
   emojiPickerOpen,
   onChangeText,
@@ -40,6 +42,7 @@ export function MessageComposer({
         <Tag label="+ Foto" onPress={onPickImage} />
         <Tag label="+ Archivo" onPress={onPickFile} />
         {showEmojiPicker ? <Tag label={emojiPickerOpen ? 'Ocultar emojis' : '+ Emojis'} onPress={onToggleEmojiPicker ?? (() => undefined)} /> : null}
+        {clipboardPasteEnabled ? <Text style={styles.clipboardHint}>Ctrl + V para pegar captura</Text> : null}
       </View>
       {showEmojiPicker && emojiPickerOpen ? (
         <View style={styles.emojiLibraryCard}>
@@ -115,6 +118,13 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     fontWeight: '600',
     fontSize: 12,
+  },
+  clipboardHint: {
+    color: palette.mutedText,
+    fontSize: 12,
+    fontWeight: '600',
+    alignSelf: 'center',
+    marginLeft: 4,
   },
   dropHint: {
     borderWidth: 1,

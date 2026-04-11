@@ -486,6 +486,43 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
     };
   }, [replacePendingAttachment, selectedChatId]);
 
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !adminMode) {
+      return;
+    }
+
+    const handlePaste = (event: ClipboardEvent) => {
+      if (!selectedChatIdRef.current) {
+        return;
+      }
+
+      const items = Array.from(event.clipboardData?.items ?? []);
+      const imageItem = items.find((item) => item.type.startsWith('image/'));
+      if (!imageItem) {
+        return;
+      }
+
+      const blob = imageItem.getAsFile();
+      if (!blob) {
+        return;
+      }
+
+      event.preventDefault();
+      const extension = blob.type.split('/')[1] || 'png';
+      replacePendingAttachment({
+        uri: URL.createObjectURL(blob),
+        name: `captura-${Date.now()}.${extension}`,
+        mimeType: blob.type || 'image/png',
+        type: 'image',
+      });
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+    };
+  }, [adminMode, replacePendingAttachment]);
+
   const selectedChat = useMemo(
     () => liveChats.find((chat) => chat.id === selectedChatId) ?? null,
     [selectedChatId, liveChats]
@@ -703,7 +740,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
           ? `${liveChats.length} conversaciones sincronizadas.`
           : 'Listo para crear tu primera conversacion.';
 
-  const header = isDesktop ? (
+  const header = adminMode && isDesktop ? null : isDesktop ? (
     <View style={[styles.headerShell, styles.headerShellDesktop]}>
       <View style={styles.heroCard}>
         <Image source={brandLogo} style={styles.heroLogo} resizeMode="contain" />
@@ -751,7 +788,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
   ) : null;
 
   const chatsPanel = (
-    <View style={[styles.sidebar, isDesktop ? styles.sidebarDesktop : styles.mobileSidebar]}>
+    <View style={[styles.sidebar, isDesktop ? styles.sidebarDesktop : styles.mobileSidebar, adminMode && isDesktop && styles.sidebarAdminDesktop]}>
       <View style={styles.sidebarHeader}>
         <Text style={styles.sectionTitle}>{clientMode ? 'Tu chat' : 'Conversaciones'}</Text>
         <Text style={styles.counter}>{liveChats.length}</Text>
@@ -823,7 +860,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
   );
 
   const conversationPanel = (
-    <View style={[styles.chatPanel, isDesktop ? styles.chatPanelDesktop : styles.mobileChatPanel, isCompactHeight && isDesktop && styles.compactPanel]}>
+    <View style={[styles.chatPanel, isDesktop ? styles.chatPanelDesktop : styles.mobileChatPanel, adminMode && isDesktop && styles.chatPanelAdminDesktop, isCompactHeight && isDesktop && styles.compactPanel]}>
       {selectedChat ? (
         <>
           <ConversationView
@@ -838,6 +875,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
             attachment={pendingAttachment}
             busy={sending}
             isDragActive={isDragActive}
+            clipboardPasteEnabled={Boolean(adminMode && Platform.OS === 'web')}
             showEmojiPicker={Boolean(adminMode)}
             emojiPickerOpen={emojiPickerOpen}
             onChangeText={(value) =>
@@ -881,10 +919,10 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
           contentContainerStyle={[styles.screenContent, styles.screenContentDesktop, { minHeight: desktopViewportHeight }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.root, styles.rootDesktop, { height: desktopViewportHeight }]}>
+          <View style={[styles.root, styles.rootDesktop, adminMode && styles.rootAdminDesktop, { height: desktopViewportHeight }]}>
 
             {header}
-            <View style={[styles.workspace, styles.workspaceDesktop]}>
+            <View style={[styles.workspace, styles.workspaceDesktop, adminMode && styles.workspaceAdminDesktop]}>
               {chatsPanel}
               {conversationPanel}
             </View>
@@ -934,6 +972,10 @@ const styles = StyleSheet.create({
   },
   rootDesktop: {
     overflow: 'hidden',
+  },
+  rootAdminDesktop: {
+    paddingHorizontal: 0,
+    gap: 0,
   },
   mobileRoot: {
     flex: 1,
@@ -1116,6 +1158,10 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  workspaceAdminDesktop: {
+    maxWidth: '100%',
+    gap: 18,
+  },
   sidebar: {
     backgroundColor: palette.panel,
     borderRadius: 22,
@@ -1126,6 +1172,10 @@ const styles = StyleSheet.create({
   },
   sidebarDesktop: {
     width: 380,
+  },
+  sidebarAdminDesktop: {
+    width: 330,
+    flexShrink: 0,
   },
   mobileSidebar: {
     flex: 1,
@@ -1142,6 +1192,10 @@ const styles = StyleSheet.create({
   },
   chatPanelDesktop: {
     minHeight: 0,
+  },
+  chatPanelAdminDesktop: {
+    flex: 1,
+    minWidth: 0,
   },
   mobileChatPanel: {
     flex: 1,
