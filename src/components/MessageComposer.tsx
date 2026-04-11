@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, TextInputKeyPressEventData, NativeSyntheticEvent, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PendingAttachment } from '../types/chat';
 import { palette } from '../theme/palette';
 import { ADMIN_EMOJI_LIBRARY } from '../constants/adminEmojiLibrary';
@@ -38,20 +38,20 @@ export function MessageComposer({
   onInsertEmoji,
   sendOnEnter,
 }: MessageComposerProps) {
-  const handleKeyPress = (event: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
-    if (!sendOnEnter || event.nativeEvent.key !== 'Enter') {
+  const handleKeyPress = (event: any) => {
+    const pressedKey = event?.nativeEvent?.key ?? event?.key;
+    if (!sendOnEnter || pressedKey !== 'Enter') {
       return;
     }
 
-    const originalEvent = event as NativeSyntheticEvent<TextInputKeyPressEventData> & {
-      nativeEvent: TextInputKeyPressEventData & { shiftKey?: boolean };
-    };
-
-    if (originalEvent.nativeEvent.shiftKey) {
+    const shiftPressed = Boolean(event?.nativeEvent?.shiftKey ?? event?.shiftKey);
+    if (shiftPressed) {
       return;
     }
 
-    event.preventDefault?.();
+    if (typeof event?.preventDefault === 'function') {
+      event.preventDefault();
+    }
     onSend();
   };
 
