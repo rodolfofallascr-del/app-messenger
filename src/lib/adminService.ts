@@ -30,3 +30,16 @@ export async function updateUserAccess(userId: string, status: AppUserStatus) {
     throw new Error('Supabase no confirmo el cambio de estado del usuario.');
   }
 }
+
+export async function deleteBlockedUserChats(userId: string) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('admin_delete_user_chats', {
+    target_user_id: userId,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Number(data ?? 0);
+}

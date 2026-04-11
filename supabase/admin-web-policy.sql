@@ -57,6 +57,53 @@ $$;
 
 grant execute on function public.admin_set_user_status(uuid, text) to authenticated;
 
+create or replace function public.admin_delete_user_chats(target_user_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester public.profiles;
+  deleted_count integer := 0;
+begin
+  select *
+  into requester
+  from public.profiles
+  where id = auth.uid();
+
+  if requester.id is null or requester.role <> 'admin' or requester.status <> 'approved' then
+    raise exception 'Solo un administrador aprobado puede eliminar conversaciones.';
+  end if;
+
+  if exists (
+    select 1
+    from public.profiles
+    where id = target_user_id
+      and role = 'admin'
+  ) then
+    raise exception 'No se pueden eliminar conversaciones de otro administrador con esta accion.';
+  end if;
+
+  with deleted as (
+    delete from public.chats c
+    where c.id in (
+      select cm.chat_id
+      from public.chat_members cm
+      where cm.user_id = target_user_id
+    )
+    returning c.id
+  )
+  select count(*)
+  into deleted_count
+  from deleted;
+
+  return deleted_count;
+end;
+$$;
+
+grant execute on function public.admin_delete_user_chats(uuid) to authenticated;
+
 drop policy if exists "admins can manage all profiles" on public.profiles;
 create policy "admins can manage all profiles"
 on public.profiles

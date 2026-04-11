@@ -6,7 +6,7 @@ import { MessagingApp } from './MessagingApp';
 import { AdminResourcePanel } from './components/AdminResourcePanel';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
-import { fetchAdminUsers, updateUserAccess } from './lib/adminService';
+import { deleteBlockedUserChats, fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
@@ -159,6 +159,24 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible actualizar el usuario.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
+  const handleDeleteBlockedChats = async (userId: string) => {
+    setActionUserId(userId);
+    setFeedback(null);
+
+    try {
+      const deletedCount = await deleteBlockedUserChats(userId);
+      setFeedback(
+        deletedCount > 0
+          ? `Se eliminaron ${deletedCount} conversaciones del usuario bloqueado.`
+          : 'El usuario bloqueado no tenia conversaciones para eliminar.'
+      );
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar las conversaciones del usuario.');
     } finally {
       setActionUserId(null);
     }
@@ -397,6 +415,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                           <ActionButton label="Aprobar" tone="approve" disabled={busy || user.status === 'approved'} onPress={() => void handleUpdateStatus(user.id, 'approved')} />
                           <ActionButton label="Pendiente" tone="neutral" disabled={busy || user.status === 'pending'} onPress={() => void handleUpdateStatus(user.id, 'pending')} />
                           <ActionButton label="Bloquear" tone="block" disabled={busy || user.status === 'blocked'} onPress={() => void handleUpdateStatus(user.id, 'blocked')} />
+                          {user.status === 'blocked' ? (
+                            <ActionButton label="Eliminar chats" tone="neutral" disabled={busy} onPress={() => void handleDeleteBlockedChats(user.id)} />
+                          ) : null}
                         </View>
                       </View>
                     );
