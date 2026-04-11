@@ -123,6 +123,7 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [readMarkers, setReadMarkers] = useState<Record<string, string>>(() => loadStoredReadMarkers(session.user.id));
   const [latestIncomingByChat, setLatestIncomingByChat] = useState<Record<string, string>>({});
   const selectedChatIdRef = useRef(selectedChatId);
@@ -593,6 +594,7 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
     markChatAsRead(chatId);
+    setEmojiPickerOpen(false);
     if (!isDesktop) {
       setMobileView('conversation');
     }
@@ -836,10 +838,19 @@ const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCo
             attachment={pendingAttachment}
             busy={sending}
             isDragActive={isDragActive}
+            showEmojiPicker={Boolean(adminMode)}
+            emojiPickerOpen={emojiPickerOpen}
             onChangeText={(value) =>
               setDrafts((previous) => ({
                 ...previous,
                 [selectedChat.id]: value,
+              }))
+            }
+            onToggleEmojiPicker={() => setEmojiPickerOpen((current) => !current)}
+            onInsertEmoji={(emoji) =>
+              setDrafts((previous) => ({
+                ...previous,
+                [selectedChat.id]: `${previous[selectedChat.id] ?? ''}${emoji}`,
               }))
             }
             onPickImage={handlePickImage}

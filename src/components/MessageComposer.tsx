@@ -1,17 +1,22 @@
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PendingAttachment } from '../types/chat';
 import { palette } from '../theme/palette';
+import { ADMIN_EMOJI_LIBRARY } from '../constants/adminEmojiLibrary';
 
 type MessageComposerProps = {
   value: string;
   attachment: PendingAttachment | null;
   busy?: boolean;
   isDragActive?: boolean;
+  showEmojiPicker?: boolean;
+  emojiPickerOpen?: boolean;
   onChangeText: (value: string) => void;
   onPickImage: () => void;
   onPickFile: () => void;
   onClearAttachment: () => void;
   onSend: () => void;
+  onToggleEmojiPicker?: () => void;
+  onInsertEmoji?: (emoji: string) => void;
 };
 
 export function MessageComposer({
@@ -19,18 +24,34 @@ export function MessageComposer({
   attachment,
   busy,
   isDragActive,
+  showEmojiPicker,
+  emojiPickerOpen,
   onChangeText,
   onPickImage,
   onPickFile,
   onClearAttachment,
   onSend,
+  onToggleEmojiPicker,
+  onInsertEmoji,
 }: MessageComposerProps) {
   return (
     <View style={styles.wrapper}>
       <View style={styles.attachments}>
         <Tag label="+ Foto" onPress={onPickImage} />
         <Tag label="+ Archivo" onPress={onPickFile} />
+        {showEmojiPicker ? <Tag label={emojiPickerOpen ? 'Ocultar emojis' : '+ Emojis'} onPress={onToggleEmojiPicker ?? (() => undefined)} /> : null}
       </View>
+      {showEmojiPicker && emojiPickerOpen ? (
+        <View style={styles.emojiLibraryCard}>
+          <ScrollView style={styles.emojiLibraryScroll} contentContainerStyle={styles.emojiLibraryGrid} showsVerticalScrollIndicator={false}>
+            {ADMIN_EMOJI_LIBRARY.map((emoji) => (
+              <Pressable key={emoji} onPress={() => onInsertEmoji?.(emoji)} style={styles.emojiLibraryChip}>
+                <Text style={styles.emojiLibraryText}>{emoji}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      ) : null}
       {isDragActive ? (
         <View style={styles.dropHint}>
           <Text style={styles.dropHintTitle}>Suelta tu archivo aqui</Text>
@@ -113,6 +134,34 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     fontSize: 12,
     lineHeight: 18,
+  },
+  emojiLibraryCard: {
+    backgroundColor: palette.card,
+    borderWidth: 1,
+    borderColor: palette.border,
+    borderRadius: 16,
+    padding: 10,
+  },
+  emojiLibraryScroll: {
+    maxHeight: 220,
+  },
+  emojiLibraryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  emojiLibraryChip: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.input,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  emojiLibraryText: {
+    fontSize: 22,
   },
   attachmentPreview: {
     flexDirection: 'row',
