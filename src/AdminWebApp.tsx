@@ -365,8 +365,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   );
 
   return (
-    <ScrollView style={[styles.screen, { backgroundColor: theme.background }]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.shell}>
+    <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.shell}>
         <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.heroHeader}>
             <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
@@ -376,10 +377,6 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <Text style={[styles.subtitle, { color: theme.text }]}>Aprueba usuarios, responde conversaciones y usa biblioteca con tags, mensajes e imagenes precargadas.</Text>
             </View>
             <View style={styles.headerActions}>
-              <View style={[styles.clockCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
-                <Text style={[styles.clockLabel, { color: theme.muted }]}>Hora actual</Text>
-                <Text style={[styles.clockValue, { color: theme.title }]}>{formattedClock}</Text>
-              </View>
               <Pressable
                 style={[styles.themeToggle, { backgroundColor: theme.input, borderColor: theme.border }]}
                 onPress={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
@@ -640,8 +637,14 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             </View>
           </View>
         ) : null}
+        </View>
+      </ScrollView>
+
+      <View style={[styles.floatingClockDock, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+        <Text style={[styles.clockLabel, { color: theme.muted }]}>Hora actual</Text>
+        <Text style={[styles.clockValue, { color: theme.title }]}>{formattedClock}</Text>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -706,6 +709,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 18,
+    paddingTop: 88,
   },
   shell: {
     maxWidth: 1380,
@@ -774,6 +778,23 @@ const styles = StyleSheet.create({
   clockValue: {
     fontSize: 18,
     fontWeight: '800',
+  },
+  floatingClockDock: {
+    position: 'absolute',
+    top: 18,
+    right: 18,
+    minWidth: 190,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 2,
+    zIndex: 20,
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
   },
   themeToggle: {
     borderRadius: 999,
