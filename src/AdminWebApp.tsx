@@ -791,13 +791,13 @@ const styles = StyleSheet.create({
     backgroundColor: palette.background,
   },
   content: {
-    padding: 18,
+    paddingHorizontal: 10,
     paddingTop: 88,
+    paddingBottom: 18,
   },
   shell: {
-    maxWidth: 1380,
     width: '100%',
-    alignSelf: 'center',
+    alignSelf: 'stretch',
     gap: 16,
   },
   controlBar: {
