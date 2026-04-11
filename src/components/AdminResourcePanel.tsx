@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MediaLibraryRecord, QuickReplyRecord } from '../types/chat';
 import { palette } from '../theme/palette';
@@ -10,6 +11,9 @@ type AdminResourcePanelProps = {
 };
 
 export function AdminResourcePanel({ quickReplies, mediaLibrary, onUseQuickReply, onUseMedia }: AdminResourcePanelProps) {
+  const [repliesOpen, setRepliesOpen] = useState(true);
+  const [mediaOpen, setMediaOpen] = useState(false);
+
   return (
     <View style={styles.panel}>
       <Text style={styles.title}>Biblioteca rapida</Text>
@@ -17,40 +21,62 @@ export function AdminResourcePanel({ quickReplies, mediaLibrary, onUseQuickReply
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Etiquetas y respuestas</Text>
-          {quickReplies.length === 0 ? (
-            <Text style={styles.emptyText}>Todavia no hay respuestas precargadas.</Text>
-          ) : (
-            quickReplies.map((reply) => (
-              <Pressable key={reply.id} onPress={() => onUseQuickReply(reply)} style={styles.replyCard}>
-                <View style={styles.replyHeader}>
-                  <View style={styles.replyBadgeRow}>
-                    <View style={[styles.replyDot, reply.tag_color ? { backgroundColor: reply.tag_color } : null]} />
-                    {reply.tag_emoji ? <Text style={styles.replyEmoji}>{reply.tag_emoji}</Text> : null}
-                    <Text style={styles.replyTag}>{reply.tag}</Text>
+          <Pressable style={styles.sectionToggle} onPress={() => setRepliesOpen((current) => !current)}>
+            <View style={styles.sectionToggleCopy}>
+              <Text style={styles.sectionTitle}>Etiquetas y respuestas</Text>
+              <Text style={styles.sectionCount}>{quickReplies.length}</Text>
+            </View>
+            <Text style={styles.sectionArrow}>{repliesOpen ? 'Ocultar' : 'Mostrar'}</Text>
+          </Pressable>
+          {repliesOpen ? (
+            quickReplies.length === 0 ? (
+              <Text style={styles.emptyText}>Todavia no hay respuestas precargadas.</Text>
+            ) : (
+              quickReplies.map((reply) => (
+                <Pressable key={reply.id} onPress={() => onUseQuickReply(reply)} style={styles.replyCard}>
+                  <View style={styles.replyHeader}>
+                    <View style={styles.replyBadgeRow}>
+                      <View style={[styles.replyDot, reply.tag_color ? { backgroundColor: reply.tag_color } : null]} />
+                      {reply.tag_emoji ? <Text style={styles.replyEmoji}>{reply.tag_emoji}</Text> : null}
+                      <Text style={styles.replyTag}>{reply.tag}</Text>
+                    </View>
+                    <Text style={styles.replyLabel}>{reply.label}</Text>
                   </View>
-                  <Text style={styles.replyLabel}>{reply.label}</Text>
-                </View>
-                <Text style={styles.replyBody} numberOfLines={4}>{reply.body}</Text>
-              </Pressable>
-            ))
+                  <Text style={styles.replyBody} numberOfLines={4}>
+                    {reply.body}
+                  </Text>
+                </Pressable>
+              ))
+            )
+          ) : (
+            <Text style={styles.collapsedHint}>Desplega para ver y usar mensajes guardados.</Text>
           )}
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Imagenes precargadas</Text>
-          {mediaLibrary.length === 0 ? (
-            <Text style={styles.emptyText}>Todavia no hay imagenes guardadas.</Text>
+          <Pressable style={styles.sectionToggle} onPress={() => setMediaOpen((current) => !current)}>
+            <View style={styles.sectionToggleCopy}>
+              <Text style={styles.sectionTitle}>Imagenes precargadas</Text>
+              <Text style={styles.sectionCount}>{mediaLibrary.length}</Text>
+            </View>
+            <Text style={styles.sectionArrow}>{mediaOpen ? 'Ocultar' : 'Mostrar'}</Text>
+          </Pressable>
+          {mediaOpen ? (
+            mediaLibrary.length === 0 ? (
+              <Text style={styles.emptyText}>Todavia no hay imagenes guardadas.</Text>
+            ) : (
+              mediaLibrary.map((item) => (
+                <Pressable key={item.id} onPress={() => onUseMedia(item)} style={styles.mediaCard}>
+                  <Image source={{ uri: item.image_url }} style={styles.mediaPreview} resizeMode="cover" />
+                  <View style={styles.mediaCopy}>
+                    <Text style={styles.mediaTitle}>{item.title}</Text>
+                    <Text style={styles.mediaTag}>{item.tag || '#imagen'}</Text>
+                  </View>
+                </Pressable>
+              ))
+            )
           ) : (
-            mediaLibrary.map((item) => (
-              <Pressable key={item.id} onPress={() => onUseMedia(item)} style={styles.mediaCard}>
-                <Image source={{ uri: item.image_url }} style={styles.mediaPreview} resizeMode="cover" />
-                <View style={styles.mediaCopy}>
-                  <Text style={styles.mediaTitle}>{item.title}</Text>
-                  <Text style={styles.mediaTag}>{item.tag || '#imagen'}</Text>
-                </View>
-              </Pressable>
-            ))
+            <Text style={styles.collapsedHint}>Desplega para ver y usar imagenes guardadas.</Text>
           )}
         </View>
       </ScrollView>
@@ -85,15 +111,54 @@ const styles = StyleSheet.create({
   section: {
     gap: 10,
   },
+  sectionToggle: {
+    backgroundColor: palette.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  sectionToggleCopy: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   sectionTitle: {
     color: palette.primaryText,
     fontSize: 14,
     fontWeight: '800',
   },
+  sectionCount: {
+    minWidth: 26,
+    textAlign: 'center',
+    color: palette.accentSoft,
+    backgroundColor: palette.input,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  sectionArrow: {
+    color: palette.secondaryText,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   emptyText: {
     color: palette.mutedText,
     fontSize: 12,
     lineHeight: 18,
+  },
+  collapsedHint: {
+    color: palette.mutedText,
+    fontSize: 12,
+    lineHeight: 18,
+    paddingHorizontal: 4,
   },
   replyCard: {
     backgroundColor: '#13213a',
