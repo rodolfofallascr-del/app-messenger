@@ -375,40 +375,38 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.shell}>
-        <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.heroHeader}>
-            <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
-            <View style={styles.heroCopy}>
+        <View style={[styles.controlBar, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.controlBrand}>
+            <Image source={brandLogo} style={styles.controlLogo} resizeMode="contain" />
+            <View style={styles.controlBrandCopy}>
               <Text style={styles.eyebrow}>Panel administrador</Text>
-              <Text style={[styles.title, { color: theme.title }]}>Control de acceso y mensajeria</Text>
-              <Text style={[styles.subtitle, { color: theme.text }]}>Aprueba usuarios, responde conversaciones y usa biblioteca con tags, mensajes e imagenes precargadas.</Text>
-            </View>
-            <View style={styles.headerActions}>
-              <Pressable
-                style={[styles.themeToggle, { backgroundColor: theme.input, borderColor: theme.border }]}
-                onPress={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
-              >
-                <Text style={[styles.themeToggleText, { color: theme.title }]}>
-                  {themeMode === 'dark' ? 'Modo claro' : 'Modo oscuro'}
-                </Text>
-              </Pressable>
-              <Pressable style={[styles.signOutButton, { backgroundColor: theme.accent }]} onPress={handleSignOut}>
-                <Text style={[styles.signOutText, { color: theme.buttonText }]}>Salir</Text>
-              </Pressable>
+              <Text style={[styles.controlTitle, { color: theme.title }]}>Chat Santanita CRM</Text>
+              <Text style={[styles.controlSubtitle, { color: theme.text }]}>Administra usuarios y conversaciones sin quitarle espacio al chat.</Text>
             </View>
           </View>
 
-          <View style={styles.metricsRow}>
-            <MetricCard label="Pendientes" value={String(counts.pending)} themeMode={themeMode} />
-            <MetricCard label="Aprobados" value={String(counts.approved)} themeMode={themeMode} />
-            <MetricCard label="Bloqueados" value={String(counts.blocked)} themeMode={themeMode} />
+          <View style={styles.controlCenter}>
+            <SectionTab label={`Usuarios ${counts.pending > 0 ? `(${counts.pending})` : ''}`} active={section === 'users'} onPress={() => setSection('users')} themeMode={themeMode} />
+            <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} themeMode={themeMode} />
+            <SectionTab label={`Biblioteca ${quickReplies.length + mediaLibrary.length > 0 ? `(${quickReplies.length + mediaLibrary.length})` : ''}`} active={section === 'library'} onPress={() => setSection('library')} themeMode={themeMode} />
           </View>
-        </View>
 
-        <View style={styles.sectionTabs}>
-          <SectionTab label="Usuarios" active={section === 'users'} onPress={() => setSection('users')} themeMode={themeMode} />
-          <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} themeMode={themeMode} />
-          <SectionTab label="Biblioteca" active={section === 'library'} onPress={() => setSection('library')} themeMode={themeMode} />
+          <View style={styles.headerActions}>
+            <MetricPill label="Pend" value={String(counts.pending)} themeMode={themeMode} />
+            <MetricPill label="Ok" value={String(counts.approved)} themeMode={themeMode} />
+            <MetricPill label="Block" value={String(counts.blocked)} themeMode={themeMode} />
+            <Pressable
+              style={[styles.themeToggle, { backgroundColor: theme.input, borderColor: theme.border }]}
+              onPress={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+            >
+              <Text style={[styles.themeToggleText, { color: theme.title }]}>
+                {themeMode === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+              </Text>
+            </Pressable>
+            <Pressable style={[styles.signOutButton, { backgroundColor: theme.accent }]} onPress={handleSignOut}>
+              <Text style={[styles.signOutText, { color: theme.buttonText }]}>Salir</Text>
+            </Pressable>
+          </View>
         </View>
 
         {feedback ? <Text style={[styles.feedback, { color: theme.warning }]}>{feedback}</Text> : null}
@@ -733,6 +731,16 @@ function MetricCard({ label, value, themeMode }: { label: string; value: string;
   );
 }
 
+function MetricPill({ label, value, themeMode }: { label: string; value: string; themeMode: AdminThemeMode }) {
+  const theme = adminThemes[themeMode];
+  return (
+    <View style={[styles.metricPill, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+      <Text style={[styles.metricPillLabel, { color: theme.muted }]}>{label}</Text>
+      <Text style={[styles.metricPillValue, { color: theme.title }]}>{value}</Text>
+    </View>
+  );
+}
+
 function SectionTab({ label, active, onPress, themeMode }: { label: string; active: boolean; onPress: () => void; themeMode: AdminThemeMode }) {
   const theme = adminThemes[themeMode];
   return (
@@ -792,6 +800,47 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     gap: 16,
   },
+  controlBar: {
+    borderRadius: 24,
+    borderWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 18,
+  },
+  controlBrand: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 0,
+    flex: 1.1,
+  },
+  controlLogo: {
+    width: 86,
+    height: 48,
+  },
+  controlBrandCopy: {
+    minWidth: 0,
+    gap: 2,
+  },
+  controlTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  controlSubtitle: {
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  controlCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    flex: 1.2,
+    flexWrap: 'wrap',
+  },
   heroCard: {
     backgroundColor: palette.card,
     borderWidth: 1,
@@ -806,8 +855,30 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   headerActions: {
+    flexDirection: 'row',
     alignItems: 'flex-end',
     gap: 10,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    flex: 1,
+  },
+  metricPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  metricPillLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  metricPillValue: {
+    fontSize: 14,
+    fontWeight: '800',
   },
   logo: {
     width: 126,

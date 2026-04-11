@@ -1174,7 +1174,7 @@ const styles = StyleSheet.create({
     width: 380,
   },
   sidebarAdminDesktop: {
-    width: 330,
+    width: 292,
     flexShrink: 0,
   },
   mobileSidebar: {
@@ -1196,6 +1196,7 @@ const styles = StyleSheet.create({
   chatPanelAdminDesktop: {
     flex: 1,
     minWidth: 0,
+    marginLeft: 18,
   },
   mobileChatPanel: {
     flex: 1,
