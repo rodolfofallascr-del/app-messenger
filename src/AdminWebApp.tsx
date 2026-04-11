@@ -3,7 +3,6 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MessagingApp } from './MessagingApp';
-import { AdminResourcePanel } from './components/AdminResourcePanel';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
 import { deleteBlockedUserChats, fetchAdminUsers, updateUserAccess } from './lib/adminService';
@@ -58,6 +57,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [queuedQuickReply, setQueuedQuickReply] = useState<QuickReplyRecord | null>(null);
   const [queuedMedia, setQueuedMedia] = useState<MediaLibraryRecord | null>(null);
   const [clockNow, setClockNow] = useState(() => new Date());
+  const [quickToolsOpen, setQuickToolsOpen] = useState(false);
+  const [quickToolsSection, setQuickToolsSection] = useState<'replies' | 'media'>('replies');
   const theme = adminThemes[themeMode];
 
   const loadUsers = useCallback(async () => {
@@ -111,6 +112,12 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (section !== 'conversations') {
+      setQuickToolsOpen(false);
+    }
+  }, [section]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -478,10 +485,91 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         {section === 'conversations' ? (
           <View style={[styles.messagingCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             <View style={styles.messagingHeader}>
-              <Text style={[styles.messagingTitle, { color: theme.title }]}>Bandeja del administrador</Text>
-              <Text style={[styles.messagingCopy, { color: theme.text }]}>Abre una conversacion y usa la biblioteca lateral para insertar tags, mensajes precargados e imagenes guardadas directamente en el chat activo.</Text>
+              <View style={styles.messagingHeaderMain}>
+                <Text style={[styles.messagingTitle, { color: theme.title }]}>Bandeja del administrador</Text>
+                <Text style={[styles.messagingCopy, { color: theme.text }]}>La lista de contactos queda a la izquierda y el chat toma la mayor parte del espacio. Las herramientas rapidas se abren solo cuando las necesitas.</Text>
+              </View>
+              <View style={styles.messagingActions}>
+                <Pressable style={[styles.topActionButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]} onPress={() => setSection('users')}>
+                  <Text style={[styles.topActionText, { color: theme.title }]}>Usuarios</Text>
+                </Pressable>
+                <Pressable style={[styles.topActionButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]} onPress={() => setSection('library')}>
+                  <Text style={[styles.topActionText, { color: theme.title }]}>Biblioteca</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.topActionButton, styles.topActionPrimary, { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                  onPress={() => setQuickToolsOpen((current) => !current)}
+                >
+                  <Text style={[styles.topActionText, { color: theme.buttonText }]}>{quickToolsOpen ? 'Ocultar rapidos' : 'Abrir rapidos'}</Text>
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.messagingLayout}>
+            {quickToolsOpen ? (
+              <View style={[styles.quickToolsCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                <View style={styles.quickToolsTabs}>
+                  <Pressable
+                    style={[
+                      styles.quickToolsTab,
+                      { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft },
+                      quickToolsSection === 'replies' && { backgroundColor: theme.accent, borderColor: theme.accent },
+                    ]}
+                    onPress={() => setQuickToolsSection('replies')}
+                  >
+                    <Text style={[styles.quickToolsTabText, { color: quickToolsSection === 'replies' ? theme.buttonText : theme.title }]}>Mensajes</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[
+                      styles.quickToolsTab,
+                      { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft },
+                      quickToolsSection === 'media' && { backgroundColor: theme.accent, borderColor: theme.accent },
+                    ]}
+                    onPress={() => setQuickToolsSection('media')}
+                  >
+                    <Text style={[styles.quickToolsTabText, { color: quickToolsSection === 'media' ? theme.buttonText : theme.title }]}>Imagenes</Text>
+                  </Pressable>
+                </View>
+                <ScrollView style={styles.quickToolsScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.quickToolsContent}>
+                  {quickToolsSection === 'replies'
+                    ? quickReplies.map((reply) => (
+                        <Pressable
+                          key={reply.id}
+                          style={[styles.quickReplyCompactCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}
+                          onPress={() => {
+                            setQueuedMedia(null);
+                            setQueuedQuickReply(reply);
+                          }}
+                        >
+                          <View style={styles.savedReplyHeader}>
+                            <View style={[styles.previewDot, { backgroundColor: reply.tag_color || tagColorOptions[0] }]} />
+                            {reply.tag_emoji ? <Text style={styles.previewEmoji}>{reply.tag_emoji}</Text> : null}
+                            <Text style={styles.libraryTag}>{reply.tag}</Text>
+                          </View>
+                          <Text style={[styles.libraryItemTitle, { color: theme.title }]} numberOfLines={1}>{reply.label}</Text>
+                          <Text style={[styles.libraryBody, { color: theme.text }]} numberOfLines={2}>{reply.body}</Text>
+                        </Pressable>
+                      ))
+                    : mediaLibrary.map((item) => (
+                        <Pressable
+                          key={item.id}
+                          style={[styles.quickReplyCompactCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}
+                          onPress={() => {
+                            setQueuedQuickReply(null);
+                            setQueuedMedia(item);
+                          }}
+                        >
+                          <View style={styles.quickMediaRow}>
+                            <Image source={{ uri: item.image_url }} style={styles.quickMediaThumb} resizeMode="cover" />
+                            <View style={styles.quickMediaCopy}>
+                              <Text style={[styles.libraryItemTitle, { color: theme.title }]} numberOfLines={1}>{item.title}</Text>
+                              <Text style={[styles.libraryBody, { color: theme.text }]} numberOfLines={2}>{item.tag || '#imagen'}</Text>
+                            </View>
+                          </View>
+                        </Pressable>
+                      ))}
+                </ScrollView>
+              </View>
+            ) : null}
+            <View style={[styles.messagingLayout, styles.messagingLayoutWide]}>
               <View style={styles.messagingViewport}>
                 <MessagingApp
                   session={session}
@@ -494,19 +582,6 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   }}
                 />
               </View>
-              <AdminResourcePanel
-                quickReplies={quickReplies}
-                mediaLibrary={mediaLibrary}
-                themeMode={themeMode}
-                onUseQuickReply={(reply) => {
-                  setQueuedMedia(null);
-                  setQueuedQuickReply(reply);
-                }}
-                onUseMedia={(item) => {
-                  setQueuedQuickReply(null);
-                  setQueuedMedia(item);
-                }}
-              />
             </View>
           </View>
         ) : null}
@@ -1208,7 +1283,32 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   messagingHeader: {
+    gap: 14,
+  },
+  messagingHeaderMain: {
     gap: 6,
+  },
+  messagingActions: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  topActionButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  topActionPrimary: {
+    shadowColor: '#000000',
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  topActionText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   messagingTitle: {
     color: palette.primaryText,
@@ -1227,11 +1327,63 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     minHeight: 0,
   },
+  messagingLayoutWide: {
+    gap: 0,
+  },
   messagingViewport: {
     flex: 1,
     minHeight: 820,
     borderRadius: 22,
     overflow: 'hidden',
+  },
+  quickToolsCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 14,
+    gap: 12,
+    maxHeight: 280,
+  },
+  quickToolsTabs: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  quickToolsTab: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  quickToolsTabText: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  quickToolsScroll: {
+    minHeight: 0,
+  },
+  quickToolsContent: {
+    gap: 10,
+    paddingBottom: 4,
+  },
+  quickReplyCompactCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 12,
+    gap: 6,
+  },
+  quickMediaRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  quickMediaThumb: {
+    width: 62,
+    height: 62,
+    borderRadius: 12,
+    backgroundColor: '#0f172a',
+  },
+  quickMediaCopy: {
+    flex: 1,
+    gap: 4,
   },
   libraryLayout: {
     flexDirection: 'row',
