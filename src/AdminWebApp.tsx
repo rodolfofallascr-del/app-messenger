@@ -8,7 +8,7 @@ import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickRe
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
 import { deleteBlockedUserChats, fetchAdminUsers, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
-import { palette } from './theme/palette';
+import { adminThemes, AdminThemeMode, palette } from './theme/palette';
 import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
 const tagColorOptions = ['#facc15', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#f97316'];
 const tagSymbolPresets = ['\u274C', '\u2705', '\uD83D\uDCB8', '\uD83D\uDCB0', '\uD83D\uDCCC', '\u26A0\uFE0F', '\uD83D\uDCCD', '\uD83D\uDFE2', '\uD83D\uDD34', '\uD83D\uDFE1'];
@@ -22,8 +22,17 @@ type AdminSection = 'users' | 'conversations' | 'library';
 type ReplyTargetField = 'label' | 'tag' | 'emoji' | 'body';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
+const ADMIN_THEME_STORAGE_KEY = 'chat-santanita-admin-theme';
 
 export function AdminWebApp({ session, profile }: AdminWebAppProps) {
+  const [themeMode, setThemeMode] = useState<AdminThemeMode>(() => {
+    if (typeof window === 'undefined') {
+      return 'dark';
+    }
+
+    const savedTheme = window.localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
+    return savedTheme === 'light' ? 'light' : 'dark';
+  });
   const [users, setUsers] = useState<ProfileRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionUserId, setActionUserId] = useState<string | null>(null);
@@ -48,6 +57,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [selectedLibraryImage, setSelectedLibraryImage] = useState<PendingAttachment | null>(null);
   const [queuedQuickReply, setQueuedQuickReply] = useState<QuickReplyRecord | null>(null);
   const [queuedMedia, setQueuedMedia] = useState<MediaLibraryRecord | null>(null);
+  const [clockNow, setClockNow] = useState(() => new Date());
+  const theme = adminThemes[themeMode];
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -86,6 +97,20 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       void loadLibrary();
     }
   }, [loadLibrary, loadUsers, section]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ADMIN_THEME_STORAGE_KEY, themeMode);
+    }
+  }, [themeMode]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClockNow(new Date());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -328,95 +353,120 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     getSupabaseClient().auth.signOut().catch(() => undefined);
   };
 
+  const formattedClock = useMemo(
+    () =>
+      new Intl.DateTimeFormat('es-CR', {
+        weekday: 'short',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).format(clockNow),
+    [clockNow]
+  );
+
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.screen, { backgroundColor: theme.background }]} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.shell}>
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.heroHeader}>
             <Image source={brandLogo} style={styles.logo} resizeMode="contain" />
             <View style={styles.heroCopy}>
               <Text style={styles.eyebrow}>Panel administrador</Text>
-              <Text style={styles.title}>Control de acceso y mensajeria</Text>
-              <Text style={styles.subtitle}>Aprueba usuarios, responde conversaciones y usa biblioteca con tags, mensajes e imagenes precargadas.</Text>
+              <Text style={[styles.title, { color: theme.title }]}>Control de acceso y mensajeria</Text>
+              <Text style={[styles.subtitle, { color: theme.text }]}>Aprueba usuarios, responde conversaciones y usa biblioteca con tags, mensajes e imagenes precargadas.</Text>
             </View>
-            <Pressable style={styles.signOutButton} onPress={handleSignOut}>
-              <Text style={styles.signOutText}>Salir</Text>
-            </Pressable>
+            <View style={styles.headerActions}>
+              <View style={[styles.clockCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                <Text style={[styles.clockLabel, { color: theme.muted }]}>Hora actual</Text>
+                <Text style={[styles.clockValue, { color: theme.title }]}>{formattedClock}</Text>
+              </View>
+              <Pressable
+                style={[styles.themeToggle, { backgroundColor: theme.input, borderColor: theme.border }]}
+                onPress={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
+              >
+                <Text style={[styles.themeToggleText, { color: theme.title }]}>
+                  {themeMode === 'dark' ? 'Modo claro' : 'Modo oscuro'}
+                </Text>
+              </Pressable>
+              <Pressable style={[styles.signOutButton, { backgroundColor: theme.accent }]} onPress={handleSignOut}>
+                <Text style={[styles.signOutText, { color: theme.buttonText }]}>Salir</Text>
+              </Pressable>
+            </View>
           </View>
 
           <View style={styles.metricsRow}>
-            <MetricCard label="Pendientes" value={String(counts.pending)} />
-            <MetricCard label="Aprobados" value={String(counts.approved)} />
-            <MetricCard label="Bloqueados" value={String(counts.blocked)} />
+            <MetricCard label="Pendientes" value={String(counts.pending)} themeMode={themeMode} />
+            <MetricCard label="Aprobados" value={String(counts.approved)} themeMode={themeMode} />
+            <MetricCard label="Bloqueados" value={String(counts.blocked)} themeMode={themeMode} />
           </View>
         </View>
 
         <View style={styles.sectionTabs}>
-          <SectionTab label="Usuarios" active={section === 'users'} onPress={() => setSection('users')} />
-          <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} />
-          <SectionTab label="Biblioteca" active={section === 'library'} onPress={() => setSection('library')} />
+          <SectionTab label="Usuarios" active={section === 'users'} onPress={() => setSection('users')} themeMode={themeMode} />
+          <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} themeMode={themeMode} />
+          <SectionTab label="Biblioteca" active={section === 'library'} onPress={() => setSection('library')} themeMode={themeMode} />
         </View>
 
-        {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
+        {feedback ? <Text style={[styles.feedback, { color: theme.warning }]}>{feedback}</Text> : null}
 
         {section === 'users' ? (
           <>
-            <View style={styles.toolbar}>
+            <View style={[styles.toolbar, { backgroundColor: theme.panel, borderColor: theme.border }]}>
               <TextInput
                 value={query}
                 onChangeText={setQuery}
                 placeholder="Buscar por nombre o correo"
-                placeholderTextColor={palette.mutedText}
-                style={styles.searchInput}
+                placeholderTextColor={theme.muted}
+                style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
               />
               <View style={styles.filterRow}>
-                <FilterChip label="Todos" active={filter === 'all'} onPress={() => setFilter('all')} />
-                <FilterChip label="Pendientes" active={filter === 'pending'} onPress={() => setFilter('pending')} />
-                <FilterChip label="Aprobados" active={filter === 'approved'} onPress={() => setFilter('approved')} />
-                <FilterChip label="Bloqueados" active={filter === 'blocked'} onPress={() => setFilter('blocked')} />
+                <FilterChip label="Todos" active={filter === 'all'} onPress={() => setFilter('all')} themeMode={themeMode} />
+                <FilterChip label="Pendientes" active={filter === 'pending'} onPress={() => setFilter('pending')} themeMode={themeMode} />
+                <FilterChip label="Aprobados" active={filter === 'approved'} onPress={() => setFilter('approved')} themeMode={themeMode} />
+                <FilterChip label="Bloqueados" active={filter === 'blocked'} onPress={() => setFilter('blocked')} themeMode={themeMode} />
               </View>
             </View>
 
-            <View style={styles.listCard}>
+            <View style={[styles.listCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
               <View style={styles.listHeader}>
-                <Text style={styles.listTitle}>Usuarios registrados</Text>
-                <Pressable style={styles.refreshButton} onPress={() => void loadUsers()}>
-                  <Text style={styles.refreshText}>Recargar</Text>
+                <Text style={[styles.listTitle, { color: theme.title }]}>Usuarios registrados</Text>
+                <Pressable style={[styles.refreshButton, { backgroundColor: theme.input }]} onPress={() => void loadUsers()}>
+                  <Text style={[styles.refreshText, { color: theme.text }]}>Recargar</Text>
                 </Pressable>
               </View>
 
               {loading ? (
                 <View style={styles.stateBox}>
                   <ActivityIndicator color={palette.accent} />
-                  <Text style={styles.stateText}>Cargando usuarios...</Text>
+                  <Text style={[styles.stateText, { color: theme.text }]}>Cargando usuarios...</Text>
                 </View>
               ) : visibleUsers.length === 0 ? (
                 <View style={styles.stateBox}>
-                  <Text style={styles.stateTitle}>No hay usuarios para mostrar</Text>
-                  <Text style={styles.stateText}>Cambia el filtro o espera nuevos registros.</Text>
+                  <Text style={[styles.stateTitle, { color: theme.title }]}>No hay usuarios para mostrar</Text>
+                  <Text style={[styles.stateText, { color: theme.text }]}>Cambia el filtro o espera nuevos registros.</Text>
                 </View>
               ) : (
                 <View style={styles.userList}>
                   {visibleUsers.map((user) => {
                     const busy = actionUserId === user.id;
                     return (
-                      <View key={user.id} style={styles.userCard}>
+                      <View key={user.id} style={[styles.userCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
                         <View style={styles.userMain}>
                           <View style={styles.userAvatar}>
                             <Text style={styles.userAvatarText}>{(user.full_name || user.email || 'U').charAt(0).toUpperCase()}</Text>
                           </View>
                           <View style={styles.userCopy}>
-                            <Text style={styles.userName}>{user.full_name?.trim() || 'Sin nombre'}</Text>
-                            <Text style={styles.userEmail}>{user.email ?? 'Sin correo'}</Text>
-                            <Text style={styles.userMeta}>Rol: {user.role} | Estado: {user.status}</Text>
+                            <Text style={[styles.userName, { color: theme.title }]}>{user.full_name?.trim() || 'Sin nombre'}</Text>
+                            <Text style={[styles.userEmail, { color: theme.text }]}>{user.email ?? 'Sin correo'}</Text>
+                            <Text style={[styles.userMeta, { color: theme.muted }]}>Rol: {user.role} | Estado: {user.status}</Text>
                           </View>
                         </View>
                         <View style={styles.actionsRow}>
-                          <ActionButton label="Aprobar" tone="approve" disabled={busy || user.status === 'approved'} onPress={() => void handleUpdateStatus(user.id, 'approved')} />
-                          <ActionButton label="Pendiente" tone="neutral" disabled={busy || user.status === 'pending'} onPress={() => void handleUpdateStatus(user.id, 'pending')} />
-                          <ActionButton label="Bloquear" tone="block" disabled={busy || user.status === 'blocked'} onPress={() => void handleUpdateStatus(user.id, 'blocked')} />
+                          <ActionButton label="Aprobar" tone="approve" disabled={busy || user.status === 'approved'} onPress={() => void handleUpdateStatus(user.id, 'approved')} themeMode={themeMode} />
+                          <ActionButton label="Pendiente" tone="neutral" disabled={busy || user.status === 'pending'} onPress={() => void handleUpdateStatus(user.id, 'pending')} themeMode={themeMode} />
+                          <ActionButton label="Bloquear" tone="block" disabled={busy || user.status === 'blocked'} onPress={() => void handleUpdateStatus(user.id, 'blocked')} themeMode={themeMode} />
                           {user.status === 'blocked' ? (
-                            <ActionButton label="Eliminar chats" tone="neutral" disabled={busy} onPress={() => void handleDeleteBlockedChats(user.id)} />
+                            <ActionButton label="Eliminar chats" tone="neutral" disabled={busy} onPress={() => void handleDeleteBlockedChats(user.id)} themeMode={themeMode} />
                           ) : null}
                         </View>
                       </View>
@@ -429,10 +479,10 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         ) : null}
 
         {section === 'conversations' ? (
-          <View style={styles.messagingCard}>
+          <View style={[styles.messagingCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             <View style={styles.messagingHeader}>
-              <Text style={styles.messagingTitle}>Bandeja del administrador</Text>
-              <Text style={styles.messagingCopy}>Abre una conversacion y usa la biblioteca lateral para insertar tags, mensajes precargados e imagenes guardadas directamente en el chat activo.</Text>
+              <Text style={[styles.messagingTitle, { color: theme.title }]}>Bandeja del administrador</Text>
+              <Text style={[styles.messagingCopy, { color: theme.text }]}>Abre una conversacion y usa la biblioteca lateral para insertar tags, mensajes precargados e imagenes guardadas directamente en el chat activo.</Text>
             </View>
             <View style={styles.messagingLayout}>
               <View style={styles.messagingViewport}>
@@ -450,6 +500,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <AdminResourcePanel
                 quickReplies={quickReplies}
                 mediaLibrary={mediaLibrary}
+                themeMode={themeMode}
                 onUseQuickReply={(reply) => {
                   setQueuedMedia(null);
                   setQueuedQuickReply(reply);
@@ -465,103 +516,103 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
         {section === 'library' ? (
           <View style={styles.libraryLayout}>
-            <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Nuevo mensaje rapido</Text>
-              <TextInput value={replyLabel} onChangeText={setReplyLabel} onFocus={() => setActiveReplyField('label')} placeholder="Etiqueta visible opcional" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
-              <TextInput value={replyTag} onChangeText={setReplyTag} onFocus={() => setActiveReplyField('tag')} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
+            <View style={[styles.formCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+              <Text style={[styles.formTitle, { color: theme.title }]}>Nuevo mensaje rapido</Text>
+              <TextInput value={replyLabel} onChangeText={setReplyLabel} onFocus={() => setActiveReplyField('label')} placeholder="Etiqueta visible opcional" placeholderTextColor={theme.muted} style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} />
+              <TextInput value={replyTag} onChangeText={setReplyTag} onFocus={() => setActiveReplyField('tag')} placeholder="Tag, ejemplo #sinpe" placeholderTextColor={theme.muted} style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} />
               <View style={styles.visualRow}>
-                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} onFocus={() => setActiveReplyField('emoji')} placeholder="Insignia visual opcional" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.emojiInput]} maxLength={24} />
+                <TextInput value={replyEmoji} onChangeText={setReplyEmoji} onFocus={() => setActiveReplyField('emoji')} placeholder="Insignia visual opcional" placeholderTextColor={theme.muted} style={[styles.searchInput, styles.emojiInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} maxLength={24} />
                 <View style={styles.colorPickerRow}>
                   {tagColorOptions.map((color) => (
                     <Pressable key={color} onPress={() => setReplyColor(color)} style={[styles.colorChip, { backgroundColor: color }, replyColor === color && styles.colorChipActive]} />
                   ))}
                 </View>
               </View>
-              <Pressable style={styles.secondaryButton} onPress={() => setShowEmojiLibrary((current) => !current)}> 
-                <Text style={styles.secondaryButtonText}>{showEmojiLibrary ? 'Ocultar biblioteca de emojis' : 'Abrir biblioteca de emojis'}</Text>
+              <Pressable style={[styles.secondaryButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]} onPress={() => setShowEmojiLibrary((current) => !current)}> 
+                <Text style={[styles.secondaryButtonText, { color: theme.title }]}>{showEmojiLibrary ? 'Ocultar biblioteca de emojis' : 'Abrir biblioteca de emojis'}</Text>
               </Pressable>
               {showEmojiLibrary ? (
-                <View style={styles.emojiLibraryCard}>
+                <View style={[styles.emojiLibraryCard, { backgroundColor: theme.cardAlt, borderColor: theme.borderSoft }]}>
                   <ScrollView style={styles.emojiLibraryScroll} contentContainerStyle={styles.emojiLibraryGrid} showsVerticalScrollIndicator={false}>
                     {ADMIN_EMOJI_LIBRARY.map((emoji) => (
-                      <Pressable key={emoji} onPress={() => handleAppendReplySymbol(emoji)} style={styles.emojiLibraryChip}>
+                      <Pressable key={emoji} onPress={() => handleAppendReplySymbol(emoji)} style={[styles.emojiLibraryChip, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
                         <Text style={styles.emojiLibraryText}>{emoji}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
                 </View>
               ) : null}
-              <Text style={styles.helperText}>Los simbolos se pegan en el campo que tengas activo. Si no seleccionas otro, van al mensaje.</Text>
+              <Text style={[styles.helperText, { color: theme.muted }]}>Los simbolos se pegan en el campo que tengas activo. Si no seleccionas otro, van al mensaje.</Text>
               <View style={styles.emojiActionsRow}>
-                <Pressable style={styles.emojiActionButton} onPress={handleBackspaceReplyEmoji}>
-                  <Text style={styles.emojiActionText}>Borrar ultimo</Text>
+                <Pressable style={[styles.emojiActionButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]} onPress={handleBackspaceReplyEmoji}>
+                  <Text style={[styles.emojiActionText, { color: theme.title }]}>Borrar ultimo</Text>
                 </Pressable>
-                <Pressable style={styles.emojiActionButton} onPress={handleClearReplyEmoji}>
-                  <Text style={styles.emojiActionText}>Limpiar insignia</Text>
+                <Pressable style={[styles.emojiActionButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]} onPress={handleClearReplyEmoji}>
+                  <Text style={[styles.emojiActionText, { color: theme.title }]}>Limpiar insignia</Text>
                 </Pressable>
               </View>
               <View style={styles.symbolPresetRow}>
                 {tagSymbolPresets.map((symbol) => (
-                  <Pressable key={symbol} onPress={() => handleAppendReplySymbol(symbol)} style={styles.symbolPresetChip}>
+                  <Pressable key={symbol} onPress={() => handleAppendReplySymbol(symbol)} style={[styles.symbolPresetChip, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
                     <Text style={styles.symbolPresetText}>{symbol}</Text>
                   </Pressable>
                 ))}
               </View>
-              <View style={styles.previewBadge}>
+              <View style={[styles.previewBadge, { backgroundColor: theme.previewBg, borderColor: theme.borderSoft }]}>
                 <View style={[styles.previewDot, { backgroundColor: replyColor }]} />
                 {replyEmoji ? <Text style={styles.previewEmoji}>{replyEmoji}</Text> : null}
-                <Text style={styles.previewBadgeText}>{replyTag.trim() || '#general'}</Text>
+                <Text style={[styles.previewBadgeText, { color: theme.title }]}>{replyTag.trim() || '#general'}</Text>
               </View>
-              <TextInput value={replyBody} onChangeText={setReplyBody} onFocus={() => setActiveReplyField('body')} placeholder="Mensaje precargado" placeholderTextColor={palette.mutedText} style={[styles.searchInput, styles.textArea]} multiline />
-              <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateReply()} disabled={resourceBusy}>
-                <Text style={styles.primaryButtonText}>Guardar mensaje rapido</Text>
+              <TextInput value={replyBody} onChangeText={setReplyBody} onFocus={() => setActiveReplyField('body')} placeholder="Mensaje precargado" placeholderTextColor={theme.muted} style={[styles.searchInput, styles.textArea, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} multiline />
+              <Pressable style={[styles.primaryButton, { backgroundColor: theme.accent }, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateReply()} disabled={resourceBusy}>
+                <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Guardar mensaje rapido</Text>
               </Pressable>
             </View>
 
-            <View style={styles.formCard}>
-              <Text style={styles.formTitle}>Nueva imagen precargada</Text>
-              <TextInput value={imageTitle} onChangeText={setImageTitle} placeholder="Titulo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
-              <TextInput value={imageTag} onChangeText={setImageTag} placeholder="Tag opcional, ejemplo #catalogo" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
-              <Pressable style={styles.secondaryButton} onPress={() => void handlePickLibraryImage()}>
-                <Text style={styles.secondaryButtonText}>{selectedLibraryImage ? 'Cambiar imagen desde la computadora' : 'Cargar imagen desde la computadora'}</Text>
+            <View style={[styles.formCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+              <Text style={[styles.formTitle, { color: theme.title }]}>Nueva imagen precargada</Text>
+              <TextInput value={imageTitle} onChangeText={setImageTitle} placeholder="Titulo" placeholderTextColor={theme.muted} style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} />
+              <TextInput value={imageTag} onChangeText={setImageTag} placeholder="Tag opcional, ejemplo #catalogo" placeholderTextColor={theme.muted} style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} />
+              <Pressable style={[styles.secondaryButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]} onPress={() => void handlePickLibraryImage()}>
+                <Text style={[styles.secondaryButtonText, { color: theme.title }]}>{selectedLibraryImage ? 'Cambiar imagen desde la computadora' : 'Cargar imagen desde la computadora'}</Text>
               </Pressable>
               {selectedLibraryImage ? (
-                <View style={styles.filePreview}>
-                  <Text style={styles.filePreviewTitle}>{selectedLibraryImage.name}</Text>
-                  <Text style={styles.filePreviewCopy}>Lista para subir a la biblioteca.</Text>
+                <View style={[styles.filePreview, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
+                  <Text style={[styles.filePreviewTitle, { color: theme.title }]}>{selectedLibraryImage.name}</Text>
+                  <Text style={[styles.filePreviewCopy, { color: theme.text }]}>Lista para subir a la biblioteca.</Text>
                   <Pressable onPress={() => setSelectedLibraryImage(null)} style={styles.inlineLinkButton}>
-                    <Text style={styles.inlineLinkText}>Quitar</Text>
+                    <Text style={[styles.inlineLinkText, { color: theme.danger }]}>Quitar</Text>
                   </Pressable>
                 </View>
               ) : null}
-              <Text style={styles.helperText}>Opcionalmente puedes seguir usando una URL publica si ya la tienes.</Text>
-              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="URL publica de la imagen" placeholderTextColor={palette.mutedText} style={styles.searchInput} />
-              <Pressable style={[styles.primaryButton, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateImage()} disabled={resourceBusy}>
-                <Text style={styles.primaryButtonText}>Guardar imagen</Text>
+              <Text style={[styles.helperText, { color: theme.muted }]}>Opcionalmente puedes seguir usando una URL publica si ya la tienes.</Text>
+              <TextInput value={imageUrl} onChangeText={setImageUrl} placeholder="URL publica de la imagen" placeholderTextColor={theme.muted} style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]} />
+              <Pressable style={[styles.primaryButton, { backgroundColor: theme.accent }, resourceBusy && styles.actionDisabled]} onPress={() => void handleCreateImage()} disabled={resourceBusy}>
+                <Text style={[styles.primaryButtonText, { color: theme.buttonText }]}>Guardar imagen</Text>
               </Pressable>
             </View>
 
-            <View style={styles.libraryListCard}>
+            <View style={[styles.libraryListCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
               <View style={styles.listHeader}>
-                <Text style={styles.listTitle}>Biblioteca guardada</Text>
+                <Text style={[styles.listTitle, { color: theme.title }]}>Biblioteca guardada</Text>
                 {libraryLoading ? <ActivityIndicator color={palette.accent} /> : null}
               </View>
               <View style={styles.libraryColumns}>
                 <View style={styles.libraryColumn}>
-                  <Text style={styles.sectionMiniTitle}>Mensajes rapidos</Text>
+                  <Text style={[styles.sectionMiniTitle, { color: theme.title }]}>Mensajes rapidos</Text>
                   <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.libraryStack}>
                       {quickReplies.map((reply) => (
-                        <View key={reply.id} style={styles.libraryItemCard}>
+                        <View key={reply.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
                           <View style={styles.savedReplyHeader}>
                             <View style={[styles.previewDot, { backgroundColor: reply.tag_color || tagColorOptions[0] }]} />
                             {reply.tag_emoji ? <Text style={styles.previewEmoji}>{reply.tag_emoji}</Text> : null}
                             <Text style={styles.libraryTag}>{reply.tag}</Text>
                           </View>
-                          <Text style={styles.libraryItemTitle}>{reply.label}</Text>
-                          <Text style={styles.libraryBody}>{reply.body}</Text>
-                          <Pressable style={styles.deleteButton} onPress={() => void handleDeleteReply(reply.id)}>
-                            <Text style={styles.deleteButtonText}>Eliminar</Text>
+                          <Text style={[styles.libraryItemTitle, { color: theme.title }]}>{reply.label}</Text>
+                          <Text style={[styles.libraryBody, { color: theme.text }]}>{reply.body}</Text>
+                          <Pressable style={[styles.deleteButton, { backgroundColor: theme.cardSoft }]} onPress={() => void handleDeleteReply(reply.id)}>
+                            <Text style={[styles.deleteButtonText, { color: theme.danger }]}>Eliminar</Text>
                           </Pressable>
                         </View>
                       ))}
@@ -569,16 +620,16 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   </ScrollView>
                 </View>
                 <View style={styles.libraryColumn}>
-                  <Text style={styles.sectionMiniTitle}>Imagenes</Text>
+                  <Text style={[styles.sectionMiniTitle, { color: theme.title }]}>Imagenes</Text>
                   <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.libraryStack}>
                       {mediaLibrary.map((item) => (
-                        <View key={item.id} style={styles.libraryItemCard}>
-                          <Image source={{ uri: item.image_url }} style={styles.savedImage} resizeMode="cover" />
-                          <Text style={styles.libraryItemTitle}>{item.title}</Text>
+                        <View key={item.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                          <Image source={{ uri: item.image_url }} style={[styles.savedImage, { backgroundColor: theme.card }]} resizeMode="cover" />
+                          <Text style={[styles.libraryItemTitle, { color: theme.title }]}>{item.title}</Text>
                           <Text style={styles.libraryTag}>{item.tag || '#imagen'}</Text>
-                          <Pressable style={styles.deleteButton} onPress={() => void handleDeleteImage(item.id)}>
-                            <Text style={styles.deleteButtonText}>Eliminar</Text>
+                          <Pressable style={[styles.deleteButton, { backgroundColor: theme.cardSoft }]} onPress={() => void handleDeleteImage(item.id)}>
+                            <Text style={[styles.deleteButtonText, { color: theme.danger }]}>Eliminar</Text>
                           </Pressable>
                         </View>
                       ))}
@@ -594,35 +645,56 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value, themeMode }: { label: string; value: string; themeMode: AdminThemeMode }) {
+  const theme = adminThemes[themeMode];
   return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
+    <View style={[styles.metricCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+      <Text style={[styles.metricValue, { color: theme.title }]}>{value}</Text>
+      <Text style={[styles.metricLabel, { color: theme.text }]}>{label}</Text>
     </View>
   );
 }
 
-function SectionTab({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function SectionTab({ label, active, onPress, themeMode }: { label: string; active: boolean; onPress: () => void; themeMode: AdminThemeMode }) {
+  const theme = adminThemes[themeMode];
   return (
-    <Pressable onPress={onPress} style={[styles.sectionTab, active && styles.sectionTabActive]}>
-      <Text style={[styles.sectionTabText, active && styles.sectionTabTextActive]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.sectionTab,
+        { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft },
+        active && [styles.sectionTabActive, { backgroundColor: theme.accent, borderColor: theme.accent }],
+      ]}
+    >
+      <Text style={[styles.sectionTabText, { color: theme.chipText }, active && [styles.sectionTabTextActive, { color: theme.buttonText }]]}>{label}</Text>
     </Pressable>
   );
 }
 
-function FilterChip({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+function FilterChip({ label, active, onPress, themeMode }: { label: string; active: boolean; onPress: () => void; themeMode: AdminThemeMode }) {
+  const theme = adminThemes[themeMode];
   return (
-    <Pressable onPress={onPress} style={[styles.filterChip, active && styles.filterChipActive]}>
-      <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{label}</Text>
+    <Pressable onPress={onPress} style={[styles.filterChip, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }, active && [styles.filterChipActive, { backgroundColor: theme.accent, borderColor: theme.accent }]]}>
+      <Text style={[styles.filterChipText, { color: theme.chipText }, active && [styles.filterChipTextActive, { color: theme.buttonText }]]}>{label}</Text>
     </Pressable>
   );
 }
 
-function ActionButton({ label, tone, disabled, onPress }: { label: string; tone: 'approve' | 'block' | 'neutral'; disabled?: boolean; onPress: () => void }) {
+function ActionButton({ label, tone, disabled, onPress, themeMode }: { label: string; tone: 'approve' | 'block' | 'neutral'; disabled?: boolean; onPress: () => void; themeMode: AdminThemeMode }) {
+  const theme = adminThemes[themeMode];
   return (
-    <Pressable onPress={onPress} disabled={disabled} style={[styles.actionButton, tone === 'approve' && styles.actionApprove, tone === 'block' && styles.actionBlock, disabled && styles.actionDisabled]}>
-      <Text style={[styles.actionText, tone !== 'neutral' && styles.actionTextDark]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.actionButton,
+        { backgroundColor: theme.input, borderColor: theme.border },
+        tone === 'approve' && [styles.actionApprove, { backgroundColor: theme.accent, borderColor: theme.accent }],
+        tone === 'block' && styles.actionBlock,
+        disabled && styles.actionDisabled,
+      ]}
+    >
+      <Text style={[styles.actionText, { color: theme.text }, tone !== 'neutral' && [styles.actionTextDark, { color: tone === 'approve' ? theme.buttonText : '#111827' }]]}>{label}</Text>
     </Pressable>
   );
 }
@@ -654,6 +726,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 10,
+  },
   logo: {
     width: 126,
     height: 70,
@@ -680,6 +756,34 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 22,
     maxWidth: 760,
+  },
+  clockCard: {
+    minWidth: 170,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    gap: 2,
+  },
+  clockLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  clockValue: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  themeToggle: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  themeToggleText: {
+    fontWeight: '800',
+    fontSize: 12,
   },
   signOutButton: {
     backgroundColor: palette.accent,

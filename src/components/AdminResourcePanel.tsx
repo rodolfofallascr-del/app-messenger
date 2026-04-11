@@ -1,82 +1,84 @@
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MediaLibraryRecord, QuickReplyRecord } from '../types/chat';
-import { palette } from '../theme/palette';
+import { adminThemes, AdminThemeMode, palette } from '../theme/palette';
 
 type AdminResourcePanelProps = {
   quickReplies: QuickReplyRecord[];
   mediaLibrary: MediaLibraryRecord[];
   onUseQuickReply: (reply: QuickReplyRecord) => void;
   onUseMedia: (item: MediaLibraryRecord) => void;
+  themeMode?: AdminThemeMode;
 };
 
-export function AdminResourcePanel({ quickReplies, mediaLibrary, onUseQuickReply, onUseMedia }: AdminResourcePanelProps) {
+export function AdminResourcePanel({ quickReplies, mediaLibrary, onUseQuickReply, onUseMedia, themeMode = 'dark' }: AdminResourcePanelProps) {
   const [repliesOpen, setRepliesOpen] = useState(true);
   const [mediaOpen, setMediaOpen] = useState(false);
+  const theme = adminThemes[themeMode];
 
   return (
-    <View style={styles.panel}>
-      <Text style={styles.title}>Biblioteca rapida</Text>
-      <Text style={styles.subtitle}>Inserta mensajes precargados e imagenes guardadas en la conversacion activa.</Text>
+    <View style={[styles.panel, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+      <Text style={[styles.title, { color: theme.title }]}>Biblioteca rapida</Text>
+      <Text style={[styles.subtitle, { color: theme.text }]}>Inserta mensajes precargados e imagenes guardadas en la conversacion activa.</Text>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.section}>
-          <Pressable style={styles.sectionToggle} onPress={() => setRepliesOpen((current) => !current)}>
+          <Pressable style={[styles.sectionToggle, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setRepliesOpen((current) => !current)}>
             <View style={styles.sectionToggleCopy}>
-              <Text style={styles.sectionTitle}>Etiquetas y respuestas</Text>
-              <Text style={styles.sectionCount}>{quickReplies.length}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.title }]}>Etiquetas y respuestas</Text>
+              <Text style={[styles.sectionCount, { color: theme.accentSoft, backgroundColor: theme.input }]}>{quickReplies.length}</Text>
             </View>
-            <Text style={styles.sectionArrow}>{repliesOpen ? 'Ocultar' : 'Mostrar'}</Text>
+            <Text style={[styles.sectionArrow, { color: theme.text }]}>{repliesOpen ? 'Ocultar' : 'Mostrar'}</Text>
           </Pressable>
           {repliesOpen ? (
             quickReplies.length === 0 ? (
-              <Text style={styles.emptyText}>Todavia no hay respuestas precargadas.</Text>
+              <Text style={[styles.emptyText, { color: theme.muted }]}>Todavia no hay respuestas precargadas.</Text>
             ) : (
               quickReplies.map((reply) => (
-                <Pressable key={reply.id} onPress={() => onUseQuickReply(reply)} style={styles.replyCard}>
+                <Pressable key={reply.id} onPress={() => onUseQuickReply(reply)} style={[styles.replyCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
                   <View style={styles.replyHeader}>
                     <View style={styles.replyBadgeRow}>
                       <View style={[styles.replyDot, reply.tag_color ? { backgroundColor: reply.tag_color } : null]} />
                       {reply.tag_emoji ? <Text style={styles.replyEmoji}>{reply.tag_emoji}</Text> : null}
                       <Text style={styles.replyTag}>{reply.tag}</Text>
                     </View>
-                    <Text style={styles.replyLabel}>{reply.label}</Text>
+                    <Text style={[styles.replyLabel, { color: theme.title }]}>{reply.label}</Text>
                   </View>
-                  <Text style={styles.replyBody} numberOfLines={4}>
+                  <Text style={[styles.replyBody, { color: theme.text }]} numberOfLines={4}>
                     {reply.body}
                   </Text>
                 </Pressable>
               ))
             )
           ) : (
-            <Text style={styles.collapsedHint}>Desplega para ver y usar mensajes guardados.</Text>
+            <Text style={[styles.collapsedHint, { color: theme.muted }]}>Desplega para ver y usar mensajes guardados.</Text>
           )}
         </View>
 
         <View style={styles.section}>
-          <Pressable style={styles.sectionToggle} onPress={() => setMediaOpen((current) => !current)}>
+          <Pressable style={[styles.sectionToggle, { backgroundColor: theme.card, borderColor: theme.border }]} onPress={() => setMediaOpen((current) => !current)}>
             <View style={styles.sectionToggleCopy}>
-              <Text style={styles.sectionTitle}>Imagenes precargadas</Text>
-              <Text style={styles.sectionCount}>{mediaLibrary.length}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.title }]}>Imagenes precargadas</Text>
+              <Text style={[styles.sectionCount, { color: theme.accentSoft, backgroundColor: theme.input }]}>{mediaLibrary.length}</Text>
             </View>
-            <Text style={styles.sectionArrow}>{mediaOpen ? 'Ocultar' : 'Mostrar'}</Text>
+            <Text style={[styles.sectionArrow, { color: theme.text }]}>{mediaOpen ? 'Ocultar' : 'Mostrar'}</Text>
           </Pressable>
           {mediaOpen ? (
             mediaLibrary.length === 0 ? (
-              <Text style={styles.emptyText}>Todavia no hay imagenes guardadas.</Text>
+              <Text style={[styles.emptyText, { color: theme.muted }]}>Todavia no hay imagenes guardadas.</Text>
             ) : (
               mediaLibrary.map((item) => (
-                <Pressable key={item.id} onPress={() => onUseMedia(item)} style={styles.mediaCard}>
-                  <Image source={{ uri: item.image_url }} style={styles.mediaPreview} resizeMode="cover" />
+                <Pressable key={item.id} onPress={() => onUseMedia(item)} style={[styles.mediaCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
+                  <Image source={{ uri: item.image_url }} style={[styles.mediaPreview, { backgroundColor: theme.card }]} resizeMode="cover" />
                   <View style={styles.mediaCopy}>
-                    <Text style={styles.mediaTitle}>{item.title}</Text>
-                    <Text style={styles.mediaTag}>{item.tag || '#imagen'}</Text>
+                    <Text style={[styles.mediaTitle, { color: theme.title }]}>{item.title}</Text>
+                    <Text style={[styles.mediaTag, { color: theme.text }]}>{item.tag || '#imagen'}</Text>
                   </View>
                 </Pressable>
               ))
             )
           ) : (
-            <Text style={styles.collapsedHint}>Desplega para ver y usar imagenes guardadas.</Text>
+            <Text style={[styles.collapsedHint, { color: theme.muted }]}>Desplega para ver y usar imagenes guardadas.</Text>
           )}
         </View>
       </ScrollView>
