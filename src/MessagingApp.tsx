@@ -1322,6 +1322,8 @@ const styles = StyleSheet.create({
   sidebarAdminDesktop: {
     width: 292,
     flexShrink: 0,
+    maxHeight: '100%',
+    overflow: 'hidden',
   },
   mobileSidebar: {
     flex: 1,
@@ -1385,6 +1387,7 @@ const styles = StyleSheet.create({
   chatListScroller: {
     flex: 1,
     minHeight: 0,
+    maxHeight: '100%',
   },
   chatListContent: {
     paddingBottom: 4,
