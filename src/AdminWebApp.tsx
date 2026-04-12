@@ -535,7 +535,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   <Text style={[styles.stateText, { color: theme.text }]}>Cambia el filtro o espera nuevos registros.</Text>
                 </View>
               ) : (
-                <View style={styles.userList}>
+                <ScrollView style={styles.userListScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.userList}>
                   {visibleUsers.map((user) => {
                     const busy = actionUserId === user.id;
                     return (
@@ -591,7 +591,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                       </View>
                     );
                   })}
-                </View>
+                </ScrollView>
               )}
             </View>
           </>
@@ -1341,6 +1341,8 @@ const styles = StyleSheet.create({
     borderColor: palette.border,
     padding: 16,
     gap: 14,
+    maxHeight: 'calc(100vh - 220px)' as any,
+    overflow: 'hidden',
   },
   listHeader: {
     flexDirection: 'row',
@@ -1382,6 +1384,11 @@ const styles = StyleSheet.create({
   },
   userList: {
     gap: 10,
+    paddingBottom: 6,
+  },
+  userListScroll: {
+    minHeight: 0,
+    flexShrink: 1,
   },
   userCard: {
     backgroundColor: '#101a2d',
