@@ -1,6 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Session } from '@supabase/supabase-js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
@@ -75,6 +75,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [clockNow, setClockNow] = useState(() => new Date());
   const [quickToolsOpen, setQuickToolsOpen] = useState(false);
   const [quickToolsSection, setQuickToolsSection] = useState<'replies' | 'media'>('replies');
+  const [messagingViewportOffset, setMessagingViewportOffset] = useState(0);
+  const screenScrollRef = useRef<ScrollView | null>(null);
   const theme = adminThemes[themeMode];
 
   const loadUsers = useCallback(async () => {
@@ -146,6 +148,29 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       setQuickToolsOpen(false);
     }
   }, [section]);
+
+  const scrollToChatWorkspace = useCallback(() => {
+    setTimeout(() => {
+      screenScrollRef.current?.scrollTo({
+        y: Math.max(messagingViewportOffset - 28, 0),
+        animated: true,
+      });
+    }, 80);
+  }, [messagingViewportOffset]);
+
+  const handleQueueQuickReply = useCallback((reply: QuickReplyRecord) => {
+    setQueuedMedia(null);
+    setQueuedQuickReply(reply);
+    setQuickToolsOpen(false);
+    scrollToChatWorkspace();
+  }, [scrollToChatWorkspace]);
+
+  const handleQueueMedia = useCallback((item: MediaLibraryRecord) => {
+    setQueuedQuickReply(null);
+    setQueuedMedia(item);
+    setQuickToolsOpen(false);
+    scrollToChatWorkspace();
+  }, [scrollToChatWorkspace]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -401,7 +426,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView ref={screenScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.shell}>
         <View style={[styles.controlBar, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.controlBrand}>
@@ -574,10 +599,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                         <Pressable
                           key={reply.id}
                           style={[styles.quickReplyCompactCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}
-                          onPress={() => {
-                            setQueuedMedia(null);
-                            setQueuedQuickReply(reply);
-                          }}
+                          onPress={() => handleQueueQuickReply(reply)}
                         >
                           <View style={styles.savedReplyHeader}>
                             <View style={[styles.previewDot, { backgroundColor: reply.tag_color || tagColorOptions[0] }]} />
@@ -592,10 +614,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                         <Pressable
                           key={item.id}
                           style={[styles.quickReplyCompactCard, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}
-                          onPress={() => {
-                            setQueuedQuickReply(null);
-                            setQueuedMedia(item);
-                          }}
+                          onPress={() => handleQueueMedia(item)}
                         >
                           <View style={styles.quickMediaRow}>
                             <Image source={{ uri: item.image_url }} style={styles.quickMediaThumb} resizeMode="cover" />
@@ -610,7 +629,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               </View>
             ) : null}
             <View style={[styles.messagingLayout, styles.messagingLayoutWide]}>
-              <View style={styles.messagingViewport}>
+              <View style={styles.messagingViewport} onLayout={(event) => setMessagingViewportOffset(event.nativeEvent.layout.y)}>
                 <MessagingApp
                   session={session}
                   adminMode
