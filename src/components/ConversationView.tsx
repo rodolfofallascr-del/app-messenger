@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Alert, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
 
@@ -13,6 +13,7 @@ type ConversationViewProps = {
 
 export function ConversationView({ chat, messages, compact, showBackButton, onBack }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -24,10 +25,15 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
     };
   }, [chat.id, messages.length]);
 
-  const handleOpenAttachment = useCallback(async (url: string) => {
+  const handleOpenAttachment = useCallback(async (url: string, type?: 'image' | 'file') => {
     try {
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web') {
         window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      if (type === 'image') {
+        setActiveImageUrl(url);
         return;
       }
 
@@ -87,12 +93,12 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
               {hasVisibleText ? <Text style={styles.content}>{message.content}</Text> : null}
               {isImageAttachment ? (
-                <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string)} style={styles.imageOnlyWrap}>
+                <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string, 'image')} style={styles.imageOnlyWrap}>
                   <Image source={{ uri: message.attachmentUrl as string }} style={styles.attachmentImage} resizeMode="cover" />
                 </Pressable>
               ) : null}
               {canOpenAttachment && !isImageAttachment ? (
-                <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string)} style={styles.attachmentCard}>
+                <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string, 'file')} style={styles.attachmentCard}>
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
                   <Text style={styles.attachmentHint}>{message.attachmentType === 'image' ? 'Abrir imagen' : 'Abrir archivo'}</Text>
@@ -106,6 +112,15 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           );
         })}
       </ScrollView>
+
+      <Modal visible={Boolean(activeImageUrl)} transparent animationType="fade" onRequestClose={() => setActiveImageUrl(null)}>
+        <View style={styles.imageModalBackdrop}>
+          <Pressable style={styles.imageModalClose} onPress={() => setActiveImageUrl(null)}>
+            <Text style={styles.imageModalCloseText}>Cerrar</Text>
+          </Pressable>
+          {activeImageUrl ? <Image source={{ uri: activeImageUrl }} style={styles.imageModalPreview} resizeMode="contain" /> : null}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -232,6 +247,32 @@ const styles = StyleSheet.create({
   },
   imageOnlyWrap: {
     marginTop: 4,
+  },
+  imageModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(2,6,23,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+    gap: 14,
+  },
+  imageModalClose: {
+    alignSelf: 'flex-end',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  imageModalCloseText: {
+    color: palette.primaryText,
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  imageModalPreview: {
+    width: '100%',
+    height: '88%',
+    borderRadius: 18,
+    backgroundColor: '#0b1220',
   },
   attachmentCard: {
     backgroundColor: 'rgba(255,255,255,0.08)',

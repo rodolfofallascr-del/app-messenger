@@ -100,6 +100,18 @@ function buildQuickReplyInsertText(reply: QuickReplyRecord) {
 
   return badge || body;
 }
+
+function getBrowserAudioContext() {
+  if (Platform.OS !== 'web' || typeof window === 'undefined') {
+    return null;
+  }
+
+  const browserWindow = window as typeof window & {
+    webkitAudioContext?: typeof AudioContext;
+  };
+
+  return browserWindow.AudioContext || browserWindow.webkitAudioContext || null;
+}
 export function MessagingApp({ session, adminMode, clientMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
@@ -130,6 +142,9 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
   const readMarkersRef = useRef(readMarkers);
   const latestIncomingByChatRef = useRef(latestIncomingByChat);
   const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const notificationAudioArmedRef = useRef(false);
+  const lastUnreadSnapshotRef = useRef('');
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -146,6 +161,80 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
   useEffect(() => {
     conversationVisibleRef.current = isDesktop || mobileView === 'conversation';
   }, [isDesktop, mobileView]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !adminMode) {
+      return;
+    }
+
+    const armAudio = () => {
+      notificationAudioArmedRef.current = true;
+
+      const AudioContextCtor = getBrowserAudioContext();
+      if (!AudioContextCtor || audioContextRef.current) {
+        return;
+      }
+
+      try {
+        audioContextRef.current = new AudioContextCtor();
+      } catch {
+        audioContextRef.current = null;
+      }
+    };
+
+    window.addEventListener('pointerdown', armAudio, { passive: true });
+    window.addEventListener('keydown', armAudio);
+
+    return () => {
+      window.removeEventListener('pointerdown', armAudio);
+      window.removeEventListener('keydown', armAudio);
+    };
+  }, [adminMode]);
+
+  const playIncomingMessageTone = useCallback(async () => {
+    if (Platform.OS !== 'web' || !adminMode || !notificationAudioArmedRef.current) {
+      return;
+    }
+
+    const AudioContextCtor = getBrowserAudioContext();
+    if (!AudioContextCtor) {
+      return;
+    }
+
+    try {
+      const context = audioContextRef.current ?? new AudioContextCtor();
+      audioContextRef.current = context;
+
+      if (context.state === 'suspended') {
+        await context.resume();
+      }
+
+      const now = context.currentTime;
+      const masterGain = context.createGain();
+      masterGain.connect(context.destination);
+      masterGain.gain.setValueAtTime(0.0001, now);
+      masterGain.gain.exponentialRampToValueAtTime(0.045, now + 0.02);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+
+      const firstOscillator = context.createOscillator();
+      firstOscillator.type = 'sine';
+      firstOscillator.frequency.setValueAtTime(740, now);
+      firstOscillator.frequency.exponentialRampToValueAtTime(660, now + 0.18);
+      firstOscillator.connect(masterGain);
+      firstOscillator.start(now);
+      firstOscillator.stop(now + 0.18);
+
+      const secondOscillator = context.createOscillator();
+      secondOscillator.type = 'sine';
+      secondOscillator.frequency.setValueAtTime(880, now + 0.22);
+      secondOscillator.frequency.exponentialRampToValueAtTime(740, now + 0.42);
+      secondOscillator.connect(masterGain);
+      secondOscillator.start(now + 0.22);
+      secondOscillator.stop(now + 0.42);
+    } catch {
+      return;
+    }
+  }, [adminMode]);
 
   const persistReadMarkers = useCallback(
     (nextMarkers: Record<string, string>) => {
@@ -571,6 +660,52 @@ const clientHasAdminChat = useMemo(() => {
 const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
 const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
 const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
+const unreadSnapshot = useMemo(() => {
+  return liveChats
+    .filter((chat) => chat.unreadCount > 0)
+    .map((chat) => `${chat.id}:${chat.unreadCount}:${chat.lastActivityAt}`)
+    .sort()
+    .join('|');
+}, [liveChats]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !adminMode) {
+      return;
+    }
+
+    if (!lastUnreadSnapshotRef.current) {
+      lastUnreadSnapshotRef.current = unreadSnapshot;
+      return;
+    }
+
+    if (unreadSnapshot === lastUnreadSnapshotRef.current) {
+      return;
+    }
+
+    const previousMap = new Map(
+      lastUnreadSnapshotRef.current
+        .split('|')
+        .filter(Boolean)
+        .map((entry) => {
+          const [chatId, count] = entry.split(':');
+          return [chatId, Number(count || '0')];
+        })
+    );
+
+    const hasNewUnread = liveChats.some((chat) => {
+      if (chat.unreadCount <= 0) {
+        return false;
+      }
+
+      return chat.unreadCount > (previousMap.get(chat.id) ?? 0);
+    });
+
+    lastUnreadSnapshotRef.current = unreadSnapshot;
+
+    if (hasNewUnread) {
+      void playIncomingMessageTone();
+    }
+  }, [adminMode, liveChats, playIncomingMessageTone, unreadSnapshot]);
 
   const clearPendingAttachment = useCallback(() => {
     replacePendingAttachment(null);
