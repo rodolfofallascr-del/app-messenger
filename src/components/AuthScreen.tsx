@@ -19,8 +19,6 @@ const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
 const buildLabel = 'Build 1.0.1 / Android fix';
 const REMEMBER_LOGIN_STORAGE_KEY = 'chat-santanita-remember-login';
 
-const quickStats = ['Mensajes en vivo', 'Grupos privados', 'Imagenes y archivos'];
-
 export function AuthScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
@@ -222,34 +220,6 @@ export function AuthScreen() {
 
             <Text style={styles.helperText}>Usa tu correo registrado en Supabase.</Text>
           </View>
-
-          {isDesktop ? (
-            <View style={[styles.introCard, styles.introCardDesktop]}>
-              <Text style={styles.panelEyebrow}>Mensajeria privada</Text>
-              <Text style={styles.panelTitle}>Tu equipo conectado en un solo lugar</Text>
-              <Text style={styles.panelCopy}>
-                Una experiencia pensada para conversaciones rapidas, grupos internos y envio de archivos sin perder historial.
-              </Text>
-
-              <View style={styles.statsRow}>
-                {quickStats.map((item) => (
-                  <View key={item} style={styles.statChip}>
-                    <Text style={styles.statChipText}>{item}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.previewCard}>
-                <View style={[styles.previewBubble, styles.previewBubbleIncoming]}>
-                  <Text style={styles.previewAuthor}>Soporte</Text>
-                  <Text style={styles.previewText}>Buenos dias. Ya revise tu pedido y lo deje listo.</Text>
-                </View>
-                <View style={[styles.previewBubble, styles.previewBubbleOutgoing]}>
-                  <Text style={styles.previewText}>Perfecto, lo confirmo con el cliente y te aviso.</Text>
-                </View>
-              </View>
-            </View>
-          ) : null}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -300,9 +270,7 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   shellDesktop: {
-    maxWidth: 1180,
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    maxWidth: 520,
   },
   authCard: {
     backgroundColor: palette.card,
@@ -448,89 +416,5 @@ const styles = StyleSheet.create({
     color: '#fde68a',
     fontSize: 13,
     lineHeight: 18,
-  },
-  introCard: {
-    backgroundColor: '#0b1220',
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 18,
-    gap: 14,
-  },
-  introCardDesktop: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 26,
-  },
-  panelEyebrow: {
-    color: '#93c5fd',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  panelTitle: {
-    color: palette.primaryText,
-    fontSize: 28,
-    fontWeight: '800',
-    lineHeight: 34,
-  },
-  panelCopy: {
-    color: palette.secondaryText,
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  statChip: {
-    backgroundColor: '#13213a',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#21314b',
-  },
-  statChipText: {
-    color: '#bfdbfe',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  previewCard: {
-    backgroundColor: '#0f172a',
-    borderRadius: 22,
-    padding: 14,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: '#1f2a3d',
-  },
-  previewBubble: {
-    maxWidth: '84%',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 18,
-    gap: 4,
-  },
-  previewBubbleIncoming: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#172554',
-    borderTopLeftRadius: 6,
-  },
-  previewBubbleOutgoing: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#14532d',
-    borderTopRightRadius: 6,
-  },
-  previewAuthor: {
-    color: '#93c5fd',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  previewText: {
-    color: palette.primaryText,
-    fontSize: 14,
-    lineHeight: 20,
   },
 });
