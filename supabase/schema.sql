@@ -4,6 +4,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   email text unique,
   full_name text,
+  admin_alias text,
   avatar_url text,
   role text not null default 'client' check (role in ('admin', 'client')),
   status text not null default 'pending' check (status in ('pending', 'approved', 'blocked')),
@@ -100,6 +101,8 @@ as $$
       and status = 'approved'
   );
 $$;
+
+alter table public.profiles add column if not exists admin_alias text;
 
 grant execute on function public.is_current_user_admin() to authenticated;
 

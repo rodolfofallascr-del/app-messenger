@@ -5,7 +5,7 @@ export async function fetchAdminUsers() {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('profiles')
-    .select('id,email,full_name,avatar_url,role,status,created_at')
+    .select('id,email,full_name,admin_alias,avatar_url,role,status,created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -42,4 +42,22 @@ export async function deleteBlockedUserChats(userId: string) {
   }
 
   return Number(data ?? 0);
+}
+
+export async function updateAdminAlias(userId: string, alias: string | null) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('admin_set_user_alias', {
+    target_user_id: userId,
+    new_alias: alias,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error('Supabase no confirmo el cambio de alias del usuario.');
+  }
+
+  return data as ProfileRecord;
 }

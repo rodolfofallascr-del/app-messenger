@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
-import { deleteBlockedUserChats, fetchAdminUsers, updateUserAccess } from './lib/adminService';
+import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
 import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
@@ -47,6 +47,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | AppUserStatus>('all');
+  const [aliasDrafts, setAliasDrafts] = useState<Record<string, string>>({});
   const [section, setSection] = useState<AdminSection>(() => {
     if (typeof window === 'undefined') {
       return 'users';
@@ -85,6 +86,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     try {
       const nextUsers = await fetchAdminUsers();
       setUsers(nextUsers);
+      setAliasDrafts(Object.fromEntries(nextUsers.map((user) => [user.id, user.admin_alias?.trim() || ''])));
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
     } finally {
@@ -210,7 +212,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         return true;
       }
 
-      const haystack = ((user.full_name ?? '') + ' ' + (user.email ?? '')).toLowerCase();
+      const haystack = ((user.admin_alias ?? '') + ' ' + (user.full_name ?? '') + ' ' + (user.email ?? '')).toLowerCase();
       return haystack.includes(normalizedQuery);
     });
   }, [filter, profile.id, query, users]);
@@ -258,6 +260,28 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar las conversaciones del usuario.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
+  const handleSaveAlias = async (userId: string) => {
+    setActionUserId(userId);
+    setFeedback(null);
+
+    try {
+      const nextAlias = aliasDrafts[userId]?.trim() || null;
+      const updatedProfile = await updateAdminAlias(userId, nextAlias);
+      setUsers((current) =>
+        current.map((user) => (user.id === userId ? { ...user, admin_alias: updatedProfile.admin_alias ?? null } : user))
+      );
+      setAliasDrafts((current) => ({
+        ...current,
+        [userId]: updatedProfile.admin_alias?.trim() || '',
+      }));
+      setFeedback(nextAlias ? 'Alias administrativo guardado.' : 'Alias administrativo eliminado.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible guardar el alias administrativo.');
     } finally {
       setActionUserId(null);
     }
@@ -480,7 +504,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <TextInput
                 value={query}
                 onChangeText={setQuery}
-                placeholder="Buscar por nombre o correo"
+                placeholder="Buscar por alias, nombre o correo"
                 placeholderTextColor={theme.muted}
                 style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
               />
@@ -518,12 +542,42 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                       <View key={user.id} style={[styles.userCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
                         <View style={styles.userMain}>
                           <View style={styles.userAvatar}>
-                            <Text style={styles.userAvatarText}>{(user.full_name || user.email || 'U').charAt(0).toUpperCase()}</Text>
+                            <Text style={styles.userAvatarText}>{(user.admin_alias || user.full_name || user.email || 'U').charAt(0).toUpperCase()}</Text>
                           </View>
                           <View style={styles.userCopy}>
-                            <Text style={[styles.userName, { color: theme.title }]}>{user.full_name?.trim() || 'Sin nombre'}</Text>
+                            <Text style={[styles.userName, { color: theme.title }]}>
+                              {user.admin_alias?.trim() || user.full_name?.trim() || 'Sin nombre'}
+                            </Text>
+                            {user.admin_alias?.trim() ? (
+                              <Text style={[styles.userAliasHint, { color: theme.muted }]}>
+                                Nombre real: {user.full_name?.trim() || 'Sin nombre'}
+                              </Text>
+                            ) : null}
                             <Text style={[styles.userEmail, { color: theme.text }]}>{user.email ?? 'Sin correo'}</Text>
                             <Text style={[styles.userMeta, { color: theme.muted }]}>Rol: {user.role} | Estado: {user.status}</Text>
+                            <View style={styles.aliasEditorRow}>
+                              <TextInput
+                                value={aliasDrafts[user.id] ?? ''}
+                                onChangeText={(value) =>
+                                  setAliasDrafts((current) => ({
+                                    ...current,
+                                    [user.id]: value,
+                                  }))
+                                }
+                                placeholder="Alias solo para admin"
+                                placeholderTextColor={theme.muted}
+                                style={[styles.aliasInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                              />
+                              <Pressable
+                                style={[styles.aliasSaveButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}
+                                onPress={() => void handleSaveAlias(user.id)}
+                                disabled={busy}
+                              >
+                                <Text style={[styles.aliasSaveButtonText, { color: theme.title }]}>
+                                  {busy ? 'Guardando...' : 'Guardar alias'}
+                                </Text>
+                              </Pressable>
+                            </View>
                           </View>
                         </View>
                         <View style={styles.actionsRow}>
@@ -1363,6 +1417,11 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '800',
   },
+  userAliasHint: {
+    color: palette.mutedText,
+    fontSize: 12,
+    lineHeight: 16,
+  },
   userEmail: {
     color: palette.secondaryText,
     fontSize: 13,
@@ -1370,6 +1429,30 @@ const styles = StyleSheet.create({
   userMeta: {
     color: palette.mutedText,
     fontSize: 12,
+  },
+  aliasEditorRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  aliasInput: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 13,
+  },
+  aliasSaveButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  aliasSaveButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
   actionsRow: {
     flexDirection: 'row',

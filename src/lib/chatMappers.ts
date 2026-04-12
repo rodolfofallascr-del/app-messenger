@@ -15,7 +15,11 @@ export function formatRelativeTime(timestamp: string) {
   }).format(date);
 }
 
-export function profileDisplayName(profile: ProfileRecord | null | undefined, fallback?: string) {
+export function profileDisplayName(profile: ProfileRecord | null | undefined, fallback?: string, useAdminAlias?: boolean) {
+  if (useAdminAlias && profile?.admin_alias?.trim()) {
+    return profile.admin_alias.trim();
+  }
+
   return profile?.full_name?.trim() || profile?.email || fallback || 'Usuario';
 }
 
@@ -25,15 +29,16 @@ export function buildChatThread(params: {
   lastMessage?: MessageRecord | null;
   currentUserId: string;
   unreadCount?: number;
+  useAdminAlias?: boolean;
 }) {
-  const { chat, members, lastMessage, currentUserId, unreadCount = 0 } = params;
+  const { chat, members, lastMessage, currentUserId, unreadCount = 0, useAdminAlias = false } = params;
   const otherMembers = members.filter((member) => member.user_id !== currentUserId);
-  const visibleMembers = members.map((member) => profileDisplayName(member.profile));
+  const visibleMembers = members.map((member) => profileDisplayName(member.profile, undefined, useAdminAlias));
 
   const name =
     chat.type === 'group'
       ? chat.name?.trim() || visibleMembers.join(', ')
-      : otherMembers.map((member) => profileDisplayName(member.profile)).join(', ') || 'Chat directo';
+      : otherMembers.map((member) => profileDisplayName(member.profile, undefined, useAdminAlias)).join(', ') || 'Chat directo';
 
   return {
     id: chat.id,
@@ -49,10 +54,10 @@ export function buildChatThread(params: {
   } satisfies ChatThread;
 }
 
-export function buildChatMessages(messages: MessageRecord[], currentUserId: string) {
+export function buildChatMessages(messages: MessageRecord[], currentUserId: string, useAdminAlias = false) {
   return messages.map((message) => ({
     id: message.id,
-    author: message.sender_id === currentUserId ? 'Tu' : profileDisplayName(message.profile),
+    author: message.sender_id === currentUserId ? 'Tu' : profileDisplayName(message.profile, undefined, useAdminAlias),
     content: message.body?.trim() || attachmentFallback(message),
     timestamp: formatRelativeTime(message.created_at),
     direction: message.sender_id === currentUserId ? 'outgoing' : 'incoming',

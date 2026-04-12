@@ -344,11 +344,12 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
           lastMessage,
           currentUserId: userId,
           unreadCount,
+          useAdminAlias: Boolean(adminMode),
         });
       });
 
       const nextMessages = Object.fromEntries(
-        scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId)])
+        scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId, Boolean(adminMode))])
       ) as Record<string, ChatMessage[]>;
 
       setLatestIncomingByChat(nextLatestIncomingByChat);
@@ -375,7 +376,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         setLoadingChats(false);
       }
     }
-  }, [clientMode, markChatAsRead, persistReadMarkers]);
+  }, [adminMode, clientMode, markChatAsRead, persistReadMarkers]);
 
   useEffect(() => {
     void Promise.all([loadUsers(), loadChats()]);

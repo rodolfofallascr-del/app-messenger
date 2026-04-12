@@ -34,6 +34,7 @@ export type ProfileRecord = {
   id: string;
   email: string | null;
   full_name: string | null;
+  admin_alias?: string | null;
   avatar_url: string | null;
   role: AppUserRole;
   status: AppUserStatus;
