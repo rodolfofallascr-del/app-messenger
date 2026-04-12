@@ -7,10 +7,10 @@ export const ADMIN_TAG_PRESETS = [
   { value: 'No pago', symbol: '\u274C', color: '#ef4444' },
   { value: 'Promo', symbol: '\uD83C\uDF89', color: '#f97316' },
   { value: 'Codigo', symbol: '\uD83C\uDFF7\uFE0F', color: '#3b82f6' },
-  { value: 'SIN SINPE NO SE APUNTA', symbol: '\u274C', color: '#eab308' },
-  { value: 'SALDO PENDIENTE', symbol: '\u274C', color: '#ef4444' },
-  { value: 'SALDO A SU FAVOR', symbol: '\u2705', color: '#3b82f6' },
-  { value: 'NO PAGARON', symbol: '\u274C', color: '#be123c' },
+  { value: '\u274C SIN SINPE NO SE APUNTA \u274C', symbol: '\u274C', color: '#eab308' },
+  { value: 'SALDO PENDIENTE \u274C\u274C', symbol: '\u274C', color: '#ef4444' },
+  { value: 'SALDO A SU FAVOR \u2705', symbol: '\u2705', color: '#3b82f6' },
+  { value: 'NO PAGARON \u274C\u274C', symbol: '\u274C', color: '#be123c' },
 ] as const;
 
 export const ADMIN_TAG_SYMBOL_PRESETS = [
