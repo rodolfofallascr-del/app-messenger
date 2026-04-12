@@ -5,6 +5,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
+import { ADMIN_TAG_PRESETS, getAdminTagPresentation } from './lib/adminTags';
 import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
@@ -330,6 +331,28 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   };
 
+  const handleAppendTagPreset = useCallback((userId: string, nextTag: string) => {
+    setTagDrafts((current) => {
+      const parsed = Array.from(
+        new Set(
+          (current[userId] ?? '')
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (!parsed.includes(nextTag)) {
+        parsed.push(nextTag);
+      }
+
+      return {
+        ...current,
+        [userId]: parsed.join(', '),
+      };
+    });
+  }, []);
+
   const handleCreateReply = async () => {
     if (!replyBody.trim()) {
       setFeedback('Ingresa el mensaje precargado antes de guardarlo.');
@@ -605,11 +628,15 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                             <Text style={[styles.userMeta, { color: theme.muted }]}>Rol: {user.role} | Estado: {user.status}</Text>
                             {user.admin_tags?.length ? (
                               <View style={styles.userTagsRow}>
-                                {user.admin_tags.map((tag) => (
-                                  <View key={`${user.id}-${tag}`} style={[styles.userTagChip, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
-                                    <Text style={[styles.userTagText, { color: theme.title }]}>{tag}</Text>
-                                  </View>
-                                ))}
+                                {user.admin_tags.map((tag) => {
+                                  const visual = getAdminTagPresentation(tag);
+                                  return (
+                                    <View key={`${user.id}-${tag}`} style={[styles.userTagChip, { backgroundColor: `${visual.color}20`, borderColor: visual.color }]}>
+                                      <Text style={[styles.userTagSymbol, { color: visual.color }]}>{visual.symbol}</Text>
+                                      <Text style={[styles.userTagText, { color: theme.title }]}>{tag}</Text>
+                                    </View>
+                                  );
+                                })}
                               </View>
                             ) : null}
                             <View style={styles.aliasEditorRow}>
@@ -657,6 +684,18 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                                   {busy ? 'Guardando...' : 'Guardar tags'}
                                 </Text>
                               </Pressable>
+                            </View>
+                            <View style={styles.tagPresetRow}>
+                              {ADMIN_TAG_PRESETS.map((preset) => (
+                                <Pressable
+                                  key={`${user.id}-${preset.value}`}
+                                  style={[styles.tagPresetChip, { backgroundColor: `${preset.color}20`, borderColor: preset.color }]}
+                                  onPress={() => handleAppendTagPreset(user.id, preset.value)}
+                                >
+                                  <Text style={[styles.tagPresetSymbol, { color: preset.color }]}>{preset.symbol}</Text>
+                                  <Text style={[styles.tagPresetText, { color: theme.title }]}>{preset.value}</Text>
+                                </Pressable>
+                              ))}
                             </View>
                           </View>
                         </View>
@@ -1528,8 +1567,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  userTagSymbol: {
+    fontSize: 10,
   },
   userTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  tagPresetRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  tagPresetChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  tagPresetSymbol: {
+    fontSize: 10,
+  },
+  tagPresetText: {
     fontSize: 10,
     fontWeight: '800',
   },

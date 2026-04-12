@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { getAdminTagPresentation } from '../lib/adminTags';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
 
@@ -153,6 +154,19 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
             <Text style={styles.chatMeta}>
               {chat.members.join(', ')} - {chat.type === 'group' ? 'Grupo' : 'Directo'}
             </Text>
+            {chat.adminTags?.length ? (
+              <View style={styles.headerTagsRow}>
+                {chat.adminTags.slice(0, 4).map((tag) => {
+                  const visual = getAdminTagPresentation(tag);
+                  return (
+                    <View key={`${chat.id}-${tag}`} style={[styles.headerTagChip, { borderColor: visual.color, backgroundColor: `${visual.color}20` }]}>
+                      <Text style={[styles.headerTagSymbol, { color: visual.color }]}>{visual.symbol}</Text>
+                      <Text style={styles.headerTagText}>{tag}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
         </View>
         <View style={[styles.headerBadge, compact && styles.headerBadgeCompact]}>
@@ -312,6 +326,29 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     fontSize: 12,
     marginTop: 3,
+  },
+  headerTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 7,
+  },
+  headerTagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  headerTagSymbol: {
+    fontSize: 10,
+  },
+  headerTagText: {
+    color: '#dbeafe',
+    fontSize: 10,
+    fontWeight: '700',
   },
   headerBadge: {
     backgroundColor: '#16253e',

@@ -397,6 +397,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         void loadUsers();
+        void loadChats({ silent: true });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'chat_read_markers' }, () => {
         void loadChats({ silent: true });

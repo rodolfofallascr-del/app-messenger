@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { getAdminTagPresentation } from '../lib/adminTags';
 import { palette } from '../theme/palette';
 import { ChatThread } from '../types/chat';
 
@@ -31,11 +32,14 @@ export function ChatList({ chats, selectedChatId, onSelect }: ChatListProps) {
               </View>
               {chat.adminTags?.length ? (
                 <View style={styles.tagsRow}>
-                  {chat.adminTags.slice(0, 3).map((tag) => (
-                    <View key={`${chat.id}-${tag}`} style={styles.tagChip}>
+                  {chat.adminTags.slice(0, 3).map((tag) => {
+                    const visual = getAdminTagPresentation(tag);
+                    return (
+                    <View key={`${chat.id}-${tag}`} style={[styles.tagChip, { borderColor: visual.color, backgroundColor: `${visual.color}22` }]}>
+                      <Text style={[styles.tagSymbol, { color: visual.color }]}>{visual.symbol}</Text>
                       <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
                     </View>
-                  ))}
+                  )})}
                 </View>
               ) : null}
               <Text style={[styles.message, hasUnread && styles.messageUnread]} numberOfLines={1}>
@@ -109,10 +113,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
-    backgroundColor: '#1c2c47',
     borderWidth: 1,
-    borderColor: '#2b456c',
     maxWidth: 110,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  tagSymbol: {
+    fontSize: 10,
   },
   tagText: {
     color: '#c7d7f5',
