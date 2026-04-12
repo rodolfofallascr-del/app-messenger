@@ -36,6 +36,7 @@ type MessagingAppProps = {
 };
 
 type MobileView = 'chats' | 'conversation';
+type AdminInboxFilter = 'all' | 'unread';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
@@ -122,6 +123,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [search, setSearch] = useState('');
+  const [adminInboxFilter, setAdminInboxFilter] = useState<AdminInboxFilter>('all');
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
   const [liveMessages, setLiveMessages] = useState<Record<string, ChatMessage[]>>({});
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
@@ -625,36 +627,47 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   );
 
   const visibleChats = useMemo(() => {
-  const orderedChats = [...liveChats].sort((left, right) => {
-    if (adminMode && left.unreadCount !== right.unreadCount) {
-      return right.unreadCount - left.unreadCount;
+    const orderedChats = [...liveChats].sort((left, right) => {
+      if (adminMode && left.unreadCount !== right.unreadCount) {
+        return right.unreadCount - left.unreadCount;
+      }
+
+      const leftTime = new Date(left.lastActivityAt).getTime();
+      const rightTime = new Date(right.lastActivityAt).getTime();
+
+      return rightTime - leftTime;
+    });
+
+    const inboxScopedChats =
+      adminMode && adminInboxFilter === 'unread'
+        ? orderedChats.filter((chat) => chat.unreadCount > 0)
+        : orderedChats;
+
+    const query = search.trim().toLowerCase();
+    if (!query) {
+      return inboxScopedChats;
     }
 
-    const leftTime = new Date(left.lastActivityAt).getTime();
-    const rightTime = new Date(right.lastActivityAt).getTime();
+    return inboxScopedChats.filter((chat) => {
+      const haystack = `${chat.name} ${chat.lastMessage} ${chat.members.join(' ')}`.toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [adminInboxFilter, adminMode, search, liveChats]);
 
-    return rightTime - leftTime;
-  });
+  const primaryAdmin = useMemo(() => availableUsers[0] ?? null, [availableUsers]);
+  const clientHasAdminChat = useMemo(() => {
+    if (!clientMode || !primaryAdmin) {
+      return true;
+    }
 
-  const query = search.trim().toLowerCase();
-  if (!query) {
-    return orderedChats;
-  }
-
-  return orderedChats.filter((chat) => {
-    const haystack = `${chat.name} ${chat.lastMessage} ${chat.members.join(' ')}`.toLowerCase();
-    return haystack.includes(query);
-  });
-}, [adminMode, search, liveChats]);
-
-const primaryAdmin = useMemo(() => availableUsers[0] ?? null, [availableUsers]);
-const clientHasAdminChat = useMemo(() => {
-  if (!clientMode || !primaryAdmin) {
-    return true;
-  }
-
-  return liveChats.some((chat) => chat.members.some((member) => member.toLowerCase().includes(primaryAdmin.fullName.toLowerCase()) || member.toLowerCase().includes(primaryAdmin.email.toLowerCase())));
-}, [clientMode, liveChats, primaryAdmin]);
+    return liveChats.some((chat) =>
+      chat.members.some(
+        (member) =>
+          member.toLowerCase().includes(primaryAdmin.fullName.toLowerCase()) ||
+          member.toLowerCase().includes(primaryAdmin.email.toLowerCase())
+      )
+    );
+  }, [clientMode, liveChats, primaryAdmin]);
 
   useEffect(() => {
     if (!clientMode) {
@@ -664,16 +677,17 @@ const clientHasAdminChat = useMemo(() => {
     setAdminContactId(primaryAdmin?.id ?? '');
   }, [clientMode, primaryAdmin]);
 
-const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
-const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
-const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
-const incomingSnapshot = useMemo(() => {
-  return Object.entries(latestIncomingByChat)
-    .filter(([, timestamp]) => Boolean(timestamp))
-    .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
-    .map(([chatId, timestamp]) => `${chatId}=${timestamp}`)
-    .join('|');
-}, [latestIncomingByChat]);
+  const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
+  const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
+  const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
+  const unreadChatsCount = useMemo(() => liveChats.filter((chat) => chat.unreadCount > 0).length, [liveChats]);
+  const incomingSnapshot = useMemo(() => {
+    return Object.entries(latestIncomingByChat)
+      .filter(([, timestamp]) => Boolean(timestamp))
+      .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
+      .map(([chatId, timestamp]) => `${chatId}=${timestamp}`)
+      .join('|');
+  }, [latestIncomingByChat]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !adminMode) {
@@ -778,6 +792,9 @@ const incomingSnapshot = useMemo(() => {
   const handleSelectChat = (chatId: string) => {
     setSelectedChatId(chatId);
     markChatAsRead(chatId);
+    if (adminMode) {
+      setAdminInboxFilter('all');
+    }
     setEmojiPickerOpen(false);
     if (!isDesktop) {
       setMobileView('conversation');
@@ -991,6 +1008,24 @@ const incomingSnapshot = useMemo(() => {
         placeholderTextColor={palette.mutedText}
         style={styles.searchInput}
       />
+      {adminMode ? (
+        <View style={styles.inboxFilterRow}>
+          <Pressable
+            onPress={() => setAdminInboxFilter('all')}
+            style={[styles.inboxFilterChip, adminInboxFilter === 'all' && styles.inboxFilterChipActive]}
+          >
+            <Text style={[styles.inboxFilterText, adminInboxFilter === 'all' && styles.inboxFilterTextActive]}>Todos</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setAdminInboxFilter('unread')}
+            style={[styles.inboxFilterChip, adminInboxFilter === 'unread' && styles.inboxFilterChipActive]}
+          >
+            <Text style={[styles.inboxFilterText, adminInboxFilter === 'unread' && styles.inboxFilterTextActive]}>
+              No leidos {unreadChatsCount}
+            </Text>
+          </Pressable>
+        </View>
+      ) : null}
       {loadingChats ? (
         <View style={styles.sidebarState}>
           <ActivityIndicator color={palette.accent} />
@@ -1402,6 +1437,31 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: palette.border,
+  },
+  inboxFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  inboxFilterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#41516d',
+    backgroundColor: '#13213a',
+  },
+  inboxFilterChipActive: {
+    backgroundColor: '#bbf7d0',
+    borderColor: '#86efac',
+  },
+  inboxFilterText: {
+    color: '#dbeafe',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  inboxFilterTextActive: {
+    color: '#14532d',
   },
   chatListScroller: {
     flex: 1,
