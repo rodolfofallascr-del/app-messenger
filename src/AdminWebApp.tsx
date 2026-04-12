@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
-import { ADMIN_TAG_PRESETS, getAdminTagPresentation } from './lib/adminTags';
+import { ADMIN_TAG_PRESETS, ADMIN_TAG_SYMBOL_PRESETS, getAdminTagPresentation } from './lib/adminTags';
 import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
@@ -353,6 +353,41 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     });
   }, []);
 
+  const handleAppendTagSymbol = useCallback((userId: string, nextSymbol: string) => {
+    setTagDrafts((current) => {
+      const draft = current[userId] ?? '';
+      const nextDraft = draft.trim().length > 0 ? `${draft}${nextSymbol}` : `${nextSymbol} `;
+
+      return {
+        ...current,
+        [userId]: nextDraft,
+      };
+    });
+  }, []);
+
+  const handleRemoveSingleTag = async (userId: string, tagToRemove: string) => {
+    setActionUserId(userId);
+    setFeedback(null);
+
+    try {
+      const currentUser = users.find((user) => user.id === userId);
+      const nextTags = (currentUser?.admin_tags ?? []).filter((tag) => tag !== tagToRemove);
+      const updatedProfile = await updateAdminTags(userId, nextTags);
+      setUsers((current) =>
+        current.map((user) => (user.id === userId ? { ...user, admin_tags: updatedProfile.admin_tags ?? [] } : user))
+      );
+      setTagDrafts((current) => ({
+        ...current,
+        [userId]: (updatedProfile.admin_tags ?? []).join(', '),
+      }));
+      setFeedback('Etiqueta eliminada.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar la etiqueta.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
   const handleCreateReply = async () => {
     if (!replyBody.trim()) {
       setFeedback('Ingresa el mensaje precargado antes de guardarlo.');
@@ -634,6 +669,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                                     <View key={`${user.id}-${tag}`} style={[styles.userTagChip, { backgroundColor: `${visual.color}20`, borderColor: visual.color }]}>
                                       <Text style={[styles.userTagSymbol, { color: visual.color }]}>{visual.symbol}</Text>
                                       <Text style={[styles.userTagText, { color: theme.title }]}>{tag}</Text>
+                                      <Pressable onPress={() => void handleRemoveSingleTag(user.id, tag)} hitSlop={8}>
+                                        <Text style={[styles.userTagRemove, { color: visual.color }]}>×</Text>
+                                      </Pressable>
                                     </View>
                                   );
                                 })}
@@ -694,6 +732,17 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                                 >
                                   <Text style={[styles.tagPresetSymbol, { color: preset.color }]}>{preset.symbol}</Text>
                                   <Text style={[styles.tagPresetText, { color: theme.title }]}>{preset.value}</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                            <View style={styles.tagSymbolRow}>
+                              {ADMIN_TAG_SYMBOL_PRESETS.map((preset) => (
+                                <Pressable
+                                  key={`${user.id}-${preset.value}-${preset.color}`}
+                                  style={[styles.tagSymbolChip, { backgroundColor: `${preset.color}20`, borderColor: preset.color }]}
+                                  onPress={() => handleAppendTagSymbol(user.id, preset.value)}
+                                >
+                                  <Text style={[styles.tagSymbolChipText, { color: preset.color }]}>{preset.value}</Text>
                                 </Pressable>
                               ))}
                             </View>
@@ -1578,6 +1627,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
   },
+  userTagRemove: {
+    fontSize: 13,
+    fontWeight: '900',
+    lineHeight: 13,
+  },
   tagPresetRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1598,6 +1652,24 @@ const styles = StyleSheet.create({
   },
   tagPresetText: {
     fontSize: 10,
+    fontWeight: '800',
+  },
+  tagSymbolRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  tagSymbolChip: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagSymbolChipText: {
+    fontSize: 14,
     fontWeight: '800',
   },
   aliasEditorRow: {
