@@ -1437,7 +1437,8 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   aliasInput: {
-    flex: 1,
+    width: '100%',
+    maxWidth: 320,
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 10,
