@@ -574,7 +574,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                                 disabled={busy}
                               >
                                 <Text style={[styles.aliasSaveButtonText, { color: theme.title }]}>
-                                  {busy ? 'Guardando...' : 'Guardar alias'}
+                                  {busy ? 'Guardando...' : 'Guardar'}
                                 </Text>
                               </Pressable>
                             </View>
@@ -1441,14 +1441,17 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 7,
     fontSize: 12,
   },
   aliasSaveButton: {
     borderRadius: 12,
     borderWidth: 1,
+    minWidth: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 8,
+    paddingVertical: 7,
   },
   aliasSaveButtonText: {
     fontSize: 11,
