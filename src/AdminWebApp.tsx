@@ -5,7 +5,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, Text
 import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
-import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateUserAccess } from './lib/adminService';
+import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
 import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
@@ -48,6 +48,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | AppUserStatus>('all');
   const [aliasDrafts, setAliasDrafts] = useState<Record<string, string>>({});
+  const [tagDrafts, setTagDrafts] = useState<Record<string, string>>({});
   const [section, setSection] = useState<AdminSection>(() => {
     if (typeof window === 'undefined') {
       return 'users';
@@ -87,6 +88,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       const nextUsers = await fetchAdminUsers();
       setUsers(nextUsers);
       setAliasDrafts(Object.fromEntries(nextUsers.map((user) => [user.id, user.admin_alias?.trim() || ''])));
+      setTagDrafts(
+        Object.fromEntries(
+          nextUsers.map((user) => [user.id, (user.admin_tags ?? []).filter(Boolean).join(', ')])
+        )
+      );
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
     } finally {
@@ -212,7 +218,15 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         return true;
       }
 
-      const haystack = ((user.admin_alias ?? '') + ' ' + (user.full_name ?? '') + ' ' + (user.email ?? '')).toLowerCase();
+      const haystack = (
+        (user.admin_alias ?? '') +
+        ' ' +
+        (user.full_name ?? '') +
+        ' ' +
+        (user.email ?? '') +
+        ' ' +
+        (user.admin_tags ?? []).join(' ')
+      ).toLowerCase();
       return haystack.includes(normalizedQuery);
     });
   }, [filter, profile.id, query, users]);
@@ -282,6 +296,35 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       setFeedback(nextAlias ? 'Alias administrativo guardado.' : 'Alias administrativo eliminado.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible guardar el alias administrativo.');
+    } finally {
+      setActionUserId(null);
+    }
+  };
+
+  const handleSaveTags = async (userId: string) => {
+    setActionUserId(userId);
+    setFeedback(null);
+
+    try {
+      const nextTags = Array.from(
+        new Set(
+          (tagDrafts[userId] ?? '')
+            .split(',')
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+        )
+      );
+      const updatedProfile = await updateAdminTags(userId, nextTags);
+      setUsers((current) =>
+        current.map((user) => (user.id === userId ? { ...user, admin_tags: updatedProfile.admin_tags ?? [] } : user))
+      );
+      setTagDrafts((current) => ({
+        ...current,
+        [userId]: (updatedProfile.admin_tags ?? []).join(', '),
+      }));
+      setFeedback(nextTags.length ? 'Etiquetas administrativas guardadas.' : 'Etiquetas administrativas eliminadas.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible guardar las etiquetas administrativas.');
     } finally {
       setActionUserId(null);
     }
@@ -560,6 +603,15 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                             ) : null}
                             <Text style={[styles.userEmail, { color: theme.text }]}>{user.email ?? 'Sin correo'}</Text>
                             <Text style={[styles.userMeta, { color: theme.muted }]}>Rol: {user.role} | Estado: {user.status}</Text>
+                            {user.admin_tags?.length ? (
+                              <View style={styles.userTagsRow}>
+                                {user.admin_tags.map((tag) => (
+                                  <View key={`${user.id}-${tag}`} style={[styles.userTagChip, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}>
+                                    <Text style={[styles.userTagText, { color: theme.title }]}>{tag}</Text>
+                                  </View>
+                                ))}
+                              </View>
+                            ) : null}
                             <View style={styles.aliasEditorRow}>
                               <TextInput
                                 value={aliasDrafts[user.id] ?? ''}
@@ -580,6 +632,29 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                               >
                                 <Text style={[styles.aliasSaveButtonText, { color: theme.title }]}>
                                   {busy ? 'Guardando...' : 'Guardar'}
+                                </Text>
+                              </Pressable>
+                            </View>
+                            <View style={styles.aliasEditorRow}>
+                              <TextInput
+                                value={tagDrafts[user.id] ?? ''}
+                                onChangeText={(value) =>
+                                  setTagDrafts((current) => ({
+                                    ...current,
+                                    [user.id]: value,
+                                  }))
+                                }
+                                placeholder="Etiquetas admin: VIP, Pendiente, SINPE"
+                                placeholderTextColor={theme.muted}
+                                style={[styles.aliasInput, styles.tagsInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                              />
+                              <Pressable
+                                style={[styles.aliasSaveButton, { backgroundColor: theme.cardSoft, borderColor: theme.borderSoft }]}
+                                onPress={() => void handleSaveTags(user.id)}
+                                disabled={busy}
+                              >
+                                <Text style={[styles.aliasSaveButtonText, { color: theme.title }]}>
+                                  {busy ? 'Guardando...' : 'Guardar tags'}
                                 </Text>
                               </Pressable>
                             </View>
@@ -1442,6 +1517,22 @@ const styles = StyleSheet.create({
     color: palette.mutedText,
     fontSize: 11,
   },
+  userTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 4,
+  },
+  userTagChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  userTagText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
   aliasEditorRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1456,6 +1547,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 7,
     fontSize: 12,
+  },
+  tagsInput: {
+    maxWidth: 420,
   },
   aliasSaveButton: {
     borderRadius: 12,

@@ -13,6 +13,7 @@ export type ChatThread = {
   unreadCount: number;
   type: ChatType;
   members: string[];
+  adminTags?: string[];
   avatarColor: string;
   encryptionLabel: string;
 };
@@ -35,6 +36,7 @@ export type ProfileRecord = {
   email: string | null;
   full_name: string | null;
   admin_alias?: string | null;
+  admin_tags?: string[] | null;
   avatar_url: string | null;
   role: AppUserRole;
   status: AppUserStatus;

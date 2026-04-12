@@ -29,6 +29,15 @@ export function ChatList({ chats, selectedChatId, onSelect }: ChatListProps) {
                 <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>{chat.name}</Text>
                 <Text style={[styles.time, hasUnread && styles.timeUnread]}>{chat.lastActivity}</Text>
               </View>
+              {chat.adminTags?.length ? (
+                <View style={styles.tagsRow}>
+                  {chat.adminTags.slice(0, 3).map((tag) => (
+                    <View key={`${chat.id}-${tag}`} style={styles.tagChip}>
+                      <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
               <Text style={[styles.message, hasUnread && styles.messageUnread]} numberOfLines={1}>
                 {chat.lastMessage}
               </Text>
@@ -90,6 +99,25 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 5,
     minWidth: 0,
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  tagChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: '#1c2c47',
+    borderWidth: 1,
+    borderColor: '#2b456c',
+    maxWidth: 110,
+  },
+  tagText: {
+    color: '#c7d7f5',
+    fontSize: 10,
+    fontWeight: '700',
   },
   row: {
     flexDirection: 'row',

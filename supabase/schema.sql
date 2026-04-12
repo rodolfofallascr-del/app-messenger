@@ -5,6 +5,7 @@ create table if not exists public.profiles (
   email text unique,
   full_name text,
   admin_alias text,
+  admin_tags text[] not null default '{}',
   avatar_url text,
   role text not null default 'client' check (role in ('admin', 'client')),
   status text not null default 'pending' check (status in ('pending', 'approved', 'blocked')),
@@ -103,6 +104,7 @@ as $$
 $$;
 
 alter table public.profiles add column if not exists admin_alias text;
+alter table public.profiles add column if not exists admin_tags text[] not null default '{}';
 
 grant execute on function public.is_current_user_admin() to authenticated;
 

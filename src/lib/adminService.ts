@@ -5,7 +5,7 @@ export async function fetchAdminUsers() {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('profiles')
-    .select('id,email,full_name,admin_alias,avatar_url,role,status,created_at')
+    .select('id,email,full_name,admin_alias,admin_tags,avatar_url,role,status,created_at')
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -57,6 +57,24 @@ export async function updateAdminAlias(userId: string, alias: string | null) {
 
   if (!data) {
     throw new Error('Supabase no confirmo el cambio de alias del usuario.');
+  }
+
+  return data as ProfileRecord;
+}
+
+export async function updateAdminTags(userId: string, tags: string[]) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('admin_set_user_tags', {
+    target_user_id: userId,
+    new_tags: tags,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error('Supabase no confirmo el cambio de etiquetas del usuario.');
   }
 
   return data as ProfileRecord;

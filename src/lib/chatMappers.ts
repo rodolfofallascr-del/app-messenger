@@ -34,6 +34,15 @@ export function buildChatThread(params: {
   const { chat, members, lastMessage, currentUserId, unreadCount = 0, useAdminAlias = false } = params;
   const otherMembers = members.filter((member) => member.user_id !== currentUserId);
   const visibleMembers = members.map((member) => profileDisplayName(member.profile, undefined, useAdminAlias));
+  const adminTags = Array.from(
+    new Set(
+      otherMembers.flatMap((member) =>
+        (member.profile?.admin_tags ?? [])
+          .map((tag) => tag?.trim())
+          .filter((tag): tag is string => Boolean(tag))
+      )
+    )
+  );
 
   const name =
     chat.type === 'group'
@@ -49,6 +58,7 @@ export function buildChatThread(params: {
     unreadCount,
     type: chat.type,
     members: visibleMembers,
+    adminTags,
     avatarColor: avatarPalette[Math.abs(hashString(chat.id)) % avatarPalette.length],
     encryptionLabel: chat.type === 'group' ? 'Grupo' : 'Directo',
   } satisfies ChatThread;

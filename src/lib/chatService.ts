@@ -50,6 +50,7 @@ export async function fetchChatRowsForCurrentUser() {
             email,
             full_name,
             admin_alias,
+            admin_tags,
             avatar_url,
             role,
             status,
@@ -70,6 +71,7 @@ export async function fetchChatRowsForCurrentUser() {
             email,
             full_name,
             admin_alias,
+            admin_tags,
             avatar_url,
             role,
             status,
@@ -107,7 +109,7 @@ export async function fetchSelectableUsers(currentUserId: string, options?: { on
   const supabase = getSupabaseClient();
   let query = supabase
     .from('profiles')
-    .select('id,email,full_name,admin_alias')
+    .select('id,email,full_name,admin_alias,admin_tags')
     .neq('id', currentUserId)
     .not('email', 'is', null);
 
@@ -146,7 +148,7 @@ export async function createChat(params: {
 
   const { data: profiles, error: profilesError } = await supabase
     .from('profiles')
-    .select('id,email,full_name,admin_alias,avatar_url,created_at')
+    .select('id,email,full_name,admin_alias,admin_tags,avatar_url,created_at')
     .in('id', normalizedParticipantIds);
 
   if (profilesError) {
