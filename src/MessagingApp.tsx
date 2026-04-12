@@ -144,7 +144,7 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
   const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
   const audioContextRef = useRef<AudioContext | null>(null);
   const notificationAudioArmedRef = useRef(false);
-  const lastUnreadSnapshotRef = useRef('');
+  const lastIncomingSnapshotRef = useRef('');
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -213,24 +213,24 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
       const masterGain = context.createGain();
       masterGain.connect(context.destination);
       masterGain.gain.setValueAtTime(0.0001, now);
-      masterGain.gain.exponentialRampToValueAtTime(0.045, now + 0.02);
-      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+      masterGain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
 
       const firstOscillator = context.createOscillator();
       firstOscillator.type = 'sine';
-      firstOscillator.frequency.setValueAtTime(740, now);
-      firstOscillator.frequency.exponentialRampToValueAtTime(660, now + 0.18);
+      firstOscillator.frequency.setValueAtTime(720, now);
+      firstOscillator.frequency.exponentialRampToValueAtTime(640, now + 0.2);
       firstOscillator.connect(masterGain);
       firstOscillator.start(now);
-      firstOscillator.stop(now + 0.18);
+      firstOscillator.stop(now + 0.2);
 
       const secondOscillator = context.createOscillator();
       secondOscillator.type = 'sine';
-      secondOscillator.frequency.setValueAtTime(880, now + 0.22);
-      secondOscillator.frequency.exponentialRampToValueAtTime(740, now + 0.42);
+      secondOscillator.frequency.setValueAtTime(820, now + 0.24);
+      secondOscillator.frequency.exponentialRampToValueAtTime(700, now + 0.46);
       secondOscillator.connect(masterGain);
-      secondOscillator.start(now + 0.22);
-      secondOscillator.stop(now + 0.42);
+      secondOscillator.start(now + 0.24);
+      secondOscillator.stop(now + 0.46);
     } catch {
       return;
     }
@@ -660,52 +660,57 @@ const clientHasAdminChat = useMemo(() => {
 const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
 const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
 const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
-const unreadSnapshot = useMemo(() => {
-  return liveChats
-    .filter((chat) => chat.unreadCount > 0)
-    .map((chat) => `${chat.id}:${chat.unreadCount}:${chat.lastActivityAt}`)
-    .sort()
+const incomingSnapshot = useMemo(() => {
+  return Object.entries(latestIncomingByChat)
+    .filter(([, timestamp]) => Boolean(timestamp))
+    .sort(([leftId], [rightId]) => leftId.localeCompare(rightId))
+    .map(([chatId, timestamp]) => `${chatId}=${timestamp}`)
     .join('|');
-}, [liveChats]);
+}, [latestIncomingByChat]);
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !adminMode) {
       return;
     }
 
-    if (!lastUnreadSnapshotRef.current) {
-      lastUnreadSnapshotRef.current = unreadSnapshot;
+    if (!lastIncomingSnapshotRef.current) {
+      lastIncomingSnapshotRef.current = incomingSnapshot;
       return;
     }
 
-    if (unreadSnapshot === lastUnreadSnapshotRef.current) {
+    if (incomingSnapshot === lastIncomingSnapshotRef.current) {
       return;
     }
 
     const previousMap = new Map(
-      lastUnreadSnapshotRef.current
+      lastIncomingSnapshotRef.current
         .split('|')
         .filter(Boolean)
         .map((entry) => {
-          const [chatId, count] = entry.split(':');
-          return [chatId, Number(count || '0')];
+          const separatorIndex = entry.indexOf('=');
+          if (separatorIndex === -1) {
+            return [entry, ''];
+          }
+
+          return [entry.slice(0, separatorIndex), entry.slice(separatorIndex + 1)];
         })
     );
 
-    const hasNewUnread = liveChats.some((chat) => {
-      if (chat.unreadCount <= 0) {
+    const hasIncomingMessage = Object.entries(latestIncomingByChat).some(([chatId, timestamp]) => {
+      if (!timestamp) {
         return false;
       }
 
-      return chat.unreadCount > (previousMap.get(chat.id) ?? 0);
+      const previousTimestamp = previousMap.get(chatId) ?? '';
+      return !previousTimestamp || timestamp > previousTimestamp;
     });
 
-    lastUnreadSnapshotRef.current = unreadSnapshot;
+    lastIncomingSnapshotRef.current = incomingSnapshot;
 
-    if (hasNewUnread) {
+    if (hasIncomingMessage) {
       void playIncomingMessageTone();
     }
-  }, [adminMode, liveChats, playIncomingMessageTone, unreadSnapshot]);
+  }, [adminMode, incomingSnapshot, latestIncomingByChat, playIncomingMessageTone]);
 
   const clearPendingAttachment = useCallback(() => {
     replacePendingAttachment(null);
