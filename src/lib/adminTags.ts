@@ -14,6 +14,7 @@ export const ADMIN_TAG_PRESETS = [
 ] as const;
 
 export const ADMIN_TAG_SYMBOL_PRESETS = [
+  { value: '\uD83C\uDFF7\uFE0F', color: '#3b82f6' },
   { value: '\uD83D\uDFE2', color: '#22c55e' },
   { value: '\uD83D\uDD34', color: '#ef4444' },
   { value: '\uD83D\uDFE1', color: '#f59e0b' },
