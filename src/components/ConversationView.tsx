@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
 
@@ -14,6 +14,10 @@ type ConversationViewProps = {
 export function ConversationView({ chat, messages, compact, showBackButton, onBack }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === 'web' && !compact;
+  const imageWidth = isDesktopWeb ? Math.min(420, Math.max(320, width * 0.26)) : 260;
+  const imageHeight = Math.round(imageWidth * 0.78);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -94,7 +98,11 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
               {hasVisibleText ? <Text style={styles.content}>{message.content}</Text> : null}
               {isImageAttachment ? (
                 <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string, 'image')} style={styles.imageOnlyWrap}>
-                  <Image source={{ uri: message.attachmentUrl as string }} style={styles.attachmentImage} resizeMode="cover" />
+                  <Image
+                    source={{ uri: message.attachmentUrl as string }}
+                    style={[styles.attachmentImage, { width: imageWidth, height: imageHeight }]}
+                    resizeMode="contain"
+                  />
                 </Pressable>
               ) : null}
               {canOpenAttachment && !isImageAttachment ? (
