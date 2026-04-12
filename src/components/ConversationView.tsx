@@ -16,6 +16,7 @@ type ConversationViewProps = {
 export function ConversationView({ chat, messages, compact, showBackButton, onBack, deletingMessageId, onDeleteMessage }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const [imageZoom, setImageZoom] = useState(1);
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && !compact;
   const imageWidth = isDesktopWeb ? Math.min(420, Math.max(320, width * 0.26)) : 260;
@@ -33,13 +34,14 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
 
   const handleOpenAttachment = useCallback(async (url: string, type?: 'image' | 'file') => {
     try {
-      if (Platform.OS === 'web') {
-        window.open(url, '_blank', 'noopener,noreferrer');
+      if (type === 'image') {
+        setImageZoom(1);
+        setActiveImageUrl(url);
         return;
       }
 
-      if (type === 'image') {
-        setActiveImageUrl(url);
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank', 'noopener,noreferrer');
         return;
       }
 
@@ -57,6 +59,39 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
         error instanceof Error ? error.message : 'Revisa la configuracion del archivo en Supabase.'
       );
     }
+  }, []);
+
+  const closeImageViewer = useCallback(() => {
+    setActiveImageUrl(null);
+    setImageZoom(1);
+  }, []);
+
+  const handleZoomIn = useCallback(() => {
+    setImageZoom((current) => Math.min(4, Number((current + 0.25).toFixed(2))));
+  }, []);
+
+  const handleZoomOut = useCallback(() => {
+    setImageZoom((current) => Math.max(0.5, Number((current - 0.25).toFixed(2))));
+  }, []);
+
+  const handleResetZoom = useCallback(() => {
+    setImageZoom(1);
+  }, []);
+
+  const handleImageWheel = useCallback((event: any) => {
+    const deltaY = event?.deltaY ?? event?.nativeEvent?.deltaY;
+    if (typeof deltaY !== 'number') {
+      return;
+    }
+
+    if (typeof event?.preventDefault === 'function') {
+      event.preventDefault();
+    }
+
+    setImageZoom((current) => {
+      const next = deltaY < 0 ? current + 0.12 : current - 0.12;
+      return Math.min(4, Math.max(0.5, Number(next.toFixed(2))));
+    });
   }, []);
 
   return (
@@ -134,12 +169,36 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
         })}
       </ScrollView>
 
-      <Modal visible={Boolean(activeImageUrl)} transparent animationType="fade" onRequestClose={() => setActiveImageUrl(null)}>
+      <Modal visible={Boolean(activeImageUrl)} transparent animationType="fade" onRequestClose={closeImageViewer}>
         <View style={styles.imageModalBackdrop}>
-          <Pressable style={styles.imageModalClose} onPress={() => setActiveImageUrl(null)}>
-            <Text style={styles.imageModalCloseText}>Cerrar</Text>
-          </Pressable>
-          {activeImageUrl ? <Image source={{ uri: activeImageUrl }} style={styles.imageModalPreview} resizeMode="contain" /> : null}
+          <View style={styles.imageModalTopBar}>
+            <View style={styles.imageModalToolbar}>
+              <Pressable style={styles.imageModalAction} onPress={handleZoomOut}>
+                <Text style={styles.imageModalActionText}>-</Text>
+              </Pressable>
+              <Pressable style={styles.imageModalAction} onPress={handleResetZoom}>
+                <Text style={styles.imageModalActionText}>{Math.round(imageZoom * 100)}%</Text>
+              </Pressable>
+              <Pressable style={styles.imageModalAction} onPress={handleZoomIn}>
+                <Text style={styles.imageModalActionText}>+</Text>
+              </Pressable>
+            </View>
+            <Pressable style={styles.imageModalClose} onPress={closeImageViewer}>
+              <Text style={styles.imageModalCloseText}>Cerrar</Text>
+            </Pressable>
+          </View>
+          <View
+            style={styles.imageModalViewport}
+            {...(Platform.OS === 'web' ? ({ onWheel: handleImageWheel } as any) : {})}
+          >
+            {activeImageUrl ? (
+              <Image
+                source={{ uri: activeImageUrl }}
+                style={[styles.imageModalPreview, { transform: [{ scale: imageZoom }] }]}
+                resizeMode="contain"
+              />
+            ) : null}
+          </View>
         </View>
       </Modal>
     </View>
@@ -272,13 +331,34 @@ const styles = StyleSheet.create({
   imageModalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(2,6,23,0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
     padding: 18,
     gap: 14,
   },
+  imageModalTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  imageModalToolbar: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  imageModalAction: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    minWidth: 54,
+    alignItems: 'center',
+  },
+  imageModalActionText: {
+    color: palette.primaryText,
+    fontSize: 13,
+    fontWeight: '800',
+  },
   imageModalClose: {
-    alignSelf: 'flex-end',
     backgroundColor: 'rgba(255,255,255,0.12)',
     borderRadius: 999,
     paddingHorizontal: 14,
@@ -289,9 +369,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
+  imageModalViewport: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   imageModalPreview: {
-    width: '100%',
-    height: '88%',
+    width: '88%',
+    height: '82%',
     borderRadius: 18,
     backgroundColor: '#0b1220',
   },
