@@ -1518,6 +1518,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     alignItems: 'flex-start',
+    minHeight: 0,
   },
   formCard: {
     width: 320,
@@ -1553,6 +1554,8 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 14,
     minHeight: 640,
+    maxHeight: 'calc(100vh - 170px)' as any,
+    overflow: 'hidden',
   },
   libraryColumns: {
     flexDirection: 'row',
@@ -1573,6 +1576,7 @@ const styles = StyleSheet.create({
   libraryScroll: {
     flex: 1,
     minHeight: 0,
+    maxHeight: '100%',
   },
   libraryStack: {
     gap: 12,
