@@ -23,6 +23,7 @@ type ReplyTargetField = 'label' | 'tag' | 'emoji' | 'body';
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 const ADMIN_THEME_STORAGE_KEY = 'chat-santanita-admin-theme';
 const ADMIN_SECTION_STORAGE_KEY = 'chat-santanita-admin-section';
+const ADMIN_SOUND_STORAGE_KEY = 'chat-santanita-admin-sound';
 
 export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [themeMode, setThemeMode] = useState<AdminThemeMode>(() => {
@@ -32,6 +33,13 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
     const savedTheme = window.localStorage.getItem(ADMIN_THEME_STORAGE_KEY);
     return savedTheme === 'light' ? 'light' : 'dark';
+  });
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window === 'undefined') {
+      return true;
+    }
+
+    return window.localStorage.getItem(ADMIN_SOUND_STORAGE_KEY) !== 'off';
   });
   const [users, setUsers] = useState<ProfileRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +126,12 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       window.localStorage.setItem(ADMIN_SECTION_STORAGE_KEY, section);
     }
   }, [section]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(ADMIN_SOUND_STORAGE_KEY, soundEnabled ? 'on' : 'off');
+    }
+  }, [soundEnabled]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -410,6 +424,20 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             <MetricPill label="Ok" value={String(counts.approved)} themeMode={themeMode} />
             <MetricPill label="Block" value={String(counts.blocked)} themeMode={themeMode} />
             <Pressable
+              style={[
+                styles.themeToggle,
+                {
+                  backgroundColor: soundEnabled ? theme.accent : theme.input,
+                  borderColor: soundEnabled ? theme.accent : theme.border,
+                },
+              ]}
+              onPress={() => setSoundEnabled((current) => !current)}
+            >
+              <Text style={[styles.themeToggleText, { color: soundEnabled ? theme.buttonText : theme.title }]}>
+                {soundEnabled ? 'Sonido ON' : 'Sonido OFF'}
+              </Text>
+            </Pressable>
+            <Pressable
               style={[styles.themeToggle, { backgroundColor: theme.input, borderColor: theme.border }]}
               onPress={() => setThemeMode((current) => (current === 'dark' ? 'light' : 'dark'))}
             >
@@ -586,6 +614,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 <MessagingApp
                   session={session}
                   adminMode
+                  adminSoundEnabled={soundEnabled}
                   quickReplyToInsert={queuedQuickReply}
                   mediaToInsert={queuedMedia}
                   onResourceApplied={() => {

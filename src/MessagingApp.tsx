@@ -28,6 +28,7 @@ import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickRe
 type MessagingAppProps = {
   session: Session;
   adminMode?: boolean;
+  adminSoundEnabled?: boolean;
   clientMode?: boolean;
   quickReplyToInsert?: QuickReplyRecord | null;
   mediaToInsert?: MediaLibraryRecord | null;
@@ -112,7 +113,7 @@ function getBrowserAudioContext() {
 
   return browserWindow.AudioContext || browserWindow.webkitAudioContext || null;
 }
-export function MessagingApp({ session, adminMode, clientMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
+export function MessagingApp({ session, adminMode, adminSoundEnabled = true, clientMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
@@ -163,7 +164,7 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
   }, [isDesktop, mobileView]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !adminMode) {
+    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled) {
       return;
     }
 
@@ -189,10 +190,10 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
       window.removeEventListener('pointerdown', armAudio);
       window.removeEventListener('keydown', armAudio);
     };
-  }, [adminMode]);
+  }, [adminMode, adminSoundEnabled]);
 
   const playIncomingMessageTone = useCallback(async () => {
-    if (Platform.OS !== 'web' || !adminMode || !notificationAudioArmedRef.current) {
+    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled || !notificationAudioArmedRef.current) {
       return;
     }
 
@@ -234,7 +235,7 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
     } catch {
       return;
     }
-  }, [adminMode]);
+  }, [adminMode, adminSoundEnabled]);
 
   const persistReadMarkers = useCallback(
     (nextMarkers: Record<string, string>) => {
@@ -576,7 +577,7 @@ export function MessagingApp({ session, adminMode, clientMode, quickReplyToInser
   }, [replacePendingAttachment, selectedChatId]);
 
   useEffect(() => {
-    if (Platform.OS !== 'web' || !adminMode) {
+    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled) {
       return;
     }
 
@@ -710,7 +711,7 @@ const incomingSnapshot = useMemo(() => {
     if (hasIncomingMessage) {
       void playIncomingMessageTone();
     }
-  }, [adminMode, incomingSnapshot, latestIncomingByChat, playIncomingMessageTone]);
+  }, [adminMode, adminSoundEnabled, incomingSnapshot, latestIncomingByChat, playIncomingMessageTone]);
 
   const clearPendingAttachment = useCallback(() => {
     replacePendingAttachment(null);
