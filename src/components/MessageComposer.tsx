@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PendingAttachment } from '../types/chat';
 import { palette } from '../theme/palette';
@@ -19,6 +20,7 @@ type MessageComposerProps = {
   onToggleEmojiPicker?: () => void;
   onInsertEmoji?: (emoji: string) => void;
   sendOnEnter?: boolean;
+  focusSignal?: number;
 };
 
 export function MessageComposer({
@@ -37,7 +39,22 @@ export function MessageComposer({
   onToggleEmojiPicker,
   onInsertEmoji,
   sendOnEnter,
+  focusSignal,
 }: MessageComposerProps) {
+  const inputRef = useRef<TextInput | null>(null);
+
+  useEffect(() => {
+    if (!focusSignal) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+    }, 40);
+
+    return () => clearTimeout(timer);
+  }, [focusSignal]);
+
   const handleKeyPress = (event: any) => {
     const pressedKey = event?.nativeEvent?.key ?? event?.key;
     if (!sendOnEnter || pressedKey !== 'Enter') {
@@ -93,6 +110,7 @@ export function MessageComposer({
       ) : null}
       <View style={styles.row}>
         <TextInput
+          ref={inputRef}
           value={value}
           onChangeText={onChangeText}
           onKeyPress={handleKeyPress}

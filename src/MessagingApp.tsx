@@ -137,6 +137,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [composerFocusSignal, setComposerFocusSignal] = useState(0);
   const [readMarkers, setReadMarkers] = useState<Record<string, string>>(() => loadStoredReadMarkers(session.user.id));
   const [latestIncomingByChat, setLatestIncomingByChat] = useState<Record<string, string>>({});
   const selectedChatIdRef = useRef(selectedChatId);
@@ -460,6 +461,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       };
     });
     setLoadingError(null);
+    setComposerFocusSignal((current) => current + 1);
     onResourceApplied?.();
   }, [onResourceApplied, quickReplyToInsert, selectedChatId]);
 
@@ -496,6 +498,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       };
     });
     setLoadingError(null);
+    setComposerFocusSignal((current) => current + 1);
     onResourceApplied?.();
   }, [mediaToInsert, onResourceApplied, replacePendingAttachment, selectedChatId]);
 
@@ -1018,6 +1021,7 @@ const incomingSnapshot = useMemo(() => {
             isDragActive={isDragActive}
             clipboardPasteEnabled={Boolean(adminMode && Platform.OS === 'web')}
             sendOnEnter={Boolean(adminMode && Platform.OS === 'web')}
+            focusSignal={composerFocusSignal}
             showEmojiPicker={Boolean(adminMode)}
             emojiPickerOpen={emojiPickerOpen}
             onChangeText={(value) =>
