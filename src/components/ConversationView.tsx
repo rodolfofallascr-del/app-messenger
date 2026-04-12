@@ -17,6 +17,14 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
+    active: false,
+    startX: 0,
+    startY: 0,
+    originX: 0,
+    originY: 0,
+  });
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && !compact;
   const imageWidth = isDesktopWeb ? Math.min(420, Math.max(320, width * 0.26)) : 260;
@@ -36,6 +44,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
     try {
       if (type === 'image') {
         setImageZoom(1);
+        setImageOffset({ x: 0, y: 0 });
         setActiveImageUrl(url);
         return;
       }
@@ -64,6 +73,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
   const closeImageViewer = useCallback(() => {
     setActiveImageUrl(null);
     setImageZoom(1);
+    setImageOffset({ x: 0, y: 0 });
   }, []);
 
   const handleZoomIn = useCallback(() => {
@@ -76,6 +86,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
 
   const handleResetZoom = useCallback(() => {
     setImageZoom(1);
+    setImageOffset({ x: 0, y: 0 });
   }, []);
 
   const handleImageWheel = useCallback((event: any) => {
@@ -92,6 +103,40 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
       const next = deltaY < 0 ? current + 0.12 : current - 0.12;
       return Math.min(4, Math.max(0.5, Number(next.toFixed(2))));
     });
+  }, []);
+
+  const handleDragStart = useCallback((event: any) => {
+    if (Platform.OS !== 'web' || imageZoom <= 1) {
+      return;
+    }
+
+    dragStateRef.current = {
+      active: true,
+      startX: event?.clientX ?? 0,
+      startY: event?.clientY ?? 0,
+      originX: imageOffset.x,
+      originY: imageOffset.y,
+    };
+  }, [imageOffset.x, imageOffset.y, imageZoom]);
+
+  const handleDragMove = useCallback((event: any) => {
+    if (Platform.OS !== 'web' || !dragStateRef.current.active || imageZoom <= 1) {
+      return;
+    }
+
+    const currentX = event?.clientX ?? 0;
+    const currentY = event?.clientY ?? 0;
+    const deltaX = currentX - dragStateRef.current.startX;
+    const deltaY = currentY - dragStateRef.current.startY;
+
+    setImageOffset({
+      x: dragStateRef.current.originX + deltaX,
+      y: dragStateRef.current.originY + deltaY,
+    });
+  }, [imageZoom]);
+
+  const handleDragEnd = useCallback(() => {
+    dragStateRef.current.active = false;
   }, []);
 
   return (
@@ -189,13 +234,25 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           </View>
           <View
             style={styles.imageModalViewport}
-            {...(Platform.OS === 'web' ? ({ onWheel: handleImageWheel } as any) : {})}
+            {...(Platform.OS === 'web'
+              ? ({
+                  onWheel: handleImageWheel,
+                  onMouseMove: handleDragMove,
+                  onMouseUp: handleDragEnd,
+                  onMouseLeave: handleDragEnd,
+                } as any)
+              : {})}
           >
             {activeImageUrl ? (
               <Image
                 source={{ uri: activeImageUrl }}
-                style={[styles.imageModalPreview, { transform: [{ scale: imageZoom }] }]}
+                style={[
+                  styles.imageModalPreview,
+                  Platform.OS === 'web' && imageZoom > 1 ? styles.imageModalPreviewDraggable : null,
+                  { transform: [{ translateX: imageOffset.x }, { translateY: imageOffset.y }, { scale: imageZoom }] },
+                ]}
                 resizeMode="contain"
+                {...(Platform.OS === 'web' ? ({ onMouseDown: handleDragStart } as any) : {})}
               />
             ) : null}
           </View>
@@ -380,6 +437,9 @@ const styles = StyleSheet.create({
     height: '82%',
     borderRadius: 18,
     backgroundColor: '#0b1220',
+  },
+  imageModalPreviewDraggable: {
+    cursor: 'grab' as any,
   },
   attachmentCard: {
     backgroundColor: 'rgba(255,255,255,0.08)',
