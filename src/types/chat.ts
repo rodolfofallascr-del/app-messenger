@@ -27,6 +27,7 @@ export type ChatMessage = {
   attachmentLabel?: string;
   attachmentUrl?: string;
   attachmentType?: 'image' | 'file';
+  canDelete?: boolean;
 };
 
 export type ProfileRecord = {

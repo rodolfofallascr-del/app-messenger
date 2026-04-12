@@ -56,6 +56,7 @@ export function buildChatMessages(messages: MessageRecord[], currentUserId: stri
     content: message.body?.trim() || attachmentFallback(message),
     timestamp: formatRelativeTime(message.created_at),
     direction: message.sender_id === currentUserId ? 'outgoing' : 'incoming',
+    canDelete: message.sender_id === currentUserId,
     attachmentLabel: message.attachment_name || undefined,
     attachmentUrl: message.attachment_url || undefined,
     attachmentType: message.message_type === 'image' ? 'image' : message.message_type === 'file' ? 'file' : undefined,

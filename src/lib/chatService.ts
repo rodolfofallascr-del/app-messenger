@@ -219,6 +219,19 @@ export async function sendTextMessage(params: { chatId: string; senderId: string
   }
 }
 
+export async function deleteOwnMessage(messageId: string, currentUserId: string) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .eq('id', messageId)
+    .eq('sender_id', currentUserId);
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function sendAttachmentMessage(params: {
   chatId: string;
   senderId: string;

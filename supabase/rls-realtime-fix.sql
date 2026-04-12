@@ -19,6 +19,7 @@ drop policy if exists "members can view chat membership" on public.chat_members;
 drop policy if exists "chat creators and admins can add members" on public.chat_members;
 drop policy if exists "members can view messages" on public.messages;
 drop policy if exists "members can send messages" on public.messages;
+drop policy if exists "members can delete own messages" on public.messages;
 
 create policy "members can view their chats"
 on public.chats
@@ -69,6 +70,15 @@ on public.messages
 for insert
 to authenticated
 with check (
+  sender_id = auth.uid()
+  and public.is_chat_member(chat_id)
+);
+
+create policy "members can delete own messages"
+on public.messages
+for delete
+to authenticated
+using (
   sender_id = auth.uid()
   and public.is_chat_member(chat_id)
 );

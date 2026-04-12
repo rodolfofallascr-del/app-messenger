@@ -9,9 +9,11 @@ type ConversationViewProps = {
   compact?: boolean;
   showBackButton?: boolean;
   onBack?: () => void;
+  deletingMessageId?: string | null;
+  onDeleteMessage?: (messageId: string) => void;
 };
 
-export function ConversationView({ chat, messages, compact, showBackButton, onBack }: ConversationViewProps) {
+export function ConversationView({ chat, messages, compact, showBackButton, onBack, deletingMessageId, onDeleteMessage }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const { width } = useWindowDimensions();
@@ -110,6 +112,17 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
                   <Text style={styles.attachmentHint}>{message.attachmentType === 'image' ? 'Abrir imagen' : 'Abrir archivo'}</Text>
+                </Pressable>
+              ) : null}
+              {message.canDelete && onDeleteMessage ? (
+                <Pressable
+                  onPress={() => onDeleteMessage(message.id)}
+                  style={styles.deleteMessageButton}
+                  disabled={deletingMessageId === message.id}
+                >
+                  <Text style={styles.deleteMessageText}>
+                    {deletingMessageId === message.id ? 'Eliminando...' : 'Eliminar'}
+                  </Text>
                 </Pressable>
               ) : null}
               <Text style={styles.timestamp}>
@@ -308,5 +321,18 @@ const styles = StyleSheet.create({
     color: palette.mutedText,
     fontSize: 11,
     marginTop: 2,
+  },
+  deleteMessageButton: {
+    alignSelf: 'flex-end',
+    marginTop: 2,
+    backgroundColor: 'rgba(15,23,42,0.22)',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  deleteMessageText: {
+    color: '#fecaca',
+    fontSize: 11,
+    fontWeight: '800',
   },
 });

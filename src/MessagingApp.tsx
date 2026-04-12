@@ -20,7 +20,7 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { createChat, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker } from './lib/chatService';
+import { createChat, deleteOwnMessage, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
@@ -131,6 +131,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingError, setLoadingError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const [creatingChat, setCreatingChat] = useState(false);
   const [groupName, setGroupName] = useState('');
   const [createMessage, setCreateMessage] = useState<string | null>(null);
@@ -839,6 +840,20 @@ const incomingSnapshot = useMemo(() => {
     }
   };
 
+  const handleDeleteMessage = async (messageId: string) => {
+    setDeletingMessageId(messageId);
+    setLoadingError(null);
+
+    try {
+      await deleteOwnMessage(messageId, session.user.id);
+      await loadChats({ silent: true });
+    } catch (error) {
+      setLoadingError(error instanceof Error ? error.message : 'No fue posible eliminar el mensaje.');
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
   const handleCreateChat = async () => {
     setCreateMessage(null);
     setCreatingChat(true);
@@ -1013,6 +1028,8 @@ const incomingSnapshot = useMemo(() => {
             showBackButton={!isDesktop}
             onBack={!isDesktop ? () => setMobileView('chats') : undefined}
             compact={!isDesktop}
+            deletingMessageId={deletingMessageId}
+            onDeleteMessage={handleDeleteMessage}
           />
           <MessageComposer
             value={currentDraft}
