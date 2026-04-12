@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -17,6 +17,7 @@ import { palette } from '../theme/palette';
 
 const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
 const buildLabel = 'Build 1.0.1 / Android fix';
+const REMEMBER_LOGIN_STORAGE_KEY = 'chat-santanita-remember-login';
 
 const quickStats = ['Mensajes en vivo', 'Grupos privados', 'Imagenes y archivos'];
 
@@ -25,10 +26,51 @@ export function AuthScreen() {
   const isDesktop = width >= 960;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberLogin, setRememberLogin] = useState(() => Platform.OS === 'web');
   const [fullName, setFullName] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    try {
+      const stored = window.localStorage.getItem(REMEMBER_LOGIN_STORAGE_KEY);
+      if (!stored) {
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as { email?: string; password?: string; remember?: boolean };
+      setRememberLogin(parsed.remember !== false);
+      setEmail(parsed.email ?? '');
+      setPassword(parsed.password ?? '');
+    } catch {
+      window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    if (!rememberLogin) {
+      window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
+      return;
+    }
+
+    window.localStorage.setItem(
+      REMEMBER_LOGIN_STORAGE_KEY,
+      JSON.stringify({
+        remember: true,
+        email,
+        password,
+      })
+    );
+  }, [email, password, rememberLogin]);
 
   const submit = async () => {
     const normalizedEmail = email.trim().toLowerCase();
@@ -75,6 +117,21 @@ export function AuthScreen() {
 
       if (error) {
         throw error;
+      }
+
+      if (Platform.OS === 'web') {
+        if (rememberLogin) {
+          window.localStorage.setItem(
+            REMEMBER_LOGIN_STORAGE_KEY,
+            JSON.stringify({
+              remember: true,
+              email: normalizedEmail,
+              password,
+            })
+          );
+        } else {
+          window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
+        }
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible autenticar.');
@@ -143,6 +200,15 @@ export function AuthScreen() {
               returnKeyType="done"
               onSubmitEditing={submit}
             />
+
+            {Platform.OS === 'web' ? (
+              <Pressable style={styles.rememberRow} onPress={() => setRememberLogin((current) => !current)}>
+                <View style={[styles.rememberCheckbox, rememberLogin && styles.rememberCheckboxActive]}>
+                  {rememberLogin ? <Text style={styles.rememberCheck}>✓</Text> : null}
+                </View>
+                <Text style={styles.rememberText}>Recordarme en este navegador</Text>
+              </Pressable>
+            ) : null}
 
             {message ? <Text style={styles.message}>{message}</Text> : null}
 
@@ -325,6 +391,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 15,
     fontSize: 15,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: -2,
+  },
+  rememberCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: palette.border,
+    backgroundColor: palette.panel,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rememberCheckboxActive: {
+    backgroundColor: palette.accent,
+    borderColor: palette.accent,
+  },
+  rememberCheck: {
+    color: palette.buttonText,
+    fontWeight: '900',
+    fontSize: 13,
+  },
+  rememberText: {
+    color: palette.secondaryText,
+    fontSize: 13,
+    fontWeight: '700',
   },
   submitButton: {
     backgroundColor: palette.accent,
