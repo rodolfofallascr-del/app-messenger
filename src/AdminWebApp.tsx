@@ -75,7 +75,6 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [clockNow, setClockNow] = useState(() => new Date());
   const [quickToolsOpen, setQuickToolsOpen] = useState(false);
   const [quickToolsSection, setQuickToolsSection] = useState<'replies' | 'media'>('replies');
-  const [messagingViewportOffset, setMessagingViewportOffset] = useState(0);
   const screenScrollRef = useRef<ScrollView | null>(null);
   const theme = adminThemes[themeMode];
 
@@ -151,12 +150,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
   const scrollToChatWorkspace = useCallback(() => {
     setTimeout(() => {
-      screenScrollRef.current?.scrollTo({
-        y: Math.max(messagingViewportOffset - 28, 0),
-        animated: true,
-      });
-    }, 80);
-  }, [messagingViewportOffset]);
+      screenScrollRef.current?.scrollToEnd({ animated: true });
+    }, 120);
+  }, []);
 
   const handleQueueQuickReply = useCallback((reply: QuickReplyRecord) => {
     setQueuedMedia(null);
@@ -629,7 +625,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               </View>
             ) : null}
             <View style={[styles.messagingLayout, styles.messagingLayoutWide]}>
-              <View style={styles.messagingViewport} onLayout={(event) => setMessagingViewportOffset(event.nativeEvent.layout.y)}>
+              <View style={styles.messagingViewport}>
                 <MessagingApp
                   session={session}
                   adminMode
