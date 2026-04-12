@@ -535,7 +535,12 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   <Text style={[styles.stateText, { color: theme.text }]}>Cambia el filtro o espera nuevos registros.</Text>
                 </View>
               ) : (
-                <ScrollView style={styles.userListScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.userList}>
+                <ScrollView
+                  style={styles.userListScroll}
+                  showsVerticalScrollIndicator
+                  persistentScrollbar
+                  contentContainerStyle={styles.userList}
+                >
                   {visibleUsers.map((user) => {
                     const busy = actionUserId === user.id;
                     return (
