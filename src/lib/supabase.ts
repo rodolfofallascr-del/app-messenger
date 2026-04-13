@@ -8,6 +8,14 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
+export function getSupabaseConfig() {
+  if (!hasSupabaseConfig || !supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase no esta configurado. Agrega EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+  }
+
+  return { supabaseUrl, supabaseAnonKey };
+}
+
 const storage =
   Platform.OS === 'web'
     ? {
@@ -30,9 +38,7 @@ const storage =
 let client: SupabaseClient | null = null;
 
 export function getSupabaseClient() {
-  if (!hasSupabaseConfig || !supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Supabase no esta configurado. Agrega EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY.');
-  }
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
 
   if (!client) {
     client = createClient(supabaseUrl, supabaseAnonKey, {

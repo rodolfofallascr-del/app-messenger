@@ -1,5 +1,5 @@
 import { File } from 'expo-file-system';
-import { getSupabaseClient } from './supabase';
+import { getSupabaseClient, getSupabaseConfig } from './supabase';
 import { ChatMemberRecord, ChatRecord, MessageRecord, PendingAttachment, ProfileRecord, SelectableUser } from '../types/chat';
 
 type RawProfile = ProfileRecord | ProfileRecord[] | null;
@@ -250,6 +250,7 @@ export async function upsertPushToken(params: {
 
 export async function notifyNewMessage(params: { chatId: string; senderId: string; preview?: string }) {
   const supabase = getSupabaseClient();
+  const { supabaseUrl, supabaseAnonKey } = getSupabaseConfig();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -258,8 +259,7 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
 
   // supabase.functions.invoke() occasionally fails to forward Authorization in some web contexts.
   // Use a direct fetch to guarantee headers are included.
-  const functionsUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/notify-message`;
-  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  const functionsUrl = `${supabaseUrl}/functions/v1/notify-message`;
 
   let error: unknown = null;
 
@@ -268,7 +268,7 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        ...(anonKey ? { apikey: anonKey } : {}),
+        apikey: supabaseAnonKey,
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify({
