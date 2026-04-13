@@ -88,15 +88,14 @@ Deno.serve(async (req) => {
     } = await authedClient.auth.getUser();
 
     if (userError || !user) {
-      console.log(
-        JSON.stringify({
-          msg: "unauthorized",
+      return json(401, {
+        error: "Unauthorized",
+        debug: {
           hasAuthHeader: Boolean(authHeader),
-          authHeaderPrefix: authHeader ? authHeader.slice(0, 12) : "",
+          authHeaderPrefix: authHeader ? authHeader.slice(0, 16) : "",
           hasApiKeyHeader: Boolean(apiKeyHeader),
-        })
-      );
-      return json(401, { error: "Unauthorized" });
+        },
+      });
     }
 
     const body = (await req.json().catch(() => ({}))) as NotifyBody;
