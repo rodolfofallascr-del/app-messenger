@@ -7,10 +7,6 @@ export const ADMIN_TAG_PRESETS = [
   { value: 'No pago', symbol: '\u274C', color: '#ef4444' },
   { value: 'Promo', symbol: '\uD83C\uDF89', color: '#f97316' },
   { value: 'Codigo', symbol: '\uD83C\uDFF7\uFE0F', color: '#3b82f6' },
-  { value: '\u274C SIN SINPE NO SE APUNTA \u274C', symbol: '\u274C', color: '#eab308' },
-  { value: 'SALDO PENDIENTE \u274C\u274C', symbol: '\u274C', color: '#ef4444' },
-  { value: 'SALDO A SU FAVOR \u2705', symbol: '\u2705', color: '#3b82f6' },
-  { value: 'NO PAGARON \u274C\u274C', symbol: '\u274C', color: '#be123c' },
 ] as const;
 
 export const ADMIN_TAG_SYMBOL_PRESETS = [
@@ -35,10 +31,6 @@ const KEYWORD_STYLES: Array<{ match: RegExp; symbol: string; color: string }> = 
   { match: /no pago|bloq|mora|deuda/i, symbol: '\u274C', color: '#ef4444' },
   { match: /promo|ganador|sorteo/i, symbol: '\uD83C\uDF89', color: '#f97316' },
   { match: /codigo|ticket|boleta/i, symbol: '\uD83C\uDFF7\uFE0F', color: '#3b82f6' },
-  { match: /sin sinpe no se apunta/i, symbol: '\u274C', color: '#eab308' },
-  { match: /saldo pendiente/i, symbol: '\u274C', color: '#ef4444' },
-  { match: /saldo a su favor/i, symbol: '\u2705', color: '#3b82f6' },
-  { match: /no pagaron/i, symbol: '\u274C', color: '#be123c' },
 ];
 
 const FALLBACK_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#a855f7', '#ef4444', '#14b8a6'];
