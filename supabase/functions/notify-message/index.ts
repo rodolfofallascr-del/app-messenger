@@ -23,6 +23,20 @@ function json(status: number, body: unknown) {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
+      "access-control-allow-methods": "POST, OPTIONS",
+    },
+  });
+}
+
+function noContent() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
+      "access-control-allow-methods": "POST, OPTIONS",
     },
   });
 }
@@ -44,6 +58,11 @@ function safePreview(text: string) {
 
 Deno.serve(async (req) => {
   try {
+    // CORS preflight
+    if (req.method === "OPTIONS") {
+      return noContent();
+    }
+
     if (req.method !== "POST") {
       return json(405, { error: "Method not allowed" });
     }
