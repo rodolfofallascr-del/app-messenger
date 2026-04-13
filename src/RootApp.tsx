@@ -1,5 +1,5 @@
 import { Session } from '@supabase/supabase-js';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { AdminWebApp } from './AdminWebApp';
 import { MessagingApp } from './MessagingApp';
@@ -17,6 +17,8 @@ export function RootApp() {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const profileChannelRef = useRef<ReturnType<ReturnType<typeof getSupabaseClient>['channel']> | null>(null);
+  const profileReloadingRef = useRef(false);
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -46,6 +48,27 @@ export function RootApp() {
     };
   }, []);
 
+  const reloadProfile = useCallback(async () => {
+    if (!session || profileReloadingRef.current) {
+      return;
+    }
+
+    profileReloadingRef.current = true;
+    setProfileLoading(true);
+    setProfileError(null);
+
+    try {
+      const nextProfile = await fetchCurrentProfile(session.user.id);
+      setProfile(nextProfile);
+    } catch (error) {
+      setProfile(null);
+      setProfileError(error instanceof Error ? error.message : 'No fue posible cargar el perfil.');
+    } finally {
+      setProfileLoading(false);
+      profileReloadingRef.current = false;
+    }
+  }, [session]);
+
   useEffect(() => {
     if (!session) {
       setProfile(null);
@@ -54,21 +77,36 @@ export function RootApp() {
       return;
     }
 
-    setProfileLoading(true);
-    setProfileError(null);
+    void reloadProfile();
+  }, [reloadProfile, session]);
 
-    fetchCurrentProfile(session.user.id)
-      .then((nextProfile) => {
-        setProfile(nextProfile);
-      })
-      .catch((error) => {
-        setProfile(null);
-        setProfileError(error instanceof Error ? error.message : 'No fue posible cargar el perfil.');
-      })
-      .finally(() => {
-        setProfileLoading(false);
-      });
-  }, [session]);
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    // Refresh profile in real time so a user regains access immediately after the admin approves/unblocks them.
+    profileChannelRef.current?.unsubscribe();
+    const channel = supabase
+      .channel(`profile-watch-${session.user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` },
+        () => {
+          void reloadProfile();
+        }
+      )
+      .subscribe();
+
+    profileChannelRef.current = channel;
+
+    return () => {
+      profileChannelRef.current?.unsubscribe();
+      profileChannelRef.current = null;
+    };
+  }, [reloadProfile, session]);
 
   const handleSignOut = () => {
     getSupabaseClient()
@@ -123,8 +161,8 @@ export function RootApp() {
         eyebrow="Acceso pendiente"
         title="Tu cuenta aun no ha sido aprobada"
         description="El administrador debe autorizar este usuario desde el panel web antes de que puedas entrar al chat."
-        actionLabel="Cerrar sesion"
-        onAction={handleSignOut}
+        actionLabel="Revisar de nuevo"
+        onAction={() => void reloadProfile()}
       />
     );
   }
@@ -135,8 +173,8 @@ export function RootApp() {
         eyebrow="Acceso bloqueado"
         title="Tu cuenta fue deshabilitada"
         description="Si crees que esto es un error, contacta al administrador para revisar tu acceso."
-        actionLabel="Cerrar sesion"
-        onAction={handleSignOut}
+        actionLabel="Revisar de nuevo"
+        onAction={() => void reloadProfile()}
       />
     );
   }

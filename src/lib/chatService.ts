@@ -223,6 +223,48 @@ export async function sendTextMessage(params: { chatId: string; senderId: string
   }
 }
 
+export async function upsertPushToken(params: {
+  userId: string;
+  expoPushToken: string;
+  platform: 'android' | 'ios';
+  deviceId?: string | null;
+}) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from('push_tokens').upsert(
+    {
+      user_id: params.userId,
+      expo_push_token: params.expoPushToken,
+      platform: params.platform,
+      device_id: params.deviceId ?? null,
+      updated_at: new Date().toISOString(),
+    },
+    {
+      onConflict: 'user_id,expo_push_token',
+    }
+  );
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function notifyNewMessage(params: { chatId: string; senderId: string; preview?: string }) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.functions.invoke('notify-message', {
+    body: {
+      chatId: params.chatId,
+      senderId: params.senderId,
+      preview: params.preview ?? '',
+    },
+  });
+
+  // Best effort: chat send should not fail if notifications fail.
+  if (error) {
+    // eslint-disable-next-line no-console
+    console.warn('notify-message failed', error);
+  }
+}
+
 export async function deleteOwnMessage(messageId: string, currentUserId: string) {
   const supabase = getSupabaseClient();
   const { error } = await supabase

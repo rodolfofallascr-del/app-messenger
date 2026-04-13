@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { getSupabaseClient } from '../lib/supabase';
 import { palette } from '../theme/palette';
 
@@ -24,50 +25,85 @@ export function AuthScreen() {
   const isDesktop = width >= 960;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [rememberLogin, setRememberLogin] = useState(() => Platform.OS === 'web');
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [fullName, setFullName] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS === 'web') {
+      try {
+        const stored = window.localStorage.getItem(REMEMBER_LOGIN_STORAGE_KEY);
+        if (!stored) {
+          setRememberLogin(false);
+          return;
+        }
+
+        const parsed = JSON.parse(stored) as { email?: string; password?: string; remember?: boolean };
+        setRememberLogin(parsed.remember === true);
+        setEmail(parsed.email ?? '');
+        setPassword(parsed.password ?? '');
+      } catch {
+        window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
+        setRememberLogin(false);
+      }
+
       return;
     }
 
-    try {
-      const stored = window.localStorage.getItem(REMEMBER_LOGIN_STORAGE_KEY);
-      if (!stored) {
-        return;
-      }
+    void (async () => {
+      try {
+        const stored = await SecureStore.getItemAsync(REMEMBER_LOGIN_STORAGE_KEY);
+        if (!stored) {
+          setRememberLogin(false);
+          return;
+        }
 
-      const parsed = JSON.parse(stored) as { email?: string; password?: string; remember?: boolean };
-      setRememberLogin(parsed.remember !== false);
-      setEmail(parsed.email ?? '');
-      setPassword(parsed.password ?? '');
-    } catch {
-      window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
-    }
+        const parsed = JSON.parse(stored) as { email?: string; password?: string; remember?: boolean };
+        setRememberLogin(parsed.remember === true);
+        setEmail(parsed.email ?? '');
+        setPassword(parsed.password ?? '');
+      } catch {
+        await SecureStore.deleteItemAsync(REMEMBER_LOGIN_STORAGE_KEY);
+        setRememberLogin(false);
+      }
+    })();
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'web') {
+    if (Platform.OS === 'web') {
+      if (!rememberLogin) {
+        window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
+        return;
+      }
+
+      window.localStorage.setItem(
+        REMEMBER_LOGIN_STORAGE_KEY,
+        JSON.stringify({
+          remember: true,
+          email,
+          password,
+        })
+      );
       return;
     }
 
-    if (!rememberLogin) {
-      window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
-      return;
-    }
+    void (async () => {
+      if (!rememberLogin) {
+        await SecureStore.deleteItemAsync(REMEMBER_LOGIN_STORAGE_KEY);
+        return;
+      }
 
-    window.localStorage.setItem(
-      REMEMBER_LOGIN_STORAGE_KEY,
-      JSON.stringify({
-        remember: true,
-        email,
-        password,
-      })
-    );
+      await SecureStore.setItemAsync(
+        REMEMBER_LOGIN_STORAGE_KEY,
+        JSON.stringify({
+          remember: true,
+          email,
+          password,
+        })
+      );
+    })();
   }, [email, password, rememberLogin]);
 
   const submit = async () => {
@@ -205,6 +241,15 @@ export function AuthScreen() {
                   {rememberLogin ? <Text style={styles.rememberCheck}>✓</Text> : null}
                 </View>
                 <Text style={styles.rememberText}>Recordarme en este navegador</Text>
+              </Pressable>
+            ) : null}
+
+            {Platform.OS !== 'web' ? (
+              <Pressable style={styles.rememberRow} onPress={() => setRememberLogin((current) => !current)}>
+                <View style={[styles.rememberCheckbox, rememberLogin && styles.rememberCheckboxActive]}>
+                  {rememberLogin ? <Text style={styles.rememberCheck}>✓</Text> : null}
+                </View>
+                <Text style={styles.rememberText}>Recordarme en este telefono</Text>
               </Pressable>
             ) : null}
 

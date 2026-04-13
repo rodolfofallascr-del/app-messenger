@@ -187,9 +187,24 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           const canOpenAttachment = Boolean(message.attachmentLabel && message.attachmentUrl);
           const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
           const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
+          const allowLongPressDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
 
           return (
-            <View key={message.id} style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}>
+            <Pressable
+              key={message.id}
+              style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}
+              onLongPress={() => {
+                if (!allowLongPressDelete) {
+                  return;
+                }
+
+                Alert.alert('Eliminar mensaje', 'Quieres eliminar este mensaje para todos?', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteMessage?.(message.id) },
+                ]);
+              }}
+              delayLongPress={250}
+            >
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
               {hasVisibleText ? <Text style={styles.content}>{message.content}</Text> : null}
               {isImageAttachment ? (
@@ -208,7 +223,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
                   <Text style={styles.attachmentHint}>{message.attachmentType === 'image' ? 'Abrir imagen' : 'Abrir archivo'}</Text>
                 </Pressable>
               ) : null}
-              {message.canDelete && onDeleteMessage ? (
+              {Platform.OS === 'web' && message.canDelete && onDeleteMessage ? (
                 <Pressable
                   onPress={() => onDeleteMessage(message.id)}
                   style={styles.deleteMessageButton}
@@ -223,7 +238,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
                 {message.timestamp}
                 {isOutgoing && message.status ? ' - ' + message.status : ''}
               </Text>
-            </View>
+            </Pressable>
           );
         })}
       </ScrollView>

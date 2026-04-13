@@ -1,5 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -20,7 +22,7 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { createChat, deleteOwnMessage, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker } from './lib/chatService';
+import { createChat, deleteOwnMessage, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, notifyNewMessage, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker, upsertPushToken } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
@@ -39,6 +41,36 @@ type MobileView = 'chats' | 'conversation';
 type AdminInboxFilter = 'all' | 'unread';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
+
+function getReadableErrorMessage(error: unknown, fallback: string) {
+  if (!error) {
+    return fallback;
+  }
+
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  if (typeof error === 'string') {
+    return error || fallback;
+  }
+
+  if (typeof error === 'object') {
+    const maybe = error as any;
+    const message = typeof maybe.message === 'string' ? maybe.message : '';
+    const details = typeof maybe.details === 'string' ? maybe.details : '';
+    const hint = typeof maybe.hint === 'string' ? maybe.hint : '';
+    const code = typeof maybe.code === 'string' ? maybe.code : '';
+
+    const parts = [message, details, hint].map((value) => value.trim()).filter(Boolean);
+    const combined = parts.join(' | ');
+    if (combined) {
+      return code ? `${combined} (code ${code})` : combined;
+    }
+  }
+
+  return fallback;
+}
 
 function readMarkersStorageKey(userId: string) {
   return 'messaging-read-markers:' + userId;
@@ -150,6 +182,83 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const audioContextRef = useRef<AudioContext | null>(null);
   const notificationAudioArmedRef = useRef(false);
   const lastIncomingSnapshotRef = useRef('');
+  const unreadCountsRef = useRef<Record<string, number>>({});
+  const lastNotifiedAtRef = useRef<Record<string, number>>({});
+  const [mobileUnreadTotal, setMobileUnreadTotal] = useState(0);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+
+    void (async () => {
+      try {
+        const permissions = await Notifications.getPermissionsAsync();
+        if (permissions.status !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('messages', {
+            name: 'Mensajes',
+            importance: Notifications.AndroidImportance.DEFAULT,
+            sound: undefined,
+            vibrationPattern: [0, 120],
+            lightColor: '#4ade80',
+          });
+        }
+      } catch {
+        // Best effort; app still works without local notifications.
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
+    // Register Expo push token for background notifications.
+    void (async () => {
+      try {
+        const permissions = await Notifications.getPermissionsAsync();
+        if (permissions.status !== 'granted') {
+          return;
+        }
+
+        const projectId =
+          (Constants as any)?.expoConfig?.extra?.eas?.projectId ??
+          (Constants as any)?.easConfig?.projectId ??
+          undefined;
+
+        const tokenResponse = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined as any);
+        const expoPushToken = tokenResponse.data;
+
+        if (!expoPushToken) {
+          return;
+        }
+
+        await upsertPushToken({
+          userId: session.user.id,
+          expoPushToken,
+          platform: Platform.OS === 'ios' ? 'ios' : 'android',
+          deviceId: (Constants as any)?.deviceId ?? null,
+        });
+      } catch {
+        // Best effort.
+      }
+    })();
+  }, [session.user.id]);
 
   useEffect(() => {
     selectedChatIdRef.current = selectedChatId;
@@ -354,6 +463,60 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId, Boolean(adminMode))])
       ) as Record<string, ChatMessage[]>;
 
+      const nextUnreadCounts = Object.fromEntries(nextChats.map((chat) => [chat.id, chat.unreadCount ?? 0])) as Record<
+        string,
+        number
+      >;
+      const totalUnread = nextChats.reduce((sum, chat) => sum + (chat.unreadCount ?? 0), 0);
+
+      if (Platform.OS !== 'web') {
+        setMobileUnreadTotal(totalUnread);
+        void Notifications.setBadgeCountAsync(totalUnread).catch(() => undefined);
+
+        // Best-effort local notification when a new message arrives and the conversation is not visible.
+        const activeChatId = selectedChatIdRef.current;
+        for (const row of scopedRows) {
+          const unreadCount = nextUnreadCounts[row.id] ?? 0;
+          const prevUnread = unreadCountsRef.current[row.id] ?? 0;
+          if (unreadCount <= prevUnread) {
+            continue;
+          }
+
+          if (activeChatId === row.id && conversationVisibleRef.current) {
+            continue;
+          }
+
+          const lastMessage = row.messages[row.messages.length - 1];
+          if (!lastMessage || lastMessage.sender_id === userId) {
+            continue;
+          }
+
+          const now = Date.now();
+          const lastNotifiedAt = lastNotifiedAtRef.current[row.id] ?? 0;
+          if (now - lastNotifiedAt < 1200) {
+            continue;
+          }
+          lastNotifiedAtRef.current[row.id] = now;
+
+          const preview =
+            lastMessage.message_type === 'text'
+              ? (lastMessage.body ?? 'Mensaje nuevo')
+              : lastMessage.message_type === 'image'
+                ? 'Imagen'
+                : 'Archivo';
+
+          void Notifications.scheduleNotificationAsync({
+            content: {
+              title: 'Mensaje nuevo',
+              body: `${row.name ?? 'Chat'}: ${preview}`,
+              sound: undefined,
+            },
+            trigger: null,
+          }).catch(() => undefined);
+        }
+      }
+
+      unreadCountsRef.current = nextUnreadCounts;
       setLatestIncomingByChat(nextLatestIncomingByChat);
       setLiveChats(nextChats);
       setLiveMessages(nextMessages);
@@ -850,6 +1013,13 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
           body: trimmed,
         });
       }
+
+      // Push notifications to clients are sent by an Edge Function. Only fire when the admin sends messages.
+      if (adminMode && Platform.OS === 'web') {
+        const preview = trimmed || (nextAttachment?.type === 'image' ? 'Imagen' : nextAttachment ? 'Archivo' : 'Mensaje nuevo');
+        void notifyNewMessage({ chatId: selectedChat.id, senderId: session.user.id, preview });
+      }
+
       await loadChats({ silent: true });
     } catch (error) {
       setLoadingError(error instanceof Error ? error.message : 'No fue posible enviar el mensaje.');
@@ -894,7 +1064,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         setMobileView('conversation');
       }
     } catch (error) {
-      setCreateMessage(error instanceof Error ? error.message : 'No fue posible crear la conversacion.');
+      setCreateMessage(getReadableErrorMessage(error, 'No fue posible crear la conversacion.'));
     } finally {
       setCreatingChat(false);
     }
@@ -955,7 +1125,11 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   const mobileSwitcher = !isDesktop ? (
     <View style={styles.mobileSwitcher}>
-      <MobileSwitchButton active={mobileView === 'chats'} label="Chats" onPress={() => setMobileView('chats')} />
+      <MobileSwitchButton
+        active={mobileView === 'chats'}
+        label={mobileUnreadTotal > 0 ? `Chats (${mobileUnreadTotal})` : 'Chats'}
+        onPress={() => setMobileView('chats')}
+      />
       <MobileSwitchButton
         active={mobileView === 'conversation'}
         label={selectedChat ? 'Chat' : 'Sin chat'}
