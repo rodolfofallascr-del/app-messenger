@@ -254,14 +254,37 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
     data: { session },
   } = await supabase.auth.getSession();
 
-  const { error } = await supabase.functions.invoke('notify-message', {
-    body: {
-      chatId: params.chatId,
-      senderId: params.senderId,
-      preview: params.preview ?? '',
-    },
-    headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
-  });
+  const accessToken = session?.access_token ?? '';
+
+  // supabase.functions.invoke() occasionally fails to forward Authorization in some web contexts.
+  // Use a direct fetch to guarantee headers are included.
+  const functionsUrl = `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/notify-message`;
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+  let error: unknown = null;
+
+  try {
+    const response = await fetch(functionsUrl, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(anonKey ? { apikey: anonKey } : {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({
+        chatId: params.chatId,
+        senderId: params.senderId,
+        preview: params.preview ?? '',
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      error = new Error(`notify-message http ${response.status}: ${text}`);
+    }
+  } catch (fetchError) {
+    error = fetchError;
+  }
 
   // Best effort: chat send should not fail if notifications fail.
   if (error) {
