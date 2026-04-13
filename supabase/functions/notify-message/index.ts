@@ -146,7 +146,8 @@ Deno.serve(async (req) => {
 
     const expoTokens = (tokens.data ?? [])
       .map((row: any) => row.expo_push_token as string)
-      .filter((t) => typeof t === "string" && t.startsWith("ExponentPushToken"));
+      // Expo formats: "ExpoPushToken[...]" or legacy "ExponentPushToken[...]"
+      .filter((t) => typeof t === "string" && /^(Expo|Exponent)PushToken\[/.test(t));
 
     if (expoTokens.length === 0) {
       return json(200, { ok: true, sent: 0, reason: "no-tokens" });
@@ -183,4 +184,3 @@ Deno.serve(async (req) => {
     return json(500, { error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
-

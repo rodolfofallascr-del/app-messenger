@@ -185,6 +185,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const unreadCountsRef = useRef<Record<string, number>>({});
   const lastNotifiedAtRef = useRef<Record<string, number>>({});
   const [mobileUnreadTotal, setMobileUnreadTotal] = useState(0);
+  const [pushStatus, setPushStatus] = useState<string>('');
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -231,9 +232,14 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
     // Register Expo push token for background notifications.
     void (async () => {
       try {
-        const permissions = await Notifications.getPermissionsAsync();
-        if (permissions.status !== 'granted') {
-          return;
+        setPushStatus('Push: preparando...');
+        const existing = await Notifications.getPermissionsAsync();
+        if (existing.status !== 'granted') {
+          const requested = await Notifications.requestPermissionsAsync();
+          if (requested.status !== 'granted') {
+            setPushStatus('Push: permisos denegados');
+            return;
+          }
         }
 
         const projectId =
@@ -241,21 +247,40 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
           (Constants as any)?.easConfig?.projectId ??
           undefined;
 
-        const tokenResponse = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined as any);
-        const expoPushToken = tokenResponse.data;
-
-        if (!expoPushToken) {
+        if (!projectId) {
+          setPushStatus('Push: falta projectId');
           return;
         }
 
+        setPushStatus('Push: obteniendo token...');
+        const tokenResponse = await Notifications.getExpoPushTokenAsync({ projectId });
+        const expoPushToken = tokenResponse.data;
+
+        if (!expoPushToken) {
+          setPushStatus('Push: token vacio');
+          return;
+        }
+
+        setPushStatus('Push: guardando token...');
         await upsertPushToken({
           userId: session.user.id,
           expoPushToken,
           platform: Platform.OS === 'ios' ? 'ios' : 'android',
           deviceId: (Constants as any)?.deviceId ?? null,
         });
-      } catch {
-        // Best effort.
+
+        setPushStatus('Push: listo');
+      } catch (error) {
+        // Best effort, but keep a hint visible in development builds.
+        const msg =
+          error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+              ? error
+              : 'error desconocido';
+        setPushStatus(`Push error: ${msg}`);
+        // eslint-disable-next-line no-console
+        console.warn('push token registration failed', error);
       }
     })();
   }, [session.user.id]);
@@ -1088,6 +1113,8 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
           ? `${liveChats.length} conversaciones sincronizadas.`
           : 'Listo para crear tu primera conversacion.';
 
+  const mobileStatusText = Platform.OS !== 'web' && pushStatus ? `${statusText} ${pushStatus}` : statusText;
+
   const header = adminMode && isDesktop ? null : isDesktop ? (
     <View style={[styles.headerShell, styles.headerShellDesktop]}>
       <View style={styles.heroCard}>
@@ -1114,7 +1141,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         <Image source={brandLogo} style={styles.mobileLogo} resizeMode="contain" />
         <View style={styles.mobileBrandCopy}>
           <Text style={styles.mobileBrandTitle}>Chat Santanita</Text>
-          <Text style={styles.mobileBrandStatus}>{statusText}</Text>
+          <Text style={styles.mobileBrandStatus}>{mobileStatusText}</Text>
         </View>
       </View>
       <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
