@@ -68,6 +68,7 @@ Deno.serve(async (req) => {
     }
 
     const authHeader = req.headers.get("authorization") ?? "";
+    const apiKeyHeader = req.headers.get("apikey") ?? "";
 
     const url = getEnv("SUPABASE_URL");
     const anonKey = getEnv("SUPABASE_ANON_KEY");
@@ -87,6 +88,14 @@ Deno.serve(async (req) => {
     } = await authedClient.auth.getUser();
 
     if (userError || !user) {
+      console.log(
+        JSON.stringify({
+          msg: "unauthorized",
+          hasAuthHeader: Boolean(authHeader),
+          authHeaderPrefix: authHeader ? authHeader.slice(0, 12) : "",
+          hasApiKeyHeader: Boolean(apiKeyHeader),
+        })
+      );
       return json(401, { error: "Unauthorized" });
     }
 
