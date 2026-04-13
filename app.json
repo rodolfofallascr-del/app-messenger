@@ -20,6 +20,7 @@
     "android": {
       "package": "com.chatsantanita.app",
       "versionCode": 2,
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/chat-santanita-icon-square.png",
         "backgroundColor": "#020617"

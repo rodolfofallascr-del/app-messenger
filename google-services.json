@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "885266340359",
+    "project_id": "app-mensajeria-edeba",
+    "storage_bucket": "app-mensajeria-edeba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:885266340359:android:f85aa6e9afd18064ff68a2",
+        "android_client_info": {
+          "package_name": "com.chatsantanita.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCNyJOEtxJC_UTLXipy66U0lcIZe8aLP1s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
