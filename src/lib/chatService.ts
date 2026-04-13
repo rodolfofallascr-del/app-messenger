@@ -250,12 +250,17 @@ export async function upsertPushToken(params: {
 
 export async function notifyNewMessage(params: { chatId: string; senderId: string; preview?: string }) {
   const supabase = getSupabaseClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   const { error } = await supabase.functions.invoke('notify-message', {
     body: {
       chatId: params.chatId,
       senderId: params.senderId,
       preview: params.preview ?? '',
     },
+    headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
   });
 
   // Best effort: chat send should not fail if notifications fail.
