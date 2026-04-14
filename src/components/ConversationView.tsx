@@ -418,6 +418,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     gap: 7,
     borderWidth: 1,
+    overflow: 'visible',
   },
   bubbleCompact: {
     padding: 12,
@@ -443,6 +444,9 @@ const styles = StyleSheet.create({
     color: palette.primaryText,
     fontSize: 15,
     lineHeight: 22,
+    flexShrink: 1,
+    flexWrap: 'wrap',
+    width: '100%',
   },
   attachmentImage: {
     width: 260,
