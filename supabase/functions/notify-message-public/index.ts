@@ -56,6 +56,12 @@ function safePreview(text: string) {
   return trimmed.length > 120 ? trimmed.slice(0, 117) + "..." : trimmed;
 }
 
+function chunk<T>(items: T[], size: number) {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 function decodeJwtPart(part: string) {
   // base64url -> string
   const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
@@ -264,21 +270,56 @@ Deno.serve(async (req) => {
       data: { chatId },
     }));
 
-    const response = await fetch("https://exp.host/--/api/v2/push/send", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+    // Expo recommends max 100 notifications per request.
+    const batches = chunk(payload, 100);
+    const allResults: unknown[] = [];
+    const invalidTokens: string[] = [];
 
-    if (!response.ok) {
+    for (const batch of batches) {
+      const response = await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(batch),
+      });
+
       const text = await response.text().catch(() => "");
-      return json(502, { error: "Expo push send failed", status: response.status, body: text });
+      if (!response.ok) {
+        return json(502, { error: "Expo push send failed", status: response.status, body: text.slice(0, 300) });
+      }
+
+      const parsed = (() => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return null;
+        }
+      })();
+
+      allResults.push(parsed ?? text);
+
+      const data = (parsed as any)?.data;
+      if (Array.isArray(data)) {
+        for (let i = 0; i < data.length; i++) {
+          const item = data[i];
+          if (item?.status === "error") {
+            const err = item?.details?.error ?? item?.message ?? "";
+            if (err === "DeviceNotRegistered") {
+              const to = batch[i]?.to;
+              if (typeof to === "string") invalidTokens.push(to);
+            }
+          }
+        }
+      }
     }
 
-    const result = await response.json().catch(() => ({}));
-    return json(200, { ok: true, sent: expoTokens.length, result });
+    // Best effort cleanup: remove tokens that Expo says are not registered anymore.
+    if (invalidTokens.length > 0) {
+      await service.from("push_tokens").delete().in("expo_push_token", invalidTokens);
+    }
+
+    return json(200, { ok: true, sent: expoTokens.length, invalidTokens: invalidTokens.length, result: allResults });
   } catch (error) {
     return json(500, { error: error instanceof Error ? error.message : "Unknown error" });
   }

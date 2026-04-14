@@ -229,6 +229,44 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       return;
     }
 
+    let subscription: Notifications.Subscription | null = null;
+
+    const handleOpenFromNotification = (data: unknown) => {
+      const payload = data as { chatId?: string } | null | undefined;
+      const chatId = typeof payload?.chatId === 'string' ? payload.chatId : '';
+      if (!chatId) return;
+
+      setSelectedChatId(chatId);
+      setMobileView('conversation');
+    };
+
+    void (async () => {
+      try {
+        const last = await Notifications.getLastNotificationResponseAsync();
+        if (last?.notification?.request?.content?.data) {
+          handleOpenFromNotification(last.notification.request.content.data);
+        }
+      } catch {
+        // Ignore
+      }
+    })();
+
+    subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      handleOpenFromNotification(response.notification.request.content.data);
+    });
+
+    return () => {
+      if (subscription) {
+        Notifications.removeNotificationSubscription(subscription);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      return;
+    }
+
     // Register Expo push token for background notifications.
     void (async () => {
       try {
