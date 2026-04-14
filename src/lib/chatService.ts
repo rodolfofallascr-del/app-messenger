@@ -259,7 +259,12 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
   // Fallback: in some web builds, env inlining can be finicky; the client still knows the key.
   const anonKeyFallback = (supabase as any)?.supabaseKey as string | undefined;
   const apiKey = (supabaseAnonKey || anonKeyFallback || '').trim();
-  const authBearer = (accessToken || apiKey).trim();
+
+  // Supabase Edge Functions gateway expects a valid user JWT for `Authorization`.
+  // If we don't have an access token, skip notifications (best-effort) to avoid 401 Invalid JWT.
+  if (!accessToken) {
+    return;
+  }
 
   // supabase.functions.invoke() occasionally fails to forward Authorization in some web contexts.
   // Use a direct fetch to guarantee headers are included.
@@ -276,9 +281,7 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
         'content-type': 'application/json',
         // Supabase Edge Functions require `apikey` to route/auth the request before our code runs.
         apikey: apiKey,
-        // If `access_token` isn't available for any reason, send anon-key as Bearer so the
-        // Edge Functions gateway doesn't reject the request before our function can log/debug.
-        ...(authBearer ? { Authorization: `Bearer ${authBearer}` } : {}),
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify({
         chatId: params.chatId,
