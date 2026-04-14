@@ -78,6 +78,7 @@ Deno.serve(async (req) => {
       global: {
         headers: {
           authorization: authHeader,
+          apikey: anonKey,
         },
       },
     });
