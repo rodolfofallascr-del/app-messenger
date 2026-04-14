@@ -1,0 +1,4 @@
+# Supabase Edge Function configuration
+# We do auth inside the function via `auth.getUser()` to decide who can send notifications.
+verify_jwt = false
+
