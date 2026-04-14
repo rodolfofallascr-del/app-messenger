@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
           authHeaderPrefix: authHeader ? authHeader.slice(0, 16) : "",
           hasApiKeyHeader: Boolean(apiKeyHeader),
           jwtInfo,
+          userError: userError?.message ?? null,
         },
       });
     }
