@@ -262,7 +262,9 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
 
   // supabase.functions.invoke() occasionally fails to forward Authorization in some web contexts.
   // Use a direct fetch to guarantee headers are included.
-  const functionsUrl = `${supabaseUrl}/functions/v1/notify-message`;
+  // Some proxies/browsers can be finicky with non-standard headers; Supabase also accepts `apikey`
+  // as a query param for routing/auth on the Edge Functions gateway.
+  const functionsUrl = `${supabaseUrl}/functions/v1/notify-message?apikey=${encodeURIComponent(apiKey)}`;
 
   let error: unknown = null;
 
