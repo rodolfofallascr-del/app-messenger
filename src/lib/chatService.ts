@@ -274,7 +274,7 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
   // Use a direct fetch to guarantee headers are included.
   // Some proxies/browsers can be finicky with non-standard headers; Supabase also accepts `apikey`
   // as a query param for routing/auth on the Edge Functions gateway.
-  const functionsUrl = `${supabaseUrl}/functions/v1/notify-message?apikey=${encodeURIComponent(apiKey)}`;
+  const functionsUrl = `${supabaseUrl}/functions/v1/notify-message-public?apikey=${encodeURIComponent(apiKey)}`;
 
   let error: unknown = null;
 
