@@ -56,6 +56,35 @@ function safePreview(text: string) {
   return trimmed.length > 120 ? trimmed.slice(0, 117) + "..." : trimmed;
 }
 
+function decodeJwtPart(part: string) {
+  // base64url -> string
+  const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = b64 + "===".slice((b64.length + 3) % 4);
+  const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+function inspectJwt(bearer: string) {
+  const token = bearer.replace(/^Bearer\s+/i, "").trim();
+  const parts = token.split(".");
+  if (parts.length !== 3) return { tokenKind: "not-jwt" as const };
+  try {
+    const header = JSON.parse(decodeJwtPart(parts[0]));
+    const payload = JSON.parse(decodeJwtPart(parts[1]));
+    return {
+      tokenKind: "jwt" as const,
+      alg: header?.alg ?? null,
+      iss: payload?.iss ?? null,
+      aud: payload?.aud ?? null,
+      role: payload?.role ?? null,
+      exp: payload?.exp ?? null,
+      subPrefix: typeof payload?.sub === "string" ? payload.sub.slice(0, 8) : null,
+    };
+  } catch {
+    return { tokenKind: "jwt-unparseable" as const };
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     // CORS preflight
@@ -89,12 +118,14 @@ Deno.serve(async (req) => {
     } = await authedClient.auth.getUser();
 
     if (userError || !user) {
+      const jwtInfo = inspectJwt(authHeader);
       console.log("[notify-message] unauthorized", {
         hasAuthHeader: Boolean(authHeader),
         authHeaderPrefix: authHeader ? authHeader.slice(0, 24) : "",
         hasApiKeyHeader: Boolean(apiKeyHeader),
         apiKeyHeaderPrefix: apiKeyHeader ? apiKeyHeader.slice(0, 16) : "",
         userError: userError?.message ?? null,
+        jwtInfo,
       });
       return json(401, {
         error: "Unauthorized",
@@ -102,6 +133,7 @@ Deno.serve(async (req) => {
           hasAuthHeader: Boolean(authHeader),
           authHeaderPrefix: authHeader ? authHeader.slice(0, 16) : "",
           hasApiKeyHeader: Boolean(apiKeyHeader),
+          jwtInfo,
         },
       });
     }
