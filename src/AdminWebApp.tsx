@@ -81,23 +81,25 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const screenScrollRef = useRef<ScrollView | null>(null);
   const theme = adminThemes[themeMode];
 
-  const loadUsers = useCallback(async () => {
-    setLoading(true);
-    setFeedback(null);
+  const loadUsers = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+      setFeedback(null);
+    }
 
     try {
       const nextUsers = await fetchAdminUsers();
       setUsers(nextUsers);
       setAliasDrafts(Object.fromEntries(nextUsers.map((user) => [user.id, user.admin_alias?.trim() || ''])));
-      setTagDrafts(
-        Object.fromEntries(
-          nextUsers.map((user) => [user.id, (user.admin_tags ?? []).filter(Boolean).join(', ')])
-        )
-      );
+      setTagDrafts(Object.fromEntries(nextUsers.map((user) => [user.id, (user.admin_tags ?? []).filter(Boolean).join(', ')])));
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
+      if (!options?.silent) {
+        setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
+      }
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -124,6 +126,19 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       void loadLibrary();
     }
   }, [loadLibrary, loadUsers, section]);
+
+  useEffect(() => {
+    if (section !== 'users') {
+      return;
+    }
+
+    // Realtime can miss events depending on publication/network. Poll silently to keep the list fresh.
+    const intervalId = setInterval(() => {
+      void loadUsers({ silent: true });
+    }, 5000);
+
+    return () => clearInterval(intervalId);
+  }, [loadUsers, section]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -183,7 +198,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       .channel('admin-backoffice-watch')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
         if (section === 'users') {
-          void loadUsers();
+          void loadUsers({ silent: true });
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'quick_replies' }, () => {
