@@ -257,7 +257,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
     return () => {
       if (subscription) {
-        Notifications.removeNotificationSubscription(subscription);
+        subscription.remove();
       }
     };
   }, []);

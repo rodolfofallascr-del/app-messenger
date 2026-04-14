@@ -188,6 +188,7 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
           const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
           const allowLongPressDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
+          const allowMobileDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
 
           return (
             <Pressable
@@ -226,6 +227,22 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
               {Platform.OS === 'web' && message.canDelete && onDeleteMessage ? (
                 <Pressable
                   onPress={() => onDeleteMessage(message.id)}
+                  style={styles.deleteMessageButton}
+                  disabled={deletingMessageId === message.id}
+                >
+                  <Text style={styles.deleteMessageText}>
+                    {deletingMessageId === message.id ? 'Eliminando...' : 'Eliminar'}
+                  </Text>
+                </Pressable>
+              ) : null}
+              {Platform.OS !== 'web' && allowMobileDelete ? (
+                <Pressable
+                  onPress={() => {
+                    Alert.alert('Eliminar mensaje', 'Quieres eliminar este mensaje para todos?', [
+                      { text: 'Cancelar', style: 'cancel' },
+                      { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteMessage?.(message.id) },
+                    ]);
+                  }}
                   style={styles.deleteMessageButton}
                   disabled={deletingMessageId === message.id}
                 >
