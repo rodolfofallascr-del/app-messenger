@@ -85,6 +85,38 @@ function inspectJwt(bearer: string) {
   }
 }
 
+async function fetchUserFromAuth(params: { supabaseUrl: string; anonKey: string; authorization: string }) {
+  const url = `${params.supabaseUrl}/auth/v1/user`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      apikey: params.anonKey,
+      authorization: params.authorization,
+      accept: "application/json",
+    },
+  });
+
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    return {
+      ok: false as const,
+      status: res.status,
+      bodyPrefix: text.slice(0, 200),
+    };
+  }
+
+  try {
+    const json = JSON.parse(text);
+    return { ok: true as const, user: json };
+  } catch {
+    return {
+      ok: false as const,
+      status: res.status,
+      bodyPrefix: text.slice(0, 200),
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   try {
     // CORS preflight
@@ -103,28 +135,20 @@ Deno.serve(async (req) => {
     const anonKey = getEnv("SUPABASE_ANON_KEY");
     const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
-    const authedClient = createClient(url, anonKey, {
-      global: {
-        headers: {
-          authorization: authHeader,
-          apikey: anonKey,
-        },
-      },
-    });
+    // We validate the caller by hitting Supabase Auth directly, to avoid supabase-js parsing errors
+    // when the upstream returns non-JSON (which shows up as "Unexpected token '<'").
+    const authUser = await fetchUserFromAuth({ supabaseUrl: url, anonKey, authorization: authHeader });
 
-    const {
-      data: { user },
-      error: userError,
-    } = await authedClient.auth.getUser();
-
-    if (userError || !user) {
+    if (!authUser.ok || !authUser.user) {
       const jwtInfo = inspectJwt(authHeader);
       console.log("[notify-message] unauthorized", {
         hasAuthHeader: Boolean(authHeader),
         authHeaderPrefix: authHeader ? authHeader.slice(0, 24) : "",
         hasApiKeyHeader: Boolean(apiKeyHeader),
         apiKeyHeaderPrefix: apiKeyHeader ? apiKeyHeader.slice(0, 16) : "",
-        userError: userError?.message ?? null,
+        userError: authUser.ok ? null : `auth user fetch failed: ${authUser.status}`,
+        authUserStatus: authUser.ok ? 200 : authUser.status,
+        authUserBodyPrefix: authUser.ok ? "" : authUser.bodyPrefix,
         jwtInfo,
       });
       return json(401, {
@@ -134,10 +158,13 @@ Deno.serve(async (req) => {
           authHeaderPrefix: authHeader ? authHeader.slice(0, 16) : "",
           hasApiKeyHeader: Boolean(apiKeyHeader),
           jwtInfo,
-          userError: userError?.message ?? null,
+          userError: authUser.ok ? null : `auth user fetch failed: ${authUser.status}`,
+          authUserBodyPrefix: authUser.ok ? "" : authUser.bodyPrefix,
         },
       });
     }
+
+    const user = authUser.user;
 
     const body = (await req.json().catch(() => ({}))) as NotifyBody;
     const chatId = (body.chatId ?? "").trim();
@@ -152,6 +179,10 @@ Deno.serve(async (req) => {
     }
 
     // Require sender to be an approved admin.
+    const authedClient = createClient(url, anonKey, {
+      global: { headers: { authorization: authHeader, apikey: anonKey } },
+    });
+
     const adminCheck = await authedClient
       .from("profiles")
       .select("id, role, status, full_name")
