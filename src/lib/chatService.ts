@@ -262,7 +262,11 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
 
   // Supabase Edge Functions gateway expects a valid user JWT for `Authorization`.
   // If we don't have an access token, skip notifications (best-effort) to avoid 401 Invalid JWT.
-  if (!accessToken) {
+  if (!accessToken || !accessToken.startsWith('eyJ')) {
+    console.warn('[notify-message] skipping (no valid access token)', {
+      hasSession: Boolean(session),
+      accessTokenPrefix: accessToken ? accessToken.slice(0, 16) : '',
+    });
     return;
   }
 
