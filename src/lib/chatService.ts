@@ -256,6 +256,9 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
   } = await supabase.auth.getSession();
 
   const accessToken = session?.access_token ?? '';
+  // Fallback: in some web builds, env inlining can be finicky; the client still knows the key.
+  const anonKeyFallback = (supabase as any)?.supabaseKey as string | undefined;
+  const apiKey = (supabaseAnonKey || anonKeyFallback || '').trim();
 
   // supabase.functions.invoke() occasionally fails to forward Authorization in some web contexts.
   // Use a direct fetch to guarantee headers are included.
@@ -268,7 +271,8 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        apikey: supabaseAnonKey,
+        // Supabase Edge Functions require `apikey` to route/auth the request before our code runs.
+        apikey: apiKey,
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
       body: JSON.stringify({
@@ -281,6 +285,12 @@ export async function notifyNewMessage(params: { chatId: string; senderId: strin
     if (!response.ok) {
       const text = await response.text().catch(() => '');
       error = new Error(`notify-message http ${response.status}: ${text}`);
+      console.warn('[notify-message] failed', {
+        status: response.status,
+        hasApiKey: Boolean(apiKey),
+        hasAccessToken: Boolean(accessToken),
+        body: text,
+      });
     }
   } catch (fetchError) {
     error = fetchError;
