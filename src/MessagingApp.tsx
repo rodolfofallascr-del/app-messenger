@@ -39,6 +39,11 @@ type MessagingAppProps = {
 
 type MobileView = 'chats' | 'conversation';
 type AdminInboxFilter = 'all' | 'unread';
+type MessageFlagsStorage = {
+  starred: string[];
+  pinned: string[];
+};
+type ReplyPreview = { author: string; snippet: string; messageId: string } | null;
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
@@ -74,6 +79,40 @@ function getReadableErrorMessage(error: unknown, fallback: string) {
 
 function readMarkersStorageKey(userId: string) {
   return 'messaging-read-markers:' + userId;
+}
+
+function messageFlagsStorageKey(userId: string) {
+  return 'messaging-message-flags:' + userId;
+}
+
+function loadMessageFlags(userId: string): MessageFlagsStorage {
+  if (Platform.OS !== 'web') {
+    return { starred: [], pinned: [] };
+  }
+
+  try {
+    const stored = window.localStorage.getItem(messageFlagsStorageKey(userId));
+    const parsed = stored ? (JSON.parse(stored) as Partial<MessageFlagsStorage>) : {};
+    return {
+      starred: Array.isArray(parsed.starred) ? parsed.starred.filter((id) => typeof id === 'string') : [],
+      pinned: Array.isArray(parsed.pinned) ? parsed.pinned.filter((id) => typeof id === 'string') : [],
+    };
+  } catch {
+    window.localStorage.removeItem(messageFlagsStorageKey(userId));
+    return { starred: [], pinned: [] };
+  }
+}
+
+function persistMessageFlags(userId: string, next: MessageFlagsStorage) {
+  if (Platform.OS !== 'web') {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(messageFlagsStorageKey(userId), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
 }
 
 function loadStoredReadMarkers(userId: string) {
@@ -154,6 +193,8 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const [mobileView, setMobileView] = useState<MobileView>('chats');
   const [selectedChatId, setSelectedChatId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [replyPreviewByChat, setReplyPreviewByChat] = useState<Record<string, ReplyPreview>>({});
+  const [messageFlags, setMessageFlags] = useState<MessageFlagsStorage>(() => loadMessageFlags(session.user.id));
   const [search, setSearch] = useState('');
   const [adminInboxFilter, setAdminInboxFilter] = useState<AdminInboxFilter>('all');
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
@@ -905,6 +946,9 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   const currentMessages = selectedChat ? liveMessages[selectedChat.id] ?? [] : [];
   const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
+  const currentReplyPreview = selectedChat ? replyPreviewByChat[selectedChat.id] ?? null : null;
+  const starredMessageIds = useMemo(() => new Set(messageFlags.starred), [messageFlags.starred]);
+  const pinnedMessageIds = useMemo(() => new Set(messageFlags.pinned), [messageFlags.pinned]);
   const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
   const unreadChatsCount = useMemo(() => liveChats.filter((chat) => chat.unreadCount > 0).length, [liveChats]);
   const incomingSnapshot = useMemo(() => {
@@ -1037,10 +1081,16 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       return;
     }
 
+    const reply = replyPreviewByChat[selectedChat.id] ?? null;
+    const replyPrefix = reply
+      ? `↩ ${reply.author}${reply.snippet ? `: ${reply.snippet}` : ''}\n`
+      : '';
+    const outgoingBody = `${replyPrefix}${trimmed}`.trim();
+
     const optimisticMessage: ChatMessage = {
       id: `local-${Date.now()}`,
       author: 'Tu',
-      content: trimmed || (pendingAttachment?.type === 'image' ? 'Imagen adjunta' : 'Archivo adjunto'),
+      content: outgoingBody || (pendingAttachment?.type === 'image' ? 'Imagen adjunta' : 'Archivo adjunto'),
       timestamp: 'Ahora',
       direction: 'outgoing',
       status: 'sending',
@@ -1056,6 +1106,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       ...previous,
       [selectedChat.id]: '',
     }));
+    setReplyPreviewByChat((previous) => ({ ...previous, [selectedChat.id]: null }));
 
     const nextAttachment = pendingAttachment;
     clearPendingAttachment();
@@ -1067,13 +1118,13 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
           chatId: selectedChat.id,
           senderId: session.user.id,
           attachment: nextAttachment,
-          body: trimmed,
+          body: outgoingBody,
         });
       } else {
         await sendTextMessage({
           chatId: selectedChat.id,
           senderId: session.user.id,
-          body: trimmed,
+          body: outgoingBody,
         });
       }
 
@@ -1091,6 +1142,96 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       setSending(false);
     }
   };
+
+  const handleToggleStarMessage = useCallback(
+    (message: ChatMessage) => {
+      if (Platform.OS !== 'web' || !adminMode) return;
+      setMessageFlags((current) => {
+        const exists = current.starred.includes(message.id);
+        const next = {
+          ...current,
+          starred: exists ? current.starred.filter((id) => id !== message.id) : [message.id, ...current.starred],
+        };
+        persistMessageFlags(session.user.id, next);
+        return next;
+      });
+    },
+    [adminMode, session.user.id]
+  );
+
+  const handleTogglePinMessage = useCallback(
+    (message: ChatMessage) => {
+      if (Platform.OS !== 'web' || !adminMode) return;
+      setMessageFlags((current) => {
+        const exists = current.pinned.includes(message.id);
+        const next = {
+          ...current,
+          pinned: exists ? current.pinned.filter((id) => id !== message.id) : [message.id, ...current.pinned],
+        };
+        persistMessageFlags(session.user.id, next);
+        return next;
+      });
+    },
+    [adminMode, session.user.id]
+  );
+
+  const handleDownloadAttachment = useCallback(async (message: ChatMessage) => {
+    if (Platform.OS !== 'web') {
+      if (message.attachmentUrl) {
+        // Fallback to open in native.
+        return;
+      }
+      return;
+    }
+
+    const url = message.attachmentUrl;
+    if (!url) return;
+
+    const filename = (message.attachmentLabel || 'adjunto').replace(/[\\/:*?"<>|]+/g, '_');
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('No fue posible descargar el adjunto.');
+      }
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      setLoadingError(error instanceof Error ? error.message : 'No fue posible descargar el adjunto.');
+    }
+  }, []);
+
+  const handleForwardMessage = useCallback(
+    async (message: ChatMessage) => {
+      // Forwarding without changing business logic: copy to clipboard so the admin can paste it in another chat.
+      if (Platform.OS !== 'web') {
+        return;
+      }
+
+      const payload = (message.content ?? '').trim();
+      if (!payload) {
+        setLoadingError('Este mensaje no se puede reenviar todavía.');
+        return;
+      }
+
+      try {
+        if (globalThis.navigator?.clipboard?.writeText) {
+          await globalThis.navigator.clipboard.writeText(payload);
+        }
+        setCreateMessage('Mensaje copiado. Abre otra conversacion y pega (Ctrl+V) para reenviar.');
+      } catch {
+        setCreateMessage('Copia manualmente el mensaje para reenviarlo.');
+      }
+    },
+    []
+  );
 
   const handleDeleteMessage = async (messageId: string) => {
     setDeletingMessageId(messageId);
@@ -1298,44 +1439,54 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
     <View style={[styles.chatPanel, isDesktop ? styles.chatPanelDesktop : styles.mobileChatPanel, adminMode && isDesktop && styles.chatPanelAdminDesktop, isCompactHeight && isDesktop && styles.compactPanel]}>
       {selectedChat ? (
         <>
-          <ConversationView
-            chat={selectedChat}
-            messages={currentMessages}
-            showBackButton={!isDesktop}
-            onBack={!isDesktop ? () => setMobileView('chats') : undefined}
-            compact={!isDesktop}
-            deletingMessageId={deletingMessageId}
-            onDeleteMessage={handleDeleteMessage}
-            onReplyMessage={(message) => {
-              if (!selectedChat) return;
-              const snippet = (message.content ?? '').trim();
-              const quote = snippet ? `↩ ${message.author}: ${snippet}\n` : `↩ ${message.author}\n`;
-              setDrafts((previous) => ({
-                ...previous,
-                [selectedChat.id]: `${quote}${previous[selectedChat.id] ?? ''}`,
-              }));
-              setComposerFocusSignal((value) => value + 1);
-              if (!isDesktop) {
-                setMobileView('conversation');
+            <ConversationView
+              chat={selectedChat}
+              messages={currentMessages}
+              showBackButton={!isDesktop}
+              onBack={!isDesktop ? () => setMobileView('chats') : undefined}
+              compact={!isDesktop}
+              deletingMessageId={deletingMessageId}
+              onDeleteMessage={handleDeleteMessage}
+              starredMessageIds={starredMessageIds}
+              pinnedMessageIds={pinnedMessageIds}
+              onToggleStarMessage={handleToggleStarMessage}
+              onTogglePinMessage={handleTogglePinMessage}
+              onDownloadAttachment={handleDownloadAttachment}
+              onForwardMessage={handleForwardMessage}
+              onReplyMessage={(message) => {
+                if (!selectedChat) return;
+                const snippet = (message.content ?? '').trim().slice(0, 180);
+                setReplyPreviewByChat((previous) => ({
+                  ...previous,
+                  [selectedChat.id]: { author: message.author, snippet, messageId: message.id },
+                }));
+                setComposerFocusSignal((value) => value + 1);
+                if (!isDesktop) {
+                  setMobileView('conversation');
+                }
+              }}
+            />
+            <MessageComposer
+              value={currentDraft}
+              attachment={pendingAttachment}
+              busy={sending}
+              isDragActive={isDragActive}
+              clipboardPasteEnabled={Boolean(adminMode && Platform.OS === 'web')}
+              sendOnEnter={Boolean(adminMode && Platform.OS === 'web')}
+              focusSignal={composerFocusSignal}
+              showEmojiPicker={Boolean(adminMode)}
+              emojiPickerOpen={emojiPickerOpen}
+              replyPreview={currentReplyPreview ? { author: currentReplyPreview.author, snippet: currentReplyPreview.snippet } : null}
+              onClearReplyPreview={() => {
+                if (!selectedChat) return;
+                setReplyPreviewByChat((previous) => ({ ...previous, [selectedChat.id]: null }));
+              }}
+              onChangeText={(value) =>
+                setDrafts((previous) => ({
+                  ...previous,
+                  [selectedChat.id]: value,
+                }))
               }
-            }}
-          />
-          <MessageComposer
-            value={currentDraft}
-            attachment={pendingAttachment}
-            busy={sending}
-            isDragActive={isDragActive}
-            clipboardPasteEnabled={Boolean(adminMode && Platform.OS === 'web')}
-            sendOnEnter={Boolean(adminMode && Platform.OS === 'web')}
-            focusSignal={composerFocusSignal}
-            showEmojiPicker={Boolean(adminMode)}
-            emojiPickerOpen={emojiPickerOpen}
-            onChangeText={(value) =>
-              setDrafts((previous) => ({
-                ...previous,
-                [selectedChat.id]: value,
-              }))
-            }
             onToggleEmojiPicker={() => setEmojiPickerOpen((current) => !current)}
             onInsertEmoji={(emoji) =>
               setDrafts((previous) => ({

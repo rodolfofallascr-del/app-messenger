@@ -12,6 +12,8 @@ type MessageComposerProps = {
   clipboardPasteEnabled?: boolean;
   showEmojiPicker?: boolean;
   emojiPickerOpen?: boolean;
+  replyPreview?: { author: string; snippet: string } | null;
+  onClearReplyPreview?: () => void;
   onChangeText: (value: string) => void;
   onPickImage: () => void;
   onPickFile: () => void;
@@ -31,6 +33,8 @@ export function MessageComposer({
   clipboardPasteEnabled,
   showEmojiPicker,
   emojiPickerOpen,
+  replyPreview,
+  onClearReplyPreview,
   onChangeText,
   onPickImage,
   onPickFile,
@@ -105,6 +109,19 @@ export function MessageComposer({
           </View>
           <Pressable onPress={onClearAttachment} style={styles.removeButton}>
             <Text style={styles.removeButtonText}>Quitar</Text>
+          </Pressable>
+        </View>
+      ) : null}
+      {replyPreview ? (
+        <View style={styles.replyPreview}>
+          <View style={styles.replyPreviewBody}>
+            <Text style={styles.replyPreviewEyebrow}>Respondiendo a {replyPreview.author}</Text>
+            <Text style={styles.replyPreviewText} numberOfLines={2}>
+              {replyPreview.snippet || 'Mensaje'}
+            </Text>
+          </View>
+          <Pressable onPress={onClearReplyPreview ?? (() => undefined)} style={styles.replyPreviewClose} hitSlop={10}>
+            <Text style={styles.replyPreviewCloseText}>×</Text>
           </Pressable>
         </View>
       ) : null}
@@ -250,6 +267,43 @@ const styles = StyleSheet.create({
     color: palette.secondaryText,
     fontWeight: '700',
     fontSize: 12,
+  },
+  replyPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#122033',
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#22395f',
+  },
+  replyPreviewBody: {
+    flex: 1,
+    gap: 2,
+  },
+  replyPreviewEyebrow: {
+    color: '#93c5fd',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  replyPreviewText: {
+    color: palette.secondaryText,
+    fontSize: 12,
+  },
+  replyPreviewClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.card,
+  },
+  replyPreviewCloseText: {
+    color: palette.secondaryText,
+    fontSize: 18,
+    fontWeight: '800',
+    lineHeight: 18,
   },
   row: {
     flexDirection: 'row',

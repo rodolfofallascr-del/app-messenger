@@ -17,6 +17,12 @@ type ConversationViewProps = {
   deletingMessageId?: string | null;
   onDeleteMessage?: (messageId: string) => void;
   onReplyMessage?: (message: ChatMessage) => void;
+  starredMessageIds?: Set<string>;
+  pinnedMessageIds?: Set<string>;
+  onToggleStarMessage?: (message: ChatMessage) => void;
+  onTogglePinMessage?: (message: ChatMessage) => void;
+  onDownloadAttachment?: (message: ChatMessage) => void;
+  onForwardMessage?: (message: ChatMessage) => void;
 };
 
 export function ConversationView({
@@ -28,6 +34,12 @@ export function ConversationView({
   deletingMessageId,
   onDeleteMessage,
   onReplyMessage,
+  starredMessageIds,
+  pinnedMessageIds,
+  onToggleStarMessage,
+  onTogglePinMessage,
+  onDownloadAttachment,
+  onForwardMessage,
 }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
@@ -222,6 +234,8 @@ export function ConversationView({
           const allowMobileDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
           const allowWebMenu = Platform.OS === 'web' && !compact;
           const isMenuOpen = activeMenuMessageId === message.id;
+          const isStarred = Boolean(starredMessageIds?.has(message.id));
+          const isPinned = Boolean(pinnedMessageIds?.has(message.id));
 
           return (
             <Pressable
@@ -253,15 +267,6 @@ export function ConversationView({
                   <Pressable
                     style={styles.menuItem}
                     onPress={() => {
-                      Alert.alert('Info del mensaje', `${message.author}\n${message.timestamp}`);
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>Info. del mensaje</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
                       onReplyMessage?.(message);
                       closeMenu();
                     }}
@@ -280,17 +285,17 @@ export function ConversationView({
                   <Pressable
                     style={styles.menuItem}
                     onPress={() => {
-                      comingSoon('Reaccionar');
+                      onToggleStarMessage?.(message);
                       closeMenu();
                     }}
                   >
-                    <Text style={styles.menuItemText}>Reaccionar</Text>
+                    <Text style={styles.menuItemText}>{isStarred ? 'Quitar destacado' : 'Destacar'}</Text>
                   </Pressable>
                   {message.attachmentUrl ? (
                     <Pressable
                       style={styles.menuItem}
                       onPress={() => {
-                        void handleOpenAttachment(message.attachmentUrl as string, message.attachmentType === 'image' ? 'image' : 'file');
+                        onDownloadAttachment?.(message);
                         closeMenu();
                       }}
                     >
@@ -300,7 +305,7 @@ export function ConversationView({
                   <Pressable
                     style={styles.menuItem}
                     onPress={() => {
-                      comingSoon('Reenviar');
+                      onForwardMessage?.(message);
                       closeMenu();
                     }}
                   >
@@ -309,29 +314,11 @@ export function ConversationView({
                   <Pressable
                     style={styles.menuItem}
                     onPress={() => {
-                      comingSoon('Fijar');
+                      onTogglePinMessage?.(message);
                       closeMenu();
                     }}
                   >
-                    <Text style={styles.menuItemText}>Fijar</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      comingSoon('Destacar');
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>Destacar</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      comingSoon('No destacar');
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>No destacar</Text>
+                    <Text style={styles.menuItemText}>{isPinned ? 'No fijar' : 'Fijar'}</Text>
                   </Pressable>
                   {message.canDelete && onDeleteMessage ? (
                     <Pressable
@@ -383,6 +370,8 @@ export function ConversationView({
               <Text style={styles.timestamp}>
                 {message.timestamp}
                 {isOutgoing && message.status ? ' - ' + message.status : ''}
+                {isPinned ? '  📌' : ''}
+                {isStarred ? '  ★' : ''}
               </Text>
             </Pressable>
           );
