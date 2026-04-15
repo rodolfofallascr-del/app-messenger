@@ -262,6 +262,16 @@ export function ConversationView({
                   <Text style={styles.menuTriggerText}>⋮</Text>
                 </Pressable>
               ) : null}
+              {Platform.OS === 'web' && !compact && isStarred ? (
+                <View style={[styles.flagBadge, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
+                  <Text style={styles.flagBadgeText}>★</Text>
+                </View>
+              ) : null}
+              {Platform.OS === 'web' && !compact && isPinned ? (
+                <View style={[styles.flagBadge, styles.flagBadgePinned, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
+                  <Text style={styles.flagBadgeText}>📌</Text>
+                </View>
+              ) : null}
               {allowWebMenu && isMenuOpen ? (
                 <View style={[styles.menuCard, isOutgoing ? styles.menuCardOutgoing : styles.menuCardIncoming]}>
                   <Pressable
@@ -722,5 +732,30 @@ const styles = StyleSheet.create({
   },
   menuItemDanger: {
     color: '#f87171',
+  },
+  flagBadge: {
+    position: 'absolute',
+    top: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,6,23,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    zIndex: 9,
+  },
+  flagBadgePinned: {
+    top: 44,
+  },
+  flagBadgeIncoming: {
+    left: 8,
+  },
+  flagBadgeOutgoing: {
+    right: 8,
+  },
+  flagBadgeText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '900',
   },
 });
