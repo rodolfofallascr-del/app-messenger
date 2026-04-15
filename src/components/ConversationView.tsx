@@ -313,12 +313,12 @@ export function ConversationView({
               ) : null}
               {Platform.OS === 'web' && !compact && isStarred ? (
                 <View style={[styles.flagBadge, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={styles.flagBadgeText}>STAR</Text>
+                  <Text style={[styles.flagBadgeText, styles.flagBadgeStarText]}>★</Text>
                 </View>
               ) : null}
               {Platform.OS === 'web' && !compact && isPinned ? (
                 <View style={[styles.flagBadge, styles.flagBadgePinned, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={styles.flagBadgeText}>PIN</Text>
+                  <Text style={[styles.flagBadgeText, styles.flagBadgePinText]}>📎</Text>
                 </View>
               ) : null}
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
@@ -358,8 +358,8 @@ export function ConversationView({
               <Text style={styles.timestamp}>
                 {message.timestamp}
                 {isOutgoing && message.status ? ' - ' + message.status : ''}
-                {isPinned ? '  [PIN]' : ''}
-                {isStarred ? '  [STAR]' : ''}
+                {isPinned ? '  📎' : ''}
+                {isStarred ? '  ★' : ''}
               </Text>
             </Pressable>
           );
@@ -847,5 +847,17 @@ const styles = StyleSheet.create({
     color: '#e2e8f0',
     fontSize: 12,
     fontWeight: '900',
+  },
+  flagBadgeStarText: {
+    color: '#facc15',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowRadius: 10,
+    textShadowOffset: { width: 0, height: 2 },
+  },
+  flagBadgePinText: {
+    color: '#ef4444',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowRadius: 10,
+    textShadowOffset: { width: 0, height: 2 },
   },
 });
