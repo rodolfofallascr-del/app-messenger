@@ -268,7 +268,7 @@ export function ConversationView({
             >
               {allowWebMenu ? (
                 <Pressable
-                  style={[styles.menuTrigger, isOutgoing ? styles.menuTriggerOutgoing : styles.menuTriggerIncoming]}
+                  style={styles.menuTrigger}
                   onPress={(event) => openMenuAtEvent(message.id, isOutgoing, event)}
                   hitSlop={10}
                 >
@@ -725,17 +725,12 @@ const styles = StyleSheet.create({
   menuTrigger: {
     position: 'absolute',
     top: 8,
+    right: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
     backgroundColor: 'rgba(2,6,23,0.22)',
     zIndex: 10,
-  },
-  menuTriggerIncoming: {
-    right: 8,
-  },
-  menuTriggerOutgoing: {
-    left: 8,
   },
   menuTriggerText: {
     color: '#e2e8f0',
