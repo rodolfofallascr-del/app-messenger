@@ -44,6 +44,7 @@ export function ConversationView({
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; outgoing: boolean } | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -105,6 +106,18 @@ export function ConversationView({
   }, []);
 
   const closeMenu = useCallback(() => setActiveMenuMessageId(null), []);
+
+  const openMenuAtEvent = useCallback((messageId: string, outgoing: boolean, event: any) => {
+    if (Platform.OS !== 'web') {
+      return;
+    }
+
+    const nativeEvent = event?.nativeEvent ?? event ?? {};
+    const x = Number(nativeEvent.pageX ?? nativeEvent.clientX ?? 0);
+    const y = Number(nativeEvent.pageY ?? nativeEvent.clientY ?? 0);
+    setMenuPosition({ x, y, outgoing });
+    setActiveMenuMessageId((current) => (current === messageId ? null : messageId));
+  }, []);
 
   const handleCopy = useCallback(async (value: string) => {
     const text = (value ?? '').trim();
@@ -256,91 +269,20 @@ export function ConversationView({
               {allowWebMenu ? (
                 <Pressable
                   style={[styles.menuTrigger, isOutgoing ? styles.menuTriggerOutgoing : styles.menuTriggerIncoming]}
-                  onPress={() => setActiveMenuMessageId((current) => (current === message.id ? null : message.id))}
+                  onPress={(event) => openMenuAtEvent(message.id, isOutgoing, event)}
                   hitSlop={10}
                 >
-                  <Text style={styles.menuTriggerText}>⋮</Text>
+                  <Text style={styles.menuTriggerText}>...</Text>
                 </Pressable>
               ) : null}
               {Platform.OS === 'web' && !compact && isStarred ? (
                 <View style={[styles.flagBadge, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={styles.flagBadgeText}>★</Text>
+                  <Text style={styles.flagBadgeText}>STAR</Text>
                 </View>
               ) : null}
               {Platform.OS === 'web' && !compact && isPinned ? (
                 <View style={[styles.flagBadge, styles.flagBadgePinned, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={styles.flagBadgeText}>📌</Text>
-                </View>
-              ) : null}
-              {allowWebMenu && isMenuOpen ? (
-                <View style={[styles.menuCard, isOutgoing ? styles.menuCardOutgoing : styles.menuCardIncoming]}>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      onReplyMessage?.(message);
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>Responder</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      void handleCopy(message.content ?? '');
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>Copiar</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      onToggleStarMessage?.(message);
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>{isStarred ? 'Quitar destacado' : 'Destacar'}</Text>
-                  </Pressable>
-                  {message.attachmentUrl ? (
-                    <Pressable
-                      style={styles.menuItem}
-                      onPress={() => {
-                        onDownloadAttachment?.(message);
-                        closeMenu();
-                      }}
-                    >
-                      <Text style={styles.menuItemText}>Descargar</Text>
-                    </Pressable>
-                  ) : null}
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      onForwardMessage?.(message);
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>Reenviar</Text>
-                  </Pressable>
-                  <Pressable
-                    style={styles.menuItem}
-                    onPress={() => {
-                      onTogglePinMessage?.(message);
-                      closeMenu();
-                    }}
-                  >
-                    <Text style={styles.menuItemText}>{isPinned ? 'No fijar' : 'Fijar'}</Text>
-                  </Pressable>
-                  {message.canDelete && onDeleteMessage ? (
-                    <Pressable
-                      style={styles.menuItem}
-                      onPress={() => {
-                        onDeleteMessage(message.id);
-                        closeMenu();
-                      }}
-                    >
-                      <Text style={[styles.menuItemText, styles.menuItemDanger]}>Eliminar</Text>
-                    </Pressable>
-                  ) : null}
+                  <Text style={styles.flagBadgeText}>PIN</Text>
                 </View>
               ) : null}
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
@@ -380,13 +322,109 @@ export function ConversationView({
               <Text style={styles.timestamp}>
                 {message.timestamp}
                 {isOutgoing && message.status ? ' - ' + message.status : ''}
-                {isPinned ? '  📌' : ''}
-                {isStarred ? '  ★' : ''}
+                {isPinned ? '  [PIN]' : ''}
+                {isStarred ? '  [STAR]' : ''}
               </Text>
             </Pressable>
           );
         })}
       </ScrollView>
+
+      {Platform.OS === 'web' && !compact && activeMenuMessageId ? (
+        <Modal transparent animationType="fade" visible onRequestClose={closeMenu}>
+          <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
+            <View
+              style={[
+                styles.menuFloating,
+                {
+                  left: Math.max(12, Math.min((menuPosition?.x ?? 12) - 10, (globalThis as any)?.innerWidth ? (globalThis as any).innerWidth - 220 : (menuPosition?.x ?? 12))),
+                  top: Math.max(12, Math.min((menuPosition?.y ?? 12) + 8, (globalThis as any)?.innerHeight ? (globalThis as any).innerHeight - 260 : (menuPosition?.y ?? 12))),
+                },
+              ]}
+            >
+              {(() => {
+                const message = messages.find((value) => value.id === activeMenuMessageId) ?? null;
+                if (!message) return null;
+                const isOutgoing = message.direction === 'outgoing';
+                const isStarred = Boolean(starredMessageIds?.has(message.id));
+                const isPinned = Boolean(pinnedMessageIds?.has(message.id));
+
+                return (
+                  <View style={styles.menuCardFloating}>
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        onReplyMessage?.(message);
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>Responder</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        void handleCopy(message.content ?? '');
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>Copiar</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        onToggleStarMessage?.(message);
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>{isStarred ? 'Quitar destacado' : 'Destacar'}</Text>
+                    </Pressable>
+                    {message.attachmentUrl ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          onDownloadAttachment?.(message);
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={styles.menuItemText}>Descargar</Text>
+                      </Pressable>
+                    ) : null}
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        onForwardMessage?.(message);
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>Reenviar</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        onTogglePinMessage?.(message);
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>{isPinned ? 'No fijar' : 'Fijar'}</Text>
+                    </Pressable>
+                    {isOutgoing && message.canDelete && onDeleteMessage ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          onDeleteMessage(message.id);
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={[styles.menuItemText, styles.menuItemDanger]}>Eliminar</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                );
+              })()}
+            </View>
+          </Pressable>
+        </Modal>
+      ) : null}
 
       <Modal visible={Boolean(activeImageUrl)} transparent animationType="fade" onRequestClose={closeImageViewer}>
         <View style={styles.imageModalBackdrop}>
@@ -720,6 +758,27 @@ const styles = StyleSheet.create({
   },
   menuCardOutgoing: {
     left: 8,
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+  menuFloating: {
+    position: 'absolute',
+    minWidth: 210,
+    zIndex: 9999,
+  },
+  menuCardFloating: {
+    backgroundColor: '#0b1220',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
   },
   menuItem: {
     paddingVertical: 10,
