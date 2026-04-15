@@ -45,6 +45,7 @@ export function ConversationView({
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; outgoing: boolean } | null>(null);
+  const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -249,11 +250,20 @@ export function ConversationView({
           const isMenuOpen = activeMenuMessageId === message.id;
           const isStarred = Boolean(starredMessageIds?.has(message.id));
           const isPinned = Boolean(pinnedMessageIds?.has(message.id));
+          const showMenuTrigger = Boolean(allowWebMenu && (isMenuOpen || hoveredMessageId === message.id));
 
           return (
             <Pressable
               key={message.id}
               style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}
+              onHoverIn={() => {
+                if (!allowWebMenu) return;
+                setHoveredMessageId(message.id);
+              }}
+              onHoverOut={() => {
+                if (!allowWebMenu) return;
+                setHoveredMessageId((current) => (current === message.id ? null : current));
+              }}
               onLongPress={() => {
                 if (!allowLongPressDelete) {
                   return;
@@ -266,13 +276,13 @@ export function ConversationView({
               }}
               delayLongPress={250}
             >
-              {allowWebMenu ? (
+              {showMenuTrigger ? (
                 <Pressable
                   style={styles.menuTrigger}
                   onPress={(event) => openMenuAtEvent(message.id, isOutgoing, event)}
                   hitSlop={10}
                 >
-                  <Text style={styles.menuTriggerText}>...</Text>
+                  <Text style={styles.menuTriggerText}>▾</Text>
                 </Pressable>
               ) : null}
               {Platform.OS === 'web' && !compact && isStarred ? (
@@ -726,10 +736,10 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: 'rgba(2,6,23,0.22)',
+    backgroundColor: 'rgba(2,6,23,0.18)',
     zIndex: 10,
   },
   menuTriggerText: {
