@@ -70,6 +70,7 @@ export function buildChatMessages(messages: MessageRecord[], currentUserId: stri
     author: message.sender_id === currentUserId ? 'Tu' : profileDisplayName(message.profile, undefined, useAdminAlias),
     content: message.body?.trim() || attachmentFallback(message),
     timestamp: formatRelativeTime(message.created_at),
+    createdAt: message.created_at,
     direction: message.sender_id === currentUserId ? 'outgoing' : 'incoming',
     canDelete: message.sender_id === currentUserId,
     attachmentLabel: message.attachment_name || undefined,

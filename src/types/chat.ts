@@ -23,6 +23,7 @@ export type ChatMessage = {
   author: string;
   content: string;
   timestamp: string;
+  createdAt: string;
   direction: MessageDirection;
   status?: MessageStatus;
   attachmentLabel?: string;

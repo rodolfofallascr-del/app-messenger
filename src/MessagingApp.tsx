@@ -567,6 +567,56 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId, Boolean(adminMode))])
       ) as Record<string, ChatMessage[]>;
 
+      // Admin web: compute read-receipts for outgoing messages using the other member's chat_read_markers.
+      // This is best-effort and does not affect mobile or non-admin flows.
+      if (Platform.OS === 'web' && adminMode) {
+        try {
+          const supabase = getSupabaseClient();
+          const chatIds = scopedRows.map((row) => row.id);
+
+          if (chatIds.length > 0) {
+            const { data: otherMarkers, error: markersError } = await supabase
+              .from('chat_read_markers')
+              .select('chat_id,user_id,last_read_message_at')
+              .in('chat_id', chatIds)
+              .neq('user_id', userId);
+
+            if (!markersError && otherMarkers) {
+              const otherReadAtByChat = (otherMarkers as Array<{ chat_id: string; last_read_message_at: string | null }>).reduce(
+                (acc, row) => {
+                  if (!row.chat_id || !row.last_read_message_at) return acc;
+                  if (!acc[row.chat_id] || acc[row.chat_id] < row.last_read_message_at) {
+                    acc[row.chat_id] = row.last_read_message_at;
+                  }
+                  return acc;
+                },
+                {} as Record<string, string>
+              );
+
+              for (const [chatId, messages] of Object.entries(nextMessages)) {
+                const readAt = otherReadAtByChat[chatId] ?? '';
+                if (!readAt) continue;
+
+                nextMessages[chatId] = messages.map((message) => {
+                  if (message.direction !== 'outgoing') return message;
+                  if (message.id.startsWith('local-')) return message;
+
+                  // If the other user has read past this message timestamp, mark as read.
+                  if (message.createdAt && message.createdAt <= readAt) {
+                    return { ...message, status: 'leido' };
+                  }
+
+                  // Otherwise, it was delivered (stored) but not yet read.
+                  return { ...message, status: 'entregado' };
+                });
+              }
+            }
+          }
+        } catch {
+          // Best-effort only: if RLS/policies prevent reading other markers, keep current behavior.
+        }
+      }
+
       const nextUnreadCounts = Object.fromEntries(nextChats.map((chat) => [chat.id, chat.unreadCount ?? 0])) as Record<
         string,
         number
@@ -1092,6 +1142,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       author: 'Tu',
       content: outgoingBody || (pendingAttachment?.type === 'image' ? 'Imagen adjunta' : 'Archivo adjunto'),
       timestamp: 'Ahora',
+      createdAt: new Date().toISOString(),
       direction: 'outgoing',
       status: 'sending',
       attachmentLabel: pendingAttachment?.name,
