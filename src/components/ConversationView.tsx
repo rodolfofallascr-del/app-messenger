@@ -318,7 +318,7 @@ export function ConversationView({
               ) : null}
               {Platform.OS === 'web' && !compact && isPinned ? (
                 <View style={[styles.flagBadge, styles.flagBadgePinned, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={[styles.flagBadgeText, styles.flagBadgePinText]}>📎</Text>
+                  <Text style={[styles.flagBadgeText, styles.flagBadgePinText]}>📌</Text>
                 </View>
               ) : null}
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
@@ -363,7 +363,7 @@ export function ConversationView({
                     ✓✓
                   </Text>
                 ) : null}
-                {isPinned ? '  📎' : ''}
+                {isPinned ? '  📌' : ''}
                 {isStarred ? '  ★' : ''}
               </Text>
             </Pressable>
