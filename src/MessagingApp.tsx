@@ -581,6 +581,10 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
               .in('chat_id', chatIds)
               .neq('user_id', userId);
 
+            if (markersError) {
+              console.warn('read-receipts: unable to load client read markers', markersError);
+            }
+
             if (!markersError && otherMarkers) {
               const otherReadAtByChat = (otherMarkers as Array<{ chat_id: string; last_read_message_at: string | null }>).reduce(
                 (acc, row) => {

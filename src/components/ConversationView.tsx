@@ -357,7 +357,12 @@ export function ConversationView({
               ) : null}
               <Text style={styles.timestamp}>
                 {message.timestamp}
-                {isOutgoing && message.status ? ' - ' + message.status : ''}
+                {isOutgoing && message.status ? (
+                  <Text style={message.status === 'leido' ? styles.readReceiptRead : styles.readReceiptDelivered}>
+                    {' '}
+                    ✓✓
+                  </Text>
+                ) : null}
                 {isPinned ? '  📎' : ''}
                 {isStarred ? '  ★' : ''}
               </Text>
@@ -744,6 +749,16 @@ const styles = StyleSheet.create({
     color: palette.mutedText,
     fontSize: 11,
     marginTop: 2,
+  },
+  readReceiptDelivered: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  readReceiptRead: {
+    color: '#60a5fa',
+    fontSize: 11,
+    fontWeight: '800',
   },
   deleteMessageButton: {
     alignSelf: 'flex-end',
