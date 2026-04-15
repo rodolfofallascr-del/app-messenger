@@ -46,6 +46,7 @@ export function ConversationView({
   const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; outgoing: boolean } | null>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const hoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -104,6 +105,13 @@ export function ConversationView({
     setActiveImageUrl(null);
     setImageZoom(1);
     setImageOffset({ x: 0, y: 0 });
+  }, []);
+
+  const cancelHoverHide = useCallback(() => {
+    if (hoverHideTimerRef.current) {
+      clearTimeout(hoverHideTimerRef.current);
+      hoverHideTimerRef.current = null;
+    }
   }, []);
 
   const closeMenu = useCallback(() => setActiveMenuMessageId(null), []);
@@ -258,11 +266,16 @@ export function ConversationView({
               style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}
               onHoverIn={() => {
                 if (!allowWebMenu) return;
+                cancelHoverHide();
                 setHoveredMessageId(message.id);
               }}
               onHoverOut={() => {
                 if (!allowWebMenu) return;
-                setHoveredMessageId((current) => (current === message.id ? null : current));
+                cancelHoverHide();
+                // Small delay so the user can move the mouse from the bubble to the trigger without it disappearing.
+                hoverHideTimerRef.current = setTimeout(() => {
+                  setHoveredMessageId((current) => (current === message.id ? null : current));
+                }, 200);
               }}
               onLongPress={() => {
                 if (!allowLongPressDelete) {
@@ -280,6 +293,19 @@ export function ConversationView({
                 <Pressable
                   style={styles.menuTrigger}
                   onPress={(event) => openMenuAtEvent(message.id, isOutgoing, event)}
+                  onHoverIn={() => {
+                    if (!allowWebMenu) return;
+                    cancelHoverHide();
+                    setHoveredMessageId(message.id);
+                  }}
+                  onHoverOut={() => {
+                    if (!allowWebMenu) return;
+                    cancelHoverHide();
+                    hoverHideTimerRef.current = setTimeout(() => {
+                      // Keep visible if menu is open.
+                      setHoveredMessageId((current) => (activeMenuMessageId === message.id ? message.id : current === message.id ? null : current));
+                    }, 200);
+                  }}
                   hitSlop={10}
                 >
                   <Text style={styles.menuTriggerText}>▾</Text>
