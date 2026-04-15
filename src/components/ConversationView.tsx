@@ -413,6 +413,8 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '78%',
+    minWidth: 0,
+    flexShrink: 1,
     paddingHorizontal: 15,
     paddingVertical: 13,
     borderRadius: 22,
@@ -446,7 +448,7 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     flexShrink: 1,
     flexWrap: 'wrap',
-    width: '100%',
+    minWidth: 0,
   },
   attachmentImage: {
     width: 260,
