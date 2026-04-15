@@ -4,6 +4,10 @@ import { getAdminTagPresentation } from '../lib/adminTags';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
 
+function comingSoon(label: string) {
+  Alert.alert(label, 'Disponible proximamente.');
+}
+
 type ConversationViewProps = {
   chat: ChatThread;
   messages: ChatMessage[];
@@ -207,6 +211,7 @@ export function ConversationView({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+        onScrollBeginDrag={closeMenu}
       >
         {messages.map((message) => {
           const isOutgoing = message.direction === 'outgoing';
@@ -240,7 +245,7 @@ export function ConversationView({
                   onPress={() => setActiveMenuMessageId((current) => (current === message.id ? null : message.id))}
                   hitSlop={10}
                 >
-                  <Text style={styles.menuTriggerText}>▾</Text>
+                  <Text style={styles.menuTriggerText}>⋮</Text>
                 </Pressable>
               ) : null}
               {allowWebMenu && isMenuOpen ? (
@@ -272,6 +277,15 @@ export function ConversationView({
                   >
                     <Text style={styles.menuItemText}>Copiar</Text>
                   </Pressable>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      comingSoon('Reaccionar');
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Reaccionar</Text>
+                  </Pressable>
                   {message.attachmentUrl ? (
                     <Pressable
                       style={styles.menuItem}
@@ -283,6 +297,42 @@ export function ConversationView({
                       <Text style={styles.menuItemText}>Descargar</Text>
                     </Pressable>
                   ) : null}
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      comingSoon('Reenviar');
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Reenviar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      comingSoon('Fijar');
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Fijar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      comingSoon('Destacar');
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Destacar</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      comingSoon('No destacar');
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>No destacar</Text>
+                  </Pressable>
                   {message.canDelete && onDeleteMessage ? (
                     <Pressable
                       style={styles.menuItem}
@@ -312,17 +362,6 @@ export function ConversationView({
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
                   <Text style={styles.attachmentHint}>{message.attachmentType === 'image' ? 'Abrir imagen' : 'Abrir archivo'}</Text>
-                </Pressable>
-              ) : null}
-              {Platform.OS === 'web' && message.canDelete && onDeleteMessage ? (
-                <Pressable
-                  onPress={() => onDeleteMessage(message.id)}
-                  style={styles.deleteMessageButton}
-                  disabled={deletingMessageId === message.id}
-                >
-                  <Text style={styles.deleteMessageText}>
-                    {deletingMessageId === message.id ? 'Eliminando...' : 'Eliminar'}
-                  </Text>
                 </Pressable>
               ) : null}
               {Platform.OS !== 'web' && allowMobileDelete ? (
