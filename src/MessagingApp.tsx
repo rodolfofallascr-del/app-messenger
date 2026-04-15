@@ -567,9 +567,10 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId, Boolean(adminMode))])
       ) as Record<string, ChatMessage[]>;
 
-      // Admin web: compute read-receipts for outgoing messages using the other member's chat_read_markers.
-      // This is best-effort and does not affect mobile or non-admin flows.
-      if (Platform.OS === 'web' && adminMode) {
+      // Compute read-receipts for outgoing messages using the other member's chat_read_markers.
+      // Best-effort: if policies block reading other markers, we keep the existing behavior.
+      // Applied for admin web and also mobile (clients can see when the admin read their messages).
+      if (adminMode || Platform.OS !== 'web') {
         try {
           const supabase = getSupabaseClient();
           const chatIds = scopedRows.map((row) => row.id);
@@ -599,19 +600,17 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
               for (const [chatId, messages] of Object.entries(nextMessages)) {
                 const readAt = otherReadAtByChat[chatId] ?? '';
-                if (!readAt) continue;
 
                 nextMessages[chatId] = messages.map((message) => {
                   if (message.direction !== 'outgoing') return message;
                   if (message.id.startsWith('local-')) return message;
 
-                  // If the other user has read past this message timestamp, mark as read.
-                  if (message.createdAt && message.createdAt <= readAt) {
+                  // If we can compare against the other member marker, mark read; otherwise show delivered.
+                  if (readAt && message.createdAt && message.createdAt <= readAt) {
                     return { ...message, status: 'leido' };
                   }
 
-                  // Otherwise, it was delivered (stored) but not yet read.
-                  return { ...message, status: 'entregado' };
+                  return { ...message, status: message.status ?? 'entregado' };
                 });
               }
             }

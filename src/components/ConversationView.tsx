@@ -47,6 +47,7 @@ export function ConversationView({
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; outgoing: boolean } | null>(null);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const hoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -114,7 +115,10 @@ export function ConversationView({
     }
   }, []);
 
-  const closeMenu = useCallback(() => setActiveMenuMessageId(null), []);
+  const closeMenu = useCallback(() => {
+    setActiveMenuMessageId(null);
+    setMobileMenuVisible(false);
+  }, []);
 
   const openMenuAtEvent = useCallback((messageId: string, outgoing: boolean, event: any) => {
     if (Platform.OS !== 'web') {
@@ -278,14 +282,12 @@ export function ConversationView({
                 }, 200);
               }}
               onLongPress={() => {
-                if (!allowLongPressDelete) {
+                if (Platform.OS === 'web') {
                   return;
                 }
 
-                Alert.alert('Eliminar mensaje', 'Quieres eliminar este mensaje para todos?', [
-                  { text: 'Cancelar', style: 'cancel' },
-                  { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteMessage?.(message.id) },
-                ]);
+                setActiveMenuMessageId(message.id);
+                setMobileMenuVisible(true);
               }}
               delayLongPress={250}
             >
@@ -339,22 +341,6 @@ export function ConversationView({
                   <Text style={styles.attachmentHint}>{message.attachmentType === 'image' ? 'Abrir imagen' : 'Abrir archivo'}</Text>
                 </Pressable>
               ) : null}
-              {Platform.OS !== 'web' && allowMobileDelete ? (
-                <Pressable
-                  onPress={() => {
-                    Alert.alert('Eliminar mensaje', 'Quieres eliminar este mensaje para todos?', [
-                      { text: 'Cancelar', style: 'cancel' },
-                      { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteMessage?.(message.id) },
-                    ]);
-                  }}
-                  style={styles.deleteMessageButton}
-                  disabled={deletingMessageId === message.id}
-                >
-                  <Text style={styles.deleteMessageText}>
-                    {deletingMessageId === message.id ? 'Eliminando...' : 'Eliminar'}
-                  </Text>
-                </Pressable>
-              ) : null}
               <Text style={styles.timestamp}>
                 {message.timestamp}
                 {isOutgoing && message.status ? (
@@ -370,6 +356,69 @@ export function ConversationView({
           );
         })}
       </ScrollView>
+
+      {Platform.OS !== 'web' && mobileMenuVisible && activeMenuMessageId ? (
+        <Modal transparent animationType="fade" visible onRequestClose={closeMenu}>
+          <Pressable style={styles.menuBackdrop} onPress={closeMenu}>
+            {(() => {
+              const message = messages.find((value) => value.id === activeMenuMessageId) ?? null;
+              if (!message) return null;
+              const isOutgoing = message.direction === 'outgoing';
+              const canDelete = Boolean(isOutgoing && message.canDelete && onDeleteMessage);
+
+              return (
+                <View style={styles.mobileMenuSheet}>
+                  <View style={styles.menuCardFloating}>
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        onReplyMessage?.(message);
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>Responder</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        void handleCopy(message.content ?? '');
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>Copiar</Text>
+                    </Pressable>
+                    {message.attachmentUrl ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          void handleOpenAttachment(message.attachmentUrl as string, message.attachmentType === 'image' ? 'image' : 'file');
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={styles.menuItemText}>Descargar</Text>
+                      </Pressable>
+                    ) : null}
+                    {canDelete ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          Alert.alert('Eliminar mensaje', 'Quieres eliminar este mensaje para todos?', [
+                            { text: 'Cancelar', style: 'cancel' },
+                            { text: 'Eliminar', style: 'destructive', onPress: () => onDeleteMessage?.(message.id) },
+                          ]);
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={[styles.menuItemText, styles.menuItemDanger]}>Eliminar</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              );
+            })()}
+          </Pressable>
+        </Modal>
+      ) : null}
 
       {Platform.OS === 'web' && !compact && activeMenuMessageId ? (
         <Modal transparent animationType="fade" visible onRequestClose={closeMenu}>
@@ -825,6 +874,11 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 10 },
     elevation: 10,
+  },
+  mobileMenuSheet: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 14,
   },
   menuItem: {
     paddingVertical: 10,
