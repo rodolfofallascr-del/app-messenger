@@ -12,11 +12,22 @@ type ConversationViewProps = {
   onBack?: () => void;
   deletingMessageId?: string | null;
   onDeleteMessage?: (messageId: string) => void;
+  onReplyMessage?: (message: ChatMessage) => void;
 };
 
-export function ConversationView({ chat, messages, compact, showBackButton, onBack, deletingMessageId, onDeleteMessage }: ConversationViewProps) {
+export function ConversationView({
+  chat,
+  messages,
+  compact,
+  showBackButton,
+  onBack,
+  deletingMessageId,
+  onDeleteMessage,
+  onReplyMessage,
+}: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
+  const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -75,6 +86,21 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
     setActiveImageUrl(null);
     setImageZoom(1);
     setImageOffset({ x: 0, y: 0 });
+  }, []);
+
+  const closeMenu = useCallback(() => setActiveMenuMessageId(null), []);
+
+  const handleCopy = useCallback(async (value: string) => {
+    const text = (value ?? '').trim();
+    if (!text) return;
+
+    try {
+      if (Platform.OS === 'web' && globalThis.navigator?.clipboard?.writeText) {
+        await globalThis.navigator.clipboard.writeText(text);
+      }
+    } catch {
+      // Best effort.
+    }
   }, []);
 
   const handleZoomIn = useCallback(() => {
@@ -189,6 +215,8 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
           const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
           const allowLongPressDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
           const allowMobileDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
+          const allowWebMenu = Platform.OS === 'web' && !compact;
+          const isMenuOpen = activeMenuMessageId === message.id;
 
           return (
             <Pressable
@@ -206,6 +234,68 @@ export function ConversationView({ chat, messages, compact, showBackButton, onBa
               }}
               delayLongPress={250}
             >
+              {allowWebMenu ? (
+                <Pressable
+                  style={[styles.menuTrigger, isOutgoing ? styles.menuTriggerOutgoing : styles.menuTriggerIncoming]}
+                  onPress={() => setActiveMenuMessageId((current) => (current === message.id ? null : message.id))}
+                  hitSlop={10}
+                >
+                  <Text style={styles.menuTriggerText}>▾</Text>
+                </Pressable>
+              ) : null}
+              {allowWebMenu && isMenuOpen ? (
+                <View style={[styles.menuCard, isOutgoing ? styles.menuCardOutgoing : styles.menuCardIncoming]}>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      Alert.alert('Info del mensaje', `${message.author}\n${message.timestamp}`);
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Info. del mensaje</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      onReplyMessage?.(message);
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Responder</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.menuItem}
+                    onPress={() => {
+                      void handleCopy(message.content ?? '');
+                      closeMenu();
+                    }}
+                  >
+                    <Text style={styles.menuItemText}>Copiar</Text>
+                  </Pressable>
+                  {message.attachmentUrl ? (
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        void handleOpenAttachment(message.attachmentUrl as string, message.attachmentType === 'image' ? 'image' : 'file');
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={styles.menuItemText}>Descargar</Text>
+                    </Pressable>
+                  ) : null}
+                  {message.canDelete && onDeleteMessage ? (
+                    <Pressable
+                      style={styles.menuItem}
+                      onPress={() => {
+                        onDeleteMessage(message.id);
+                        closeMenu();
+                      }}
+                    >
+                      <Text style={[styles.menuItemText, styles.menuItemDanger]}>Eliminar</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ) : null}
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
               {hasVisibleText ? <Text style={styles.content}>{message.content}</Text> : null}
               {isImageAttachment ? (
@@ -555,5 +645,54 @@ const styles = StyleSheet.create({
     color: '#fecaca',
     fontSize: 11,
     fontWeight: '800',
+  },
+  menuTrigger: {
+    position: 'absolute',
+    top: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(2,6,23,0.22)',
+    zIndex: 10,
+  },
+  menuTriggerIncoming: {
+    right: 8,
+  },
+  menuTriggerOutgoing: {
+    left: 8,
+  },
+  menuTriggerText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  menuCard: {
+    position: 'absolute',
+    top: 40,
+    minWidth: 190,
+    backgroundColor: '#0b1220',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    paddingVertical: 6,
+    zIndex: 20,
+  },
+  menuCardIncoming: {
+    right: 8,
+  },
+  menuCardOutgoing: {
+    left: 8,
+  },
+  menuItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  menuItemText: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  menuItemDanger: {
+    color: '#f87171',
   },
 });

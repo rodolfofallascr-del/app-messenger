@@ -1306,6 +1306,19 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
             compact={!isDesktop}
             deletingMessageId={deletingMessageId}
             onDeleteMessage={handleDeleteMessage}
+            onReplyMessage={(message) => {
+              if (!selectedChat) return;
+              const snippet = (message.content ?? '').trim();
+              const quote = snippet ? `↩ ${message.author}: ${snippet}\n` : `↩ ${message.author}\n`;
+              setDrafts((previous) => ({
+                ...previous,
+                [selectedChat.id]: `${quote}${previous[selectedChat.id] ?? ''}`,
+              }));
+              setComposerFocusSignal((value) => value + 1);
+              if (!isDesktop) {
+                setMobileView('conversation');
+              }
+            }}
           />
           <MessageComposer
             value={currentDraft}
