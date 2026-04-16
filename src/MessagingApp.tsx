@@ -23,7 +23,7 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { adminClearChatMessages, createChat, deleteOwnMessage, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, notifyNewMessage, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker, upsertPushToken } from './lib/chatService';
+import { adminClearChatMessages, createChat, deleteOwnMessage, fetchAdminChatClears, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, notifyNewMessage, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker, upsertPushToken } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
@@ -520,9 +520,10 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
     }
 
     try {
-      const [{ userId, rows }, serverReadMarkers] = await Promise.all([
+      const [{ userId, rows }, serverReadMarkers, adminClears] = await Promise.all([
         fetchChatRowsForCurrentUser(),
         fetchChatReadMarkers(),
+        Platform.OS === 'web' && adminMode ? fetchAdminChatClears() : Promise.resolve({}),
       ]);
       const scopedRows = clientMode
         ? rows.filter((row) =>
@@ -532,12 +533,24 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
             row.members.every((member) => member.user_id === userId || member.profile?.role === 'admin')
           )
         : rows;
+
+      // Admin-only "clear chat" should not delete messages for the client.
+      // We implement it as a per-admin cleared_at marker and filter messages on the admin web UI.
+      const clearedAtByChat = (Platform.OS === 'web' && adminMode ? (adminClears as Record<string, string>) : {}) ?? {};
+      const filteredRows =
+        Platform.OS === 'web' && adminMode
+          ? scopedRows.map((row) => {
+              const clearedAt = clearedAtByChat[row.id] ?? '';
+              if (!clearedAt) return row;
+              return { ...row, messages: row.messages.filter((message) => message.created_at > clearedAt) };
+            })
+          : scopedRows;
       const effectiveReadMarkers = mergeReadMarkers(readMarkersRef.current, serverReadMarkers);
       if (JSON.stringify(effectiveReadMarkers) !== JSON.stringify(readMarkersRef.current)) {
         persistReadMarkers(effectiveReadMarkers);
       }
       const nextLatestIncomingByChat = Object.fromEntries(
-        scopedRows.map((row) => {
+        filteredRows.map((row) => {
           const latestIncoming = [...row.messages].reverse().find((message) => message.sender_id !== userId);
           return [row.id, latestIncoming?.created_at ?? ''];
         })
@@ -548,7 +561,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         markChatAsRead(activeChatId, nextLatestIncomingByChat[activeChatId]);
       }
 
-      const nextChats = scopedRows.map((row) => {
+      const nextChats = filteredRows.map((row) => {
         const lastMessage = row.messages[row.messages.length - 1] ?? null;
         const unreadCount = row.messages.filter(
           (message) => message.sender_id !== userId && (!effectiveReadMarkers[row.id] || message.created_at > effectiveReadMarkers[row.id])
@@ -565,7 +578,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       });
 
       const nextMessages = Object.fromEntries(
-        scopedRows.map((row) => [row.id, buildChatMessages(row.messages, userId, Boolean(adminMode))])
+        filteredRows.map((row) => [row.id, buildChatMessages(row.messages, userId, Boolean(adminMode))])
       ) as Record<string, ChatMessage[]>;
 
       // Compute read-receipts for outgoing messages using the other member's chat_read_markers.

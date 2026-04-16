@@ -339,6 +339,37 @@ export async function adminClearChatMessages(chatId: string) {
   return (data ?? 0) as number;
 }
 
+export async function fetchAdminChatClears() {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError) {
+    throw authError;
+  }
+
+  if (!user) {
+    throw new Error('No hay un usuario autenticado.');
+  }
+
+  const { data, error } = await supabase
+    .from('admin_chat_clears')
+    .select('chat_id,cleared_at')
+    .eq('admin_id', user.id);
+
+  if (error) {
+    // If the table is not installed yet, treat as no clears.
+    if ((error as any)?.code === '42P01' || String((error as any)?.message ?? '').includes('admin_chat_clears')) {
+      return {} as Record<string, string>;
+    }
+    throw error;
+  }
+
+  return Object.fromEntries((data ?? []).map((row) => [row.chat_id, row.cleared_at])) as Record<string, string>;
+}
+
 export async function sendAttachmentMessage(params: {
   chatId: string;
   senderId: string;

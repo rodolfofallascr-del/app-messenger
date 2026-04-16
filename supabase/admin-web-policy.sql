@@ -185,6 +185,41 @@ $$;
 grant execute on function public.admin_set_user_tags(uuid, text[]) to authenticated;
 
 -- Clear messages of a single chat (keep chat + members). Admin-only.
+-- Admin-only clear is implemented as a per-admin "cleared_at" marker, so clients do not lose history.
+create table if not exists public.admin_chat_clears (
+  admin_id uuid not null references public.profiles (id) on delete cascade,
+  chat_id uuid not null references public.chats (id) on delete cascade,
+  cleared_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  primary key (admin_id, chat_id)
+);
+
+alter table public.admin_chat_clears enable row level security;
+
+drop policy if exists "admins manage own chat clears" on public.admin_chat_clears;
+create policy "admins manage own chat clears"
+on public.admin_chat_clears
+for all
+to authenticated
+using (public.is_current_user_admin() and admin_id = auth.uid())
+with check (public.is_current_user_admin() and admin_id = auth.uid());
+
+create or replace function public.touch_admin_chat_clears_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = timezone('utc', now());
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_admin_chat_clears_touch on public.admin_chat_clears;
+create trigger trg_admin_chat_clears_touch
+before update on public.admin_chat_clears
+for each row
+execute function public.touch_admin_chat_clears_updated_at();
+
 create or replace function public.admin_clear_chat_messages(target_chat_id uuid)
 returns integer
 language plpgsql
@@ -193,7 +228,6 @@ set search_path = public
 as $$
 declare
   requester public.profiles;
-  deleted_count integer := 0;
 begin
   select *
   into requester
@@ -214,12 +248,12 @@ begin
     raise exception 'No tienes permisos para vaciar esta conversacion.';
   end if;
 
-  delete from public.messages
-  where chat_id = target_chat_id;
+  insert into public.admin_chat_clears (admin_id, chat_id, cleared_at)
+  values (auth.uid(), target_chat_id, timezone('utc', now()))
+  on conflict (admin_id, chat_id)
+  do update set cleared_at = excluded.cleared_at;
 
-  get diagnostics deleted_count = row_count;
-
-  return deleted_count;
+  return 1;
 end;
 $$;
 
