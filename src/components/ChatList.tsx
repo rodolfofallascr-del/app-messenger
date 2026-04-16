@@ -1,4 +1,4 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Platform, StyleSheet, Text, View } from 'react-native';
 import { getAdminTagPresentation } from '../lib/adminTags';
 import { palette } from '../theme/palette';
 import { ChatThread } from '../types/chat';
@@ -19,53 +19,60 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
         const hasUnread = chat.unreadCount > 0;
 
         return (
-          <Pressable
-            key={chat.id}
-            onPress={() => onSelect(chat.id)}
-            style={[styles.item, isActive && styles.itemActive, hasUnread && !isActive && styles.itemUnread]}
-          >
-            <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}> 
-              <Text style={styles.avatarText}>{chat.name.slice(0, 1)}</Text>
-            </View>
-            <View style={styles.content}>
-              <View style={styles.row}>
-                <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>{chat.name}</Text>
-                <Text style={[styles.time, hasUnread && styles.timeUnread]}>{chat.lastActivity}</Text>
+          <View key={chat.id} style={styles.itemWrap}>
+            <Pressable
+              onPress={() => onSelect(chat.id)}
+              style={[styles.item, isActive && styles.itemActive, hasUnread && !isActive && styles.itemUnread]}
+            >
+              <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}>
+                <Text style={styles.avatarText}>{chat.name.slice(0, 1)}</Text>
               </View>
-              {chat.adminTags?.length ? (
-                <View style={styles.tagsRow}>
-                  {chat.adminTags.slice(0, 3).map((tag) => {
-                    const visual = getAdminTagPresentation(tag);
-                    return (
-                    <View key={`${chat.id}-${tag}`} style={[styles.tagChip, { borderColor: visual.color, backgroundColor: `${visual.color}22` }]}>
-                      <Text style={[styles.tagSymbol, { color: visual.color }]}>{visual.symbol}</Text>
-                      <Text style={styles.tagText} numberOfLines={1}>{tag}</Text>
-                    </View>
-                  )})}
+              <View style={styles.content}>
+                <View style={styles.row}>
+                  <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
+                    {chat.name}
+                  </Text>
+                  <Text style={[styles.time, hasUnread && styles.timeUnread]}>{chat.lastActivity}</Text>
+                </View>
+                {chat.adminTags?.length ? (
+                  <View style={styles.tagsRow}>
+                    {chat.adminTags.slice(0, 3).map((tag) => {
+                      const visual = getAdminTagPresentation(tag);
+                      return (
+                        <View
+                          key={`${chat.id}-${tag}`}
+                          style={[styles.tagChip, { borderColor: visual.color, backgroundColor: `${visual.color}22` }]}
+                        >
+                          <Text style={[styles.tagSymbol, { color: visual.color }]}>{visual.symbol}</Text>
+                          <Text style={styles.tagText} numberOfLines={1}>
+                            {tag}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                ) : null}
+                <Text style={[styles.message, hasUnread && styles.messageUnread]} numberOfLines={1}>
+                  {chat.lastMessage}
+                </Text>
+              </View>
+              {hasUnread ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{chat.unreadCount}</Text>
                 </View>
               ) : null}
-              <Text style={[styles.message, hasUnread && styles.messageUnread]} numberOfLines={1}>
-                {chat.lastMessage}
-              </Text>
-            </View>
+            </Pressable>
+
             {showClearButton ? (
               <Pressable
-                onPress={(event) => {
-                  event?.stopPropagation?.();
-                  onClearChat?.(chat.id);
-                }}
-                hitSlop={10}
+                onPress={() => onClearChat?.(chat.id)}
+                hitSlop={12}
                 style={styles.clearButton}
               >
                 <Text style={styles.clearButtonText}>🧹</Text>
               </Pressable>
             ) : null}
-            {hasUnread ? (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{chat.unreadCount}</Text>
-              </View>
-            ) : null}
-          </Pressable>
+          </View>
         );
       })}
     </View>
@@ -75,6 +82,9 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
 const styles = StyleSheet.create({
   list: {
     gap: 8,
+  },
+  itemWrap: {
+    position: 'relative',
   },
   item: {
     flexDirection: 'row',
@@ -190,6 +200,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   clearButton: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
     width: 30,
     height: 30,
     borderRadius: 999,
@@ -198,7 +211,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.18)',
-    marginTop: 8,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null),
   },
   clearButtonText: {
     fontSize: 14,
