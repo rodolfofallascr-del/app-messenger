@@ -20,6 +20,22 @@ for select
 to authenticated
 using (auth.uid() = user_id);
 
+-- Allow chat members to view read markers for chats they belong to.
+-- This enables WhatsApp-like read receipts (e.g., client sees when admin read their message).
+drop policy if exists "members can view read markers for their chats" on public.chat_read_markers;
+create policy "members can view read markers for their chats"
+on public.chat_read_markers
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.chat_members cm
+    where cm.chat_id = chat_read_markers.chat_id
+      and cm.user_id = auth.uid()
+  )
+);
+
 create policy "users can manage their own read markers"
 on public.chat_read_markers
 for all
