@@ -1089,22 +1089,92 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   };
 
   const handlePickImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-    });
+    const attachFromAsset = (asset: ImagePicker.ImagePickerAsset) => {
+      const mimeType = asset.mimeType || 'application/octet-stream';
+      const isImage = mimeType.startsWith('image/');
+      const isVideo = mimeType.startsWith('video/');
 
-    if (result.canceled || !result.assets[0]) {
+      replacePendingAttachment({
+        uri: asset.uri,
+        name:
+          asset.fileName ||
+          (isImage ? `imagen-${Date.now()}.jpg` : isVideo ? `video-${Date.now()}.mp4` : `archivo-${Date.now()}`),
+        mimeType,
+        type: isImage ? 'image' : 'file',
+      });
+    };
+
+    const pickFromLibrary = async () => {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos permiso para acceder a tu galeria.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images', 'videos'],
+        quality: 0.8,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      attachFromAsset(result.assets[0]);
+    };
+
+    const capturePhoto = async () => {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos permiso para usar la camara.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      attachFromAsset(result.assets[0]);
+    };
+
+    const captureVideo = async () => {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permiso requerido', 'Necesitamos permiso para usar la camara.');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['videos'],
+        videoMaxDuration: 60,
+        quality: 1,
+      });
+
+      if (result.canceled || !result.assets[0]) {
+        return;
+      }
+
+      attachFromAsset(result.assets[0]);
+    };
+
+    // Web: keep it simple (library images/videos).
+    if (Platform.OS === 'web') {
+      await pickFromLibrary();
       return;
     }
 
-    const asset = result.assets[0];
-    replacePendingAttachment({
-      uri: asset.uri,
-      name: asset.fileName || `imagen-${Date.now()}.jpg`,
-      mimeType: asset.mimeType || 'image/jpeg',
-      type: 'image',
-    });
+    // Mobile: WhatsApp-like choices.
+    Alert.alert('Adjuntar', 'Elige una opcion', [
+      { text: 'Camara (Foto)', onPress: () => void capturePhoto() },
+      { text: 'Camara (Video)', onPress: () => void captureVideo() },
+      { text: 'Galeria', onPress: () => void pickFromLibrary() },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
   };
 
   const handlePickFile = async () => {
