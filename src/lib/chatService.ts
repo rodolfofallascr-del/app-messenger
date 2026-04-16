@@ -328,6 +328,17 @@ export async function deleteOwnMessage(messageId: string, currentUserId: string)
   }
 }
 
+export async function adminClearChatMessages(chatId: string) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.rpc('admin_clear_chat_messages', { target_chat_id: chatId });
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? 0) as number;
+}
+
 export async function sendAttachmentMessage(params: {
   chatId: string;
   senderId: string;

@@ -6,6 +6,7 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -22,7 +23,7 @@ import { ConversationView } from './components/ConversationView';
 import { CreateChatCard } from './components/CreateChatCard';
 import { MessageComposer } from './components/MessageComposer';
 import { buildChatMessages, buildChatThread } from './lib/chatMappers';
-import { createChat, deleteOwnMessage, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, notifyNewMessage, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker, upsertPushToken } from './lib/chatService';
+import { adminClearChatMessages, createChat, deleteOwnMessage, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, notifyNewMessage, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker, upsertPushToken } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
@@ -1124,6 +1125,43 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
     }
   };
 
+  const handleClearChat = useCallback(
+    async (chatId: string) => {
+      if (Platform.OS !== 'web' || !adminMode) {
+        return;
+      }
+
+      const chat = liveChats.find((value) => value.id === chatId);
+      const label = chat?.name || 'esta conversacion';
+
+      // Confirm destructive action.
+      Alert.alert('Vaciar conversacion', `Quieres eliminar todos los mensajes de ${label}?\n\nEl usuario se mantiene, solo se borra el historial en el panel.`, [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Vaciar',
+          style: 'destructive',
+          onPress: () => {
+            void (async () => {
+              setLoadingError(null);
+              try {
+                await adminClearChatMessages(chatId);
+                setLiveMessages((previous) => ({ ...previous, [chatId]: [] }));
+                await loadChats({ silent: true });
+              } catch (error) {
+                setLoadingError(
+                  error instanceof Error
+                    ? error.message
+                    : 'No fue posible vaciar la conversacion. Asegurate de correr el SQL admin_clear_chat_messages en Supabase.'
+                );
+              }
+            })();
+          },
+        },
+      ]);
+    },
+    [adminMode, liveChats, loadChats]
+  );
+
   const handleSend = async () => {
     if (!selectedChat) {
       return;
@@ -1483,7 +1521,13 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         </View>
       ) : (
         <ScrollView style={styles.chatListScroller} showsVerticalScrollIndicator={false} contentContainerStyle={styles.chatListContent}>
-          <ChatList chats={visibleChats} selectedChatId={selectedChat?.id ?? ''} onSelect={handleSelectChat} />
+          <ChatList
+            chats={visibleChats}
+            selectedChatId={selectedChat?.id ?? ''}
+            onSelect={handleSelectChat}
+            showClearButton={Boolean(adminMode && Platform.OS === 'web')}
+            onClearChat={handleClearChat}
+          />
         </ScrollView>
       )}
     </View>

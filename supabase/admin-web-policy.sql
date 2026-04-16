@@ -184,6 +184,47 @@ $$;
 
 grant execute on function public.admin_set_user_tags(uuid, text[]) to authenticated;
 
+-- Clear messages of a single chat (keep chat + members). Admin-only.
+create or replace function public.admin_clear_chat_messages(target_chat_id uuid)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requester public.profiles;
+  deleted_count integer := 0;
+begin
+  select *
+  into requester
+  from public.profiles
+  where id = auth.uid();
+
+  if requester.id is null or requester.role <> 'admin' or requester.status <> 'approved' then
+    raise exception 'Solo un administrador aprobado puede vaciar conversaciones.';
+  end if;
+
+  -- Only allow clearing chats where the admin is a member (avoid wiping arbitrary chats).
+  if not exists (
+    select 1
+    from public.chat_members cm
+    where cm.chat_id = target_chat_id
+      and cm.user_id = auth.uid()
+  ) then
+    raise exception 'No tienes permisos para vaciar esta conversacion.';
+  end if;
+
+  delete from public.messages
+  where chat_id = target_chat_id;
+
+  get diagnostics deleted_count = row_count;
+
+  return deleted_count;
+end;
+$$;
+
+grant execute on function public.admin_clear_chat_messages(uuid) to authenticated;
+
 drop policy if exists "admins can manage all profiles" on public.profiles;
 create policy "admins can manage all profiles"
 on public.profiles

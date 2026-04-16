@@ -7,9 +7,11 @@ type ChatListProps = {
   chats: ChatThread[];
   selectedChatId: string;
   onSelect: (chatId: string) => void;
+  showClearButton?: boolean;
+  onClearChat?: (chatId: string) => void;
 };
 
-export function ChatList({ chats, selectedChatId, onSelect }: ChatListProps) {
+export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onClearChat }: ChatListProps) {
   return (
     <View style={styles.list}>
       {chats.map((chat) => {
@@ -46,6 +48,18 @@ export function ChatList({ chats, selectedChatId, onSelect }: ChatListProps) {
                 {chat.lastMessage}
               </Text>
             </View>
+            {showClearButton ? (
+              <Pressable
+                onPress={(event) => {
+                  event?.stopPropagation?.();
+                  onClearChat?.(chat.id);
+                }}
+                hitSlop={10}
+                style={styles.clearButton}
+              >
+                <Text style={styles.clearButtonText}>🧹</Text>
+              </Pressable>
+            ) : null}
             {hasUnread ? (
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>{chat.unreadCount}</Text>
@@ -174,5 +188,19 @@ const styles = StyleSheet.create({
     color: palette.buttonText,
     fontWeight: '800',
     fontSize: 12,
+  },
+  clearButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    marginTop: 8,
+  },
+  clearButtonText: {
+    fontSize: 14,
   },
 });
