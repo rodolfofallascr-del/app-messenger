@@ -48,6 +48,7 @@ export function ConversationView({
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const hoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
+  const [mobileExpandedMessageId, setMobileExpandedMessageId] = useState<string | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -118,6 +119,7 @@ export function ConversationView({
   const closeMenu = useCallback(() => {
     setActiveMenuMessageId(null);
     setMobileMenuVisible(false);
+    setMobileExpandedMessageId(null);
   }, []);
 
   const openMenuAtEvent = useCallback((messageId: string, outgoing: boolean, event: any) => {
@@ -263,11 +265,22 @@ export function ConversationView({
           const isStarred = Boolean(starredMessageIds?.has(message.id));
           const isPinned = Boolean(pinnedMessageIds?.has(message.id));
           const showMenuTrigger = Boolean(allowWebMenu && (isMenuOpen || hoveredMessageId === message.id));
+          const isMobile = Platform.OS !== 'web';
+          const isExpandedOnMobile = Boolean(isMobile && mobileExpandedMessageId === message.id);
 
           return (
             <Pressable
               key={message.id}
-              style={[styles.bubble, compact && styles.bubbleCompact, isOutgoing ? styles.outgoing : styles.incoming]}
+              style={[
+                styles.bubble,
+                compact && styles.bubbleCompact,
+                isOutgoing ? styles.outgoing : styles.incoming,
+                isExpandedOnMobile ? styles.bubbleExpanded : null,
+              ]}
+              onPress={() => {
+                if (!isMobile) return;
+                setMobileExpandedMessageId((current) => (current === message.id ? null : message.id));
+              }}
               onHoverIn={() => {
                 if (!allowWebMenu) return;
                 cancelHoverHide();
@@ -291,6 +304,19 @@ export function ConversationView({
               }}
               delayLongPress={250}
             >
+              {isMobile && isExpandedOnMobile ? (
+                <Pressable
+                  style={styles.mobileMenuTrigger}
+                  onPress={(event) => {
+                    (event as any)?.stopPropagation?.();
+                    setActiveMenuMessageId(message.id);
+                    setMobileMenuVisible(true);
+                  }}
+                  hitSlop={10}
+                >
+                  <Text style={styles.mobileMenuTriggerText}>{'\u22EE'}</Text>
+                </Pressable>
+              ) : null}
               {showMenuTrigger ? (
                 <Pressable
                   style={styles.menuTrigger}
@@ -681,6 +707,14 @@ const styles = StyleSheet.create({
   bubbleCompact: {
     padding: 12,
   },
+  bubbleExpanded: {
+    borderColor: 'rgba(148,163,184,0.55)',
+    shadowColor: '#000000',
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
   incoming: {
     alignSelf: 'flex-start',
     backgroundColor: '#152544',
@@ -692,6 +726,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#14532d',
     borderColor: '#1c7a45',
     borderTopRightRadius: 8,
+  },
+  mobileMenuTrigger: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(2,6,23,0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.22)',
+    zIndex: 20,
+  },
+  mobileMenuTriggerText: {
+    color: '#e2e8f0',
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 18,
   },
   author: {
     color: '#93c5fd',
