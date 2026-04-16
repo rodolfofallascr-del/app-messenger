@@ -69,6 +69,7 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
                 onPressIn={() => onClearChat?.(chat.id)}
                 hitSlop={12}
                 style={styles.clearButton}
+                pointerEvents="box-only"
               >
                 <Text style={styles.clearButtonText}>🧹</Text>
               </Pressable>

@@ -1134,30 +1134,30 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
       const chat = liveChats.find((value) => value.id === chatId);
       const label = chat?.name || 'esta conversacion';
 
-      // Confirm destructive action.
-      Alert.alert('Vaciar conversacion', `Quieres eliminar todos los mensajes de ${label}?\n\nEl usuario se mantiene, solo se borra el historial en el panel.`, [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Vaciar',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setLoadingError(null);
-              try {
-                await adminClearChatMessages(chatId);
-                setLiveMessages((previous) => ({ ...previous, [chatId]: [] }));
-                await loadChats({ silent: true });
-              } catch (error) {
-                setLoadingError(
-                  error instanceof Error
-                    ? error.message
-                    : 'No fue posible vaciar la conversacion. Asegurate de correr el SQL admin_clear_chat_messages en Supabase.'
-                );
-              }
-            })();
-          },
-        },
-      ]);
+      // Confirm destructive action (web: use native confirm so it always shows).
+      const confirmed =
+        typeof window !== 'undefined'
+          ? window.confirm(
+              `Vaciar conversacion\n\nQuieres eliminar todos los mensajes de ${label}?\n\nEl usuario se mantiene, solo se borra el historial en el panel.`
+            )
+          : false;
+
+      if (!confirmed) {
+        return;
+      }
+
+      setLoadingError(null);
+      try {
+        await adminClearChatMessages(chatId);
+        setLiveMessages((previous) => ({ ...previous, [chatId]: [] }));
+        await loadChats({ silent: true });
+      } catch (error) {
+        setLoadingError(
+          error instanceof Error
+            ? error.message
+            : 'No fue posible vaciar la conversacion. Asegurate de correr el SQL admin_clear_chat_messages en Supabase.'
+        );
+      }
     },
     [adminMode, liveChats, loadChats]
   );
