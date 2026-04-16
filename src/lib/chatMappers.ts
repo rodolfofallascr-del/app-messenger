@@ -65,18 +65,34 @@ export function buildChatThread(params: {
 }
 
 export function buildChatMessages(messages: MessageRecord[], currentUserId: string, useAdminAlias = false) {
-  return messages.map((message) => ({
-    id: message.id,
-    author: message.sender_id === currentUserId ? 'Tu' : profileDisplayName(message.profile, undefined, useAdminAlias),
-    content: message.body?.trim() || attachmentFallback(message),
-    timestamp: formatRelativeTime(message.created_at),
-    createdAt: message.created_at,
-    direction: message.sender_id === currentUserId ? 'outgoing' : 'incoming',
-    canDelete: message.sender_id === currentUserId,
-    attachmentLabel: message.attachment_name || undefined,
-    attachmentUrl: message.attachment_url || undefined,
-    attachmentType: message.message_type === 'image' ? 'image' : message.message_type === 'file' ? 'file' : undefined,
-  })) satisfies ChatMessage[];
+  return messages.map((message) => {
+    const inferredAttachmentType: ChatMessage['attachmentType'] =
+      message.message_type === 'image'
+        ? 'image'
+        : message.message_type === 'file'
+          ? isVideoFile(message.attachment_name, message.attachment_url)
+            ? 'video'
+            : 'file'
+          : undefined;
+
+    return {
+      id: message.id,
+      author: message.sender_id === currentUserId ? 'Tu' : profileDisplayName(message.profile, undefined, useAdminAlias),
+      content: message.body?.trim() || attachmentFallback(message),
+      timestamp: formatRelativeTime(message.created_at),
+      createdAt: message.created_at,
+      direction: message.sender_id === currentUserId ? 'outgoing' : 'incoming',
+      canDelete: message.sender_id === currentUserId,
+      attachmentLabel: message.attachment_name || undefined,
+      attachmentUrl: message.attachment_url || undefined,
+      attachmentType: inferredAttachmentType,
+    };
+  }) satisfies ChatMessage[];
+}
+
+function isVideoFile(name?: string | null, url?: string | null) {
+  const source = `${name ?? ''} ${url ?? ''}`.toLowerCase();
+  return /\.(mp4|mov|webm|m4v)\b/.test(source);
 }
 
 function messagePreview(message?: MessageRecord | null) {

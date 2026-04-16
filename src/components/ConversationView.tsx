@@ -253,11 +253,12 @@ export function ConversationView({
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
         onScrollBeginDrag={closeMenu}
       >
-        {messages.map((message) => {
-          const isOutgoing = message.direction === 'outgoing';
-          const canOpenAttachment = Boolean(message.attachmentLabel && message.attachmentUrl);
-          const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
-          const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
+          {messages.map((message) => {
+            const isOutgoing = message.direction === 'outgoing';
+            const canOpenAttachment = Boolean(message.attachmentLabel && message.attachmentUrl);
+            const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
+            const isVideoAttachment = message.attachmentType === 'video' && Boolean(message.attachmentUrl);
+            const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
           const allowLongPressDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
           const allowMobileDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
           const allowWebMenu = Platform.OS === 'web' && !compact;
@@ -360,7 +361,24 @@ export function ConversationView({
                   />
                 </Pressable>
               ) : null}
-              {canOpenAttachment && !isImageAttachment ? (
+              {isVideoAttachment ? (
+                Platform.OS === 'web' ? (
+                  <View style={[styles.videoOnlyWrap, { width: imageWidth, height: imageHeight }]}>
+                    <video
+                      src={message.attachmentUrl as string}
+                      controls
+                      style={{ width: '100%', height: '100%', borderRadius: 16, background: '#0b1220' }}
+                    />
+                  </View>
+                ) : (
+                  <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string, 'file')} style={styles.attachmentCard}>
+                    <Text style={styles.attachmentType}>Video</Text>
+                    <Text style={styles.attachment}>{message.attachmentLabel}</Text>
+                    <Text style={styles.attachmentHint}>Abrir video</Text>
+                  </Pressable>
+                )
+              ) : null}
+              {canOpenAttachment && !isImageAttachment && !isVideoAttachment ? (
                 <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string, 'file')} style={styles.attachmentCard}>
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
@@ -769,6 +787,12 @@ const styles = StyleSheet.create({
   },
   imageOnlyWrap: {
     marginTop: 4,
+  },
+  videoOnlyWrap: {
+    marginTop: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#0b1220',
   },
   imageModalBackdrop: {
     flex: 1,
