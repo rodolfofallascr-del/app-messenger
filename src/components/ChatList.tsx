@@ -66,6 +66,7 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
             {showClearButton ? (
               <Pressable
                 onPress={() => onClearChat?.(chat.id)}
+                onPressIn={() => onClearChat?.(chat.id)}
                 hitSlop={12}
                 style={styles.clearButton}
               >
@@ -92,6 +93,7 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 12,
     paddingVertical: 11,
+    paddingRight: 46,
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
@@ -211,6 +213,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.18)',
+    zIndex: 10,
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null),
   },
   clearButtonText: {
