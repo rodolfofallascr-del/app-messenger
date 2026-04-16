@@ -20,6 +20,21 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
 
         return (
           <View key={chat.id} style={styles.itemWrap}>
+            {showClearButton ? (
+              <Pressable
+                onPress={(event) => {
+                  // On web, prevent the row Pressable from stealing the click.
+                  (event as any)?.stopPropagation?.();
+                  onClearChat?.(chat.id);
+                }}
+                hitSlop={12}
+                style={styles.clearButton}
+                pointerEvents="box-only"
+              >
+                <Text style={styles.clearButtonText}>{'\u{1F9F9}'}</Text>
+              </Pressable>
+            ) : null}
+
             <Pressable
               onPress={() => onSelect(chat.id)}
               style={[styles.item, isActive && styles.itemActive, hasUnread && !isActive && styles.itemUnread]}
@@ -27,6 +42,7 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
               <View style={[styles.avatar, { backgroundColor: chat.avatarColor }]}>
                 <Text style={styles.avatarText}>{chat.name.slice(0, 1)}</Text>
               </View>
+
               <View style={styles.content}>
                 <View style={styles.row}>
                   <Text style={[styles.name, hasUnread && styles.nameUnread]} numberOfLines={1}>
@@ -34,6 +50,7 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
                   </Text>
                   <Text style={[styles.time, hasUnread && styles.timeUnread]}>{chat.lastActivity}</Text>
                 </View>
+
                 {chat.adminTags?.length ? (
                   <View style={styles.tagsRow}>
                     {chat.adminTags.slice(0, 3).map((tag) => {
@@ -52,28 +69,18 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
                     })}
                   </View>
                 ) : null}
+
                 <Text style={[styles.message, hasUnread && styles.messageUnread]} numberOfLines={1}>
                   {chat.lastMessage}
                 </Text>
               </View>
+
               {hasUnread ? (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{chat.unreadCount}</Text>
                 </View>
               ) : null}
             </Pressable>
-
-            {showClearButton ? (
-              <Pressable
-                onPress={() => onClearChat?.(chat.id)}
-                onPressIn={() => onClearChat?.(chat.id)}
-                hitSlop={12}
-                style={styles.clearButton}
-                pointerEvents="box-only"
-              >
-                <Text style={styles.clearButtonText}>🧹</Text>
-              </Pressable>
-            ) : null}
           </View>
         );
       })}
@@ -87,6 +94,7 @@ const styles = StyleSheet.create({
   },
   itemWrap: {
     position: 'relative',
+    zIndex: 0,
   },
   item: {
     flexDirection: 'row',
@@ -99,6 +107,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.border,
     backgroundColor: '#111c30',
+    zIndex: 1,
   },
   itemActive: {
     borderColor: palette.accent,
@@ -214,10 +223,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.18)',
-    zIndex: 10,
+    zIndex: 50,
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : null),
   },
   clearButtonText: {
     fontSize: 14,
   },
 });
+
