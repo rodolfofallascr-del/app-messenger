@@ -1,7 +1,7 @@
 import * as DocumentPicker from 'expo-document-picker';
 import { Session } from '@supabase/supabase-js';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
@@ -1129,13 +1129,32 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 multiline
                 style={[styles.longTextInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
               />
-              <TextInput
-                value={announcementEndsAt}
-                onChangeText={setAnnouncementEndsAt}
-                placeholder="Fin (opcional) YYYY-MM-DD HH:mm"
-                placeholderTextColor={theme.muted}
-                style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
-              />
+              {Platform.OS === 'web' ? (
+                <View style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border }]}>
+                  {React.createElement('input', {
+                    type: 'datetime-local',
+                    value: announcementEndsAt,
+                    onChange: (event: any) => setAnnouncementEndsAt(String(event?.target?.value ?? '')),
+                    style: {
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      outline: 'none',
+                      color: theme.title,
+                      fontSize: 15,
+                      fontWeight: 700,
+                    },
+                  })}
+                </View>
+              ) : (
+                <TextInput
+                  value={announcementEndsAt}
+                  onChangeText={setAnnouncementEndsAt}
+                  placeholder="Fin (opcional)"
+                  placeholderTextColor={theme.muted}
+                  style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                />
+              )}
               <View style={styles.actionsRow}>
                 <ActionButton
                   label={announcementActive ? 'Activo' : 'Inactivo'}
