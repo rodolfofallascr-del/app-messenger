@@ -39,6 +39,9 @@ type MessagingAppProps = {
   quickReplyToInsert?: QuickReplyRecord | null;
   mediaToInsert?: MediaLibraryRecord | null;
   onResourceApplied?: () => void;
+  incomingSharedAttachment?: PendingAttachment | null;
+  incomingSharedText?: string | null;
+  onSharedApplied?: () => void;
 };
 
 type MobileView = 'chats' | 'conversation';
@@ -206,7 +209,18 @@ function getBrowserAudioContext() {
 
   return browserWindow.AudioContext || browserWindow.webkitAudioContext || null;
 }
-export function MessagingApp({ session, adminMode, adminSoundEnabled = true, clientMode, quickReplyToInsert, mediaToInsert, onResourceApplied }: MessagingAppProps) {
+export function MessagingApp({
+  session,
+  adminMode,
+  adminSoundEnabled = true,
+  clientMode,
+  quickReplyToInsert,
+  mediaToInsert,
+  onResourceApplied,
+  incomingSharedAttachment,
+  incomingSharedText,
+  onSharedApplied,
+}: MessagingAppProps) {
   const { width, height } = useWindowDimensions();
   const isDesktop = width >= 960;
   const isCompactHeight = height < 860;
@@ -251,7 +265,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   useEffect(() => {
     // Message flags (star/pin) are an admin-only convenience. On mobile we persist them in SecureStore.
-    if (!adminMode || Platform.OS === 'web') {
+    if (Platform.OS === 'web') {
       return;
     }
 
@@ -879,6 +893,29 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   }, [mediaToInsert, onResourceApplied, replacePendingAttachment, selectedChatId]);
 
   useEffect(() => {
+    // Android/iOS share intent: prefill composer with shared content.
+    if (Platform.OS === 'web') return;
+    if (!incomingSharedAttachment && !incomingSharedText) return;
+    if (!selectedChatId) return; // wait for chats to load / user to select a chat.
+
+    if (incomingSharedAttachment) {
+      replacePendingAttachment(incomingSharedAttachment);
+    }
+
+    const text = incomingSharedText?.trim() || '';
+    if (text) {
+      setDrafts((current) => {
+        const previous = current[selectedChatId] ?? '';
+        const nextText = previous.trim().length > 0 ? `${previous.trim()}\n\n${text}` : text;
+        return { ...current, [selectedChatId]: nextText };
+      });
+    }
+
+    setComposerFocusSignal((current) => current + 1);
+    onSharedApplied?.();
+  }, [incomingSharedAttachment, incomingSharedText, onSharedApplied, replacePendingAttachment, selectedChatId]);
+
+  useEffect(() => {
     if (Platform.OS !== 'web') {
       return;
     }
@@ -1357,7 +1394,6 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   const handleToggleStarMessage = useCallback(
     (message: ChatMessage) => {
-      if (!adminMode) return;
       setMessageFlags((current) => {
         const exists = current.starred.includes(message.id);
         const next = {
@@ -1372,12 +1408,11 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         return next;
       });
     },
-    [adminMode, session.user.id]
+    [session.user.id]
   );
 
   const handleTogglePinMessage = useCallback(
     (message: ChatMessage) => {
-      if (!adminMode) return;
       setMessageFlags((current) => {
         const exists = current.pinned.includes(message.id);
         const next = {
@@ -1392,7 +1427,7 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
         return next;
       });
     },
-    [adminMode, session.user.id]
+    [session.user.id]
   );
 
   const handleDownloadAttachment = useCallback(async (message: ChatMessage) => {

@@ -1,13 +1,16 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView, StyleSheet } from 'react-native';
+import { ShareIntentProvider } from 'expo-share-intent';
 import { RootApp } from './src/RootApp';
 
 export default function App() {
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="light" />
-      <RootApp />
-    </SafeAreaView>
+    <ShareIntentProvider>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <RootApp />
+      </SafeAreaView>
+    </ShareIntentProvider>
   );
 }
 

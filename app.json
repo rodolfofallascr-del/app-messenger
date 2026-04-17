@@ -2,6 +2,7 @@
   "expo": {
     "name": "Chat Santanita",
     "slug": "app-mesajeria",
+    "scheme": "chatsantanita",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/chat-santanita-icon-square.png",
@@ -28,6 +29,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
+    "plugins": ["expo-share-intent"],
     "web": {
       "favicon": "./assets/chat-santanita-icon-square.png"
     },

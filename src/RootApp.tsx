@@ -1,6 +1,7 @@
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
+import { useShareIntentContext } from 'expo-share-intent';
 import { AdminWebApp } from './AdminWebApp';
 import { MessagingApp } from './MessagingApp';
 import { AccessStatusScreen } from './components/AccessStatusScreen';
@@ -9,7 +10,7 @@ import { SetupGuide } from './components/SetupGuide';
 import { fetchCurrentProfile } from './lib/profileService';
 import { getSupabaseClient, hasSupabaseConfig } from './lib/supabase';
 import { palette } from './theme/palette';
-import { ProfileRecord } from './types/chat';
+import { PendingAttachment, ProfileRecord } from './types/chat';
 
 export function RootApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -17,8 +18,36 @@ export function RootApp() {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [pendingSharedAttachment, setPendingSharedAttachment] = useState<PendingAttachment | null>(null);
+  const [pendingSharedText, setPendingSharedText] = useState<string | null>(null);
   const profileChannelRef = useRef<ReturnType<ReturnType<typeof getSupabaseClient>['channel']> | null>(null);
   const profileReloadingRef = useRef(false);
+  const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (!hasShareIntent) return;
+
+    const files = Array.isArray(shareIntent?.files) ? shareIntent.files : [];
+    const first = files[0] ?? null;
+    if (first?.path) {
+      const mimeType = first.mimeType || 'application/octet-stream';
+      const isImage = mimeType.startsWith('image/');
+      setPendingSharedAttachment({
+        uri: first.path,
+        name: first.fileName || `archivo-${Date.now()}`,
+        mimeType,
+        type: isImage ? 'image' : 'file',
+      });
+    }
+
+    const text = typeof shareIntent?.text === 'string' ? shareIntent.text.trim() : '';
+    if (text) {
+      setPendingSharedText(text);
+    }
+
+    resetShareIntent();
+  }, [hasShareIntent, resetShareIntent, shareIntent]);
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -207,7 +236,18 @@ export function RootApp() {
     );
   }
 
-  return <MessagingApp session={session} clientMode />;
+  return (
+    <MessagingApp
+      session={session}
+      clientMode
+      incomingSharedAttachment={pendingSharedAttachment}
+      incomingSharedText={pendingSharedText}
+      onSharedApplied={() => {
+        setPendingSharedAttachment(null);
+        setPendingSharedText(null);
+      }}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
