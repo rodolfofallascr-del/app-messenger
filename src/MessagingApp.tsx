@@ -2,6 +2,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as SecureStore from 'expo-secure-store';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -9,6 +11,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -104,13 +107,30 @@ function loadMessageFlags(userId: string): MessageFlagsStorage {
   }
 }
 
-function persistMessageFlags(userId: string, next: MessageFlagsStorage) {
-  if (Platform.OS !== 'web') {
-    return;
-  }
-
+function persistMessageFlagsWeb(userId: string, next: MessageFlagsStorage) {
   try {
     window.localStorage.setItem(messageFlagsStorageKey(userId), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+async function loadMessageFlagsMobile(userId: string): Promise<MessageFlagsStorage> {
+  try {
+    const stored = await SecureStore.getItemAsync(messageFlagsStorageKey(userId));
+    const parsed = stored ? (JSON.parse(stored) as Partial<MessageFlagsStorage>) : {};
+    return {
+      starred: Array.isArray(parsed.starred) ? parsed.starred.filter((id) => typeof id === 'string') : [],
+      pinned: Array.isArray(parsed.pinned) ? parsed.pinned.filter((id) => typeof id === 'string') : [],
+    };
+  } catch {
+    return { starred: [], pinned: [] };
+  }
+}
+
+async function persistMessageFlagsMobile(userId: string, next: MessageFlagsStorage) {
+  try {
+    await SecureStore.setItemAsync(messageFlagsStorageKey(userId), JSON.stringify(next));
   } catch {
     // ignore
   }
@@ -228,6 +248,23 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const lastNotifiedAtRef = useRef<Record<string, number>>({});
   const [mobileUnreadTotal, setMobileUnreadTotal] = useState(0);
   const [pushStatus, setPushStatus] = useState<string>('');
+
+  useEffect(() => {
+    // Message flags (star/pin) are an admin-only convenience. On mobile we persist them in SecureStore.
+    if (!adminMode || Platform.OS === 'web') {
+      return;
+    }
+
+    let cancelled = false;
+    void loadMessageFlagsMobile(session.user.id).then((loaded) => {
+      if (cancelled) return;
+      setMessageFlags(loaded);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminMode, session.user.id]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -1320,14 +1357,18 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   const handleToggleStarMessage = useCallback(
     (message: ChatMessage) => {
-      if (Platform.OS !== 'web' || !adminMode) return;
+      if (!adminMode) return;
       setMessageFlags((current) => {
         const exists = current.starred.includes(message.id);
         const next = {
           ...current,
           starred: exists ? current.starred.filter((id) => id !== message.id) : [message.id, ...current.starred],
         };
-        persistMessageFlags(session.user.id, next);
+        if (Platform.OS === 'web') {
+          persistMessageFlagsWeb(session.user.id, next);
+        } else {
+          void persistMessageFlagsMobile(session.user.id, next);
+        }
         return next;
       });
     },
@@ -1336,14 +1377,18 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   const handleTogglePinMessage = useCallback(
     (message: ChatMessage) => {
-      if (Platform.OS !== 'web' || !adminMode) return;
+      if (!adminMode) return;
       setMessageFlags((current) => {
         const exists = current.pinned.includes(message.id);
         const next = {
           ...current,
           pinned: exists ? current.pinned.filter((id) => id !== message.id) : [message.id, ...current.pinned],
         };
-        persistMessageFlags(session.user.id, next);
+        if (Platform.OS === 'web') {
+          persistMessageFlagsWeb(session.user.id, next);
+        } else {
+          void persistMessageFlagsMobile(session.user.id, next);
+        }
         return next;
       });
     },
@@ -1352,9 +1397,20 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
 
   const handleDownloadAttachment = useCallback(async (message: ChatMessage) => {
     if (Platform.OS !== 'web') {
-      if (message.attachmentUrl) {
-        // Fallback to open in native.
-        return;
+      const url = message.attachmentUrl;
+      if (!url) return;
+
+      const filename = (message.attachmentLabel || 'adjunto').replace(/[\\/:*?"<>|]+/g, '_');
+      const target = `${FileSystem.documentDirectory ?? ''}${Date.now()}-${filename}`;
+
+      try {
+        const result = await FileSystem.downloadAsync(url, target);
+        Alert.alert('Descargado', 'Archivo guardado en el telefono.', [
+          { text: 'Abrir', onPress: () => void Linking.openURL(result.uri) },
+          { text: 'OK' },
+        ]);
+      } catch (error) {
+        Alert.alert('No fue posible descargar', error instanceof Error ? error.message : 'Intenta de nuevo.');
       }
       return;
     }
@@ -1386,13 +1442,25 @@ export function MessagingApp({ session, adminMode, adminSoundEnabled = true, cli
   const handleForwardMessage = useCallback(
     async (message: ChatMessage) => {
       // Forwarding without changing business logic: copy to clipboard so the admin can paste it in another chat.
-      if (Platform.OS !== 'web') {
-        return;
-      }
-
       const payload = (message.content ?? '').trim();
       if (!payload) {
         setLoadingError('Este mensaje no se puede reenviar todavía.');
+        return;
+      }
+
+      if (Platform.OS !== 'web') {
+        const chatId = selectedChatIdRef.current;
+        if (!chatId) {
+          setLoadingError('Selecciona una conversacion antes de reenviar.');
+          return;
+        }
+
+        setDrafts((current) => ({
+          ...current,
+          [chatId]: payload,
+        }));
+        setComposerFocusSignal((current) => current + 1);
+        setCreateMessage('Mensaje listo para reenviar. Presiona Enviar.');
         return;
       }
 

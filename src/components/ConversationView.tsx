@@ -437,15 +437,52 @@ export function ConversationView({
                     >
                       <Text style={styles.menuItemText}>Copiar</Text>
                     </Pressable>
+                    {onToggleStarMessage ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          onToggleStarMessage(message);
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={styles.menuItemText}>
+                          {starredMessageIds?.has(message.id) ? 'Quitar destacado' : 'Destacar'}
+                        </Text>
+                      </Pressable>
+                    ) : null}
                     {message.attachmentUrl ? (
                       <Pressable
                         style={styles.menuItem}
                         onPress={() => {
-                          void handleOpenAttachment(message.attachmentUrl as string, message.attachmentType === 'image' ? 'image' : 'file');
+                          onDownloadAttachment?.(message);
                           closeMenu();
                         }}
                       >
                         <Text style={styles.menuItemText}>Descargar</Text>
+                      </Pressable>
+                    ) : null}
+                    {onForwardMessage ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          onForwardMessage(message);
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={styles.menuItemText}>Reenviar</Text>
+                      </Pressable>
+                    ) : null}
+                    {onTogglePinMessage ? (
+                      <Pressable
+                        style={styles.menuItem}
+                        onPress={() => {
+                          onTogglePinMessage(message);
+                          closeMenu();
+                        }}
+                      >
+                        <Text style={styles.menuItemText}>
+                          {pinnedMessageIds?.has(message.id) ? 'No fijar' : 'Fijar'}
+                        </Text>
                       </Pressable>
                     ) : null}
                     {canDelete ? (
