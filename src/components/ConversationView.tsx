@@ -412,7 +412,13 @@ export function ConversationView({
 
               return (
                 <View style={styles.mobileMenuSheet}>
-                  <View style={styles.menuCardFloating}>
+                  <Pressable
+                    style={styles.menuCardFloating}
+                    onPress={(event) => {
+                      // Prevent backdrop press.
+                      (event as any)?.stopPropagation?.();
+                    }}
+                  >
                     <Pressable
                       style={styles.menuItem}
                       onPress={() => {
@@ -456,7 +462,7 @@ export function ConversationView({
                         <Text style={[styles.menuItemText, styles.menuItemDanger]}>Eliminar</Text>
                       </Pressable>
                     ) : null}
-                  </View>
+                  </Pressable>
                 </View>
               );
             })()}
@@ -934,7 +940,7 @@ const styles = StyleSheet.create({
   },
   menuBackdrop: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(2,6,23,0.55)',
   },
   menuFloating: {
     position: 'absolute',
@@ -947,6 +953,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(148,163,184,0.18)',
     paddingVertical: 6,
+    width: '100%',
+    maxWidth: 320,
+    maxHeight: '80%',
     shadowColor: '#000',
     shadowOpacity: 0.28,
     shadowRadius: 24,
@@ -955,8 +964,10 @@ const styles = StyleSheet.create({
   },
   mobileMenuSheet: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 14,
+    paddingBottom: 84,
   },
   menuItem: {
     paddingVertical: 10,
