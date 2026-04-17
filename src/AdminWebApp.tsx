@@ -9,7 +9,7 @@ import { ADMIN_TAG_PRESETS, ADMIN_TAG_SYMBOL_PRESETS, getAdminTagPresentation } 
 import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
-import { AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
+import { AnnouncementRecord, AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
 const tagColorOptions = ['#facc15', '#ef4444', '#22c55e', '#3b82f6', '#a855f7', '#f97316'];
 const tagSymbolPresets = ['\u274C', '\u2705', '\uD83D\uDCB8', '\uD83D\uDCB0', '\uD83D\uDCCC', '\u26A0\uFE0F', '\uD83D\uDCCD', '\uD83D\uDFE2', '\uD83D\uDD34', '\uD83D\uDFE1'];
 
@@ -18,7 +18,7 @@ type AdminWebAppProps = {
   profile: ProfileRecord;
 };
 
-type AdminSection = 'users' | 'conversations' | 'library';
+type AdminSection = 'users' | 'conversations' | 'library' | 'announcements';
 type ReplyTargetField = 'label' | 'tag' | 'emoji' | 'body';
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
@@ -56,11 +56,17 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
 
     const savedSection = window.localStorage.getItem(ADMIN_SECTION_STORAGE_KEY);
-    return savedSection === 'conversations' || savedSection === 'library' ? savedSection : 'users';
+    return savedSection === 'conversations' || savedSection === 'library' || savedSection === 'announcements' ? savedSection : 'users';
   });
   const [quickReplies, setQuickReplies] = useState<QuickReplyRecord[]>([]);
   const [mediaLibrary, setMediaLibrary] = useState<MediaLibraryRecord[]>([]);
   const [libraryLoading, setLibraryLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState<AnnouncementRecord[]>([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementBody, setAnnouncementBody] = useState('');
+  const [announcementActive, setAnnouncementActive] = useState(true);
+  const [announcementEndsAt, setAnnouncementEndsAt] = useState(''); // ISO date-time string (local)
   const [resourceBusy, setResourceBusy] = useState(false);
   const [replyLabel, setReplyLabel] = useState('');
   const [replyTag, setReplyTag] = useState('');
@@ -117,6 +123,29 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   }, []);
 
+  const loadAnnouncements = useCallback(async () => {
+    setAnnouncementsLoading(true);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id,title,body,active,starts_at,ends_at,created_by,created_at,updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        throw error;
+      }
+
+      setAnnouncements((data ?? []) as AnnouncementRecord[]);
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los anuncios.');
+    } finally {
+      setAnnouncementsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (section === 'users') {
       void loadUsers();
@@ -125,7 +154,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     if (section === 'library' || section === 'conversations') {
       void loadLibrary();
     }
-  }, [loadLibrary, loadUsers, section]);
+
+    if (section === 'announcements') {
+      void loadAnnouncements();
+    }
+  }, [loadAnnouncements, loadLibrary, loadUsers, section]);
 
   useEffect(() => {
     if (section !== 'users') {
@@ -211,12 +244,17 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
           void loadLibrary();
         }
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => {
+        if (section === 'announcements') {
+          void loadAnnouncements();
+        }
+      })
       .subscribe();
 
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [loadLibrary, loadUsers, section]);
+  }, [loadAnnouncements, loadLibrary, loadUsers, section]);
 
   const visibleUsers = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -549,6 +587,71 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     getSupabaseClient().auth.signOut().catch(() => undefined);
   };
 
+  const handlePublishAnnouncement = async () => {
+    if (!announcementBody.trim()) {
+      setFeedback('Escribe el mensaje del anuncio.');
+      return;
+    }
+
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      const supabase = getSupabaseClient();
+      const endsAt = announcementEndsAt.trim();
+      const normalizedEndsAt = endsAt ? (endsAt.includes('T') ? endsAt : endsAt.replace(' ', 'T')) : '';
+      const parsedEndsAt = normalizedEndsAt ? new Date(normalizedEndsAt) : null;
+
+      const { error } = await supabase.from('announcements').insert({
+        title: announcementTitle.trim() || null,
+        body: announcementBody.trim(),
+        active: Boolean(announcementActive),
+        ends_at: parsedEndsAt && !Number.isNaN(parsedEndsAt.getTime()) ? parsedEndsAt.toISOString() : null,
+        starts_at: new Date().toISOString(),
+        created_by: profile.id,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setAnnouncementTitle('');
+      setAnnouncementBody('');
+      setAnnouncementActive(true);
+      setAnnouncementEndsAt('');
+      setFeedback('Anuncio publicado.');
+      await loadAnnouncements();
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible publicar el anuncio.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
+  const handleToggleAnnouncementActive = async (announcementId: string, nextActive: boolean) => {
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase
+        .from('announcements')
+        .update({ active: nextActive })
+        .eq('id', announcementId);
+
+      if (error) {
+        throw error;
+      }
+
+      await loadAnnouncements();
+      setFeedback(nextActive ? 'Anuncio activado.' : 'Anuncio desactivado.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible actualizar el anuncio.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
   const formattedClock = useMemo(
     () =>
       new Intl.DateTimeFormat('es-CR', {
@@ -578,6 +681,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             <SectionTab label={`Usuarios ${counts.pending > 0 ? `(${counts.pending})` : ''}`} active={section === 'users'} onPress={() => setSection('users')} themeMode={themeMode} />
             <SectionTab label="Conversaciones" active={section === 'conversations'} onPress={() => setSection('conversations')} themeMode={themeMode} />
             <SectionTab label={`Biblioteca ${quickReplies.length + mediaLibrary.length > 0 ? `(${quickReplies.length + mediaLibrary.length})` : ''}`} active={section === 'library'} onPress={() => setSection('library')} themeMode={themeMode} />
+            <SectionTab label={`Anuncios ${announcements.filter((item) => item.active).length > 0 ? `(${announcements.filter((item) => item.active).length})` : ''}`} active={section === 'announcements'} onPress={() => setSection('announcements')} themeMode={themeMode} />
           </View>
 
           <View style={styles.headerActions}>
@@ -1005,6 +1109,88 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             </View>
           </View>
         ) : null}
+
+        {section === 'announcements' ? (
+          <View style={styles.libraryLayout}>
+            <View style={[styles.formCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+              <Text style={[styles.formTitle, { color: theme.title }]}>Nuevo anuncio</Text>
+              <TextInput
+                value={announcementTitle}
+                onChangeText={setAnnouncementTitle}
+                placeholder="Titulo (opcional)"
+                placeholderTextColor={theme.muted}
+                style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+              />
+              <TextInput
+                value={announcementBody}
+                onChangeText={setAnnouncementBody}
+                placeholder="Mensaje del anuncio"
+                placeholderTextColor={theme.muted}
+                multiline
+                style={[styles.longTextInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+              />
+              <TextInput
+                value={announcementEndsAt}
+                onChangeText={setAnnouncementEndsAt}
+                placeholder="Fin (opcional) YYYY-MM-DD HH:mm"
+                placeholderTextColor={theme.muted}
+                style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+              />
+              <View style={styles.actionsRow}>
+                <ActionButton
+                  label={announcementActive ? 'Activo' : 'Inactivo'}
+                  tone="neutral"
+                  disabled={resourceBusy}
+                  onPress={() => setAnnouncementActive((current) => !current)}
+                  themeMode={themeMode}
+                />
+                <ActionButton
+                  label="Publicar"
+                  tone="approve"
+                  disabled={resourceBusy}
+                  onPress={() => void handlePublishAnnouncement()}
+                  themeMode={themeMode}
+                />
+              </View>
+              <Text style={[styles.helperText, { color: theme.muted }]}>
+                Los clientes ven el anuncio en la parte superior de la app movil. Toca "No mostrar" para ocultarlo por usuario.
+              </Text>
+            </View>
+
+            <View style={[styles.libraryListCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+              <View style={styles.listHeader}>
+                <Text style={[styles.listTitle, { color: theme.title }]}>Anuncios publicados</Text>
+                {announcementsLoading ? <ActivityIndicator color={palette.accent} /> : null}
+              </View>
+              <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
+                <View style={styles.libraryStack}>
+                  {announcements.map((item) => (
+                    <View key={item.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                      <Text style={[styles.libraryItemTitle, { color: theme.title }]}>
+                        {item.title?.trim() || 'Anuncio'}
+                      </Text>
+                      <Text style={[styles.libraryBody, { color: theme.text }]} numberOfLines={3}>
+                        {item.body}
+                      </Text>
+                      <Text style={[styles.userMeta, { color: theme.muted }]}>
+                        {item.active ? 'Activo' : 'Inactivo'} | {new Date(item.updated_at).toLocaleString('es-CR')}
+                      </Text>
+                      <View style={styles.actionsRow}>
+                        <ActionButton
+                          label={item.active ? 'Desactivar' : 'Activar'}
+                          tone={item.active ? 'neutral' : 'approve'}
+                          disabled={resourceBusy}
+                          onPress={() => void handleToggleAnnouncementActive(item.id, !item.active)}
+                          themeMode={themeMode}
+                        />
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        ) : null}
         </View>
       </ScrollView>
 
@@ -1323,6 +1509,18 @@ const styles = StyleSheet.create({
   },
   textArea: {
     minHeight: 110,
+    textAlignVertical: 'top',
+  },
+  longTextInput: {
+    backgroundColor: palette.input,
+    color: palette.primaryText,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: palette.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 15,
+    minHeight: 140,
     textAlignVertical: 'top',
   },
   visualRow: {

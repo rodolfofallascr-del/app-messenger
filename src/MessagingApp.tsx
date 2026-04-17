@@ -29,7 +29,7 @@ import { buildChatMessages, buildChatThread } from './lib/chatMappers';
 import { adminClearChatMessages, createChat, deleteOwnMessage, fetchAdminChatClears, fetchChatReadMarkers, fetchChatRowsForCurrentUser, fetchSelectableUsers, notifyNewMessage, sendAttachmentMessage, sendTextMessage, upsertChatReadMarker, upsertPushToken } from './lib/chatService';
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
-import { ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
+import { AnnouncementRecord, ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
 
 type MessagingAppProps = {
   session: Session;
@@ -92,6 +92,10 @@ function messageFlagsStorageKey(userId: string) {
   return 'messaging-message-flags:' + userId;
 }
 
+function dismissedAnnouncementsStorageKey(userId: string) {
+  return 'messaging-dismissed-announcements:' + userId;
+}
+
 function loadMessageFlags(userId: string): MessageFlagsStorage {
   if (Platform.OS !== 'web') {
     return { starred: [], pinned: [] };
@@ -134,6 +138,35 @@ async function loadMessageFlagsMobile(userId: string): Promise<MessageFlagsStora
 async function persistMessageFlagsMobile(userId: string, next: MessageFlagsStorage) {
   try {
     await SecureStore.setItemAsync(messageFlagsStorageKey(userId), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+async function loadDismissedAnnouncements(userId: string): Promise<string[]> {
+  try {
+    if (Platform.OS === 'web') {
+      const stored = window.localStorage.getItem(dismissedAnnouncementsStorageKey(userId));
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+    }
+
+    const stored = await SecureStore.getItemAsync(dismissedAnnouncementsStorageKey(userId));
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function persistDismissedAnnouncements(userId: string, dismissed: string[]) {
+  try {
+    const payload = JSON.stringify(Array.from(new Set(dismissed)));
+    if (Platform.OS === 'web') {
+      window.localStorage.setItem(dismissedAnnouncementsStorageKey(userId), payload);
+      return;
+    }
+    await SecureStore.setItemAsync(dismissedAnnouncementsStorageKey(userId), payload);
   } catch {
     // ignore
   }
@@ -232,6 +265,8 @@ export function MessagingApp({
   const [messageFlags, setMessageFlags] = useState<MessageFlagsStorage>(() => loadMessageFlags(session.user.id));
   const [search, setSearch] = useState('');
   const [adminInboxFilter, setAdminInboxFilter] = useState<AdminInboxFilter>('all');
+  const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<string[]>([]);
+  const [activeAnnouncement, setActiveAnnouncement] = useState<AnnouncementRecord | null>(null);
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
   const [liveMessages, setLiveMessages] = useState<Record<string, ChatMessage[]>>({});
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
@@ -1034,6 +1069,37 @@ export function MessagingApp({
     [selectedChatId, liveChats]
   );
 
+  const loadActiveAnnouncement = useCallback(async () => {
+    if (!clientMode) {
+      setActiveAnnouncement(null);
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('id,title,body,active,starts_at,ends_at,created_by,created_at,updated_at')
+      .eq('active', true)
+      .lte('starts_at', nowIso)
+      .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
+      .order('updated_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      setActiveAnnouncement(null);
+      return;
+    }
+
+    const announcement = ((data ?? [])[0] ?? null) as AnnouncementRecord | null;
+    if (announcement && dismissedAnnouncementIds.includes(announcement.id)) {
+      setActiveAnnouncement(null);
+      return;
+    }
+
+    setActiveAnnouncement(announcement);
+  }, [clientMode, dismissedAnnouncementIds]);
+
   const visibleChats = useMemo(() => {
     const orderedChats = [...liveChats].sort((left, right) => {
       if (adminMode && left.unreadCount !== right.unreadCount) {
@@ -1076,6 +1142,32 @@ export function MessagingApp({
       )
     );
   }, [clientMode, liveChats, primaryAdmin]);
+
+  useEffect(() => {
+    if (!clientMode) {
+      return;
+    }
+
+    void loadDismissedAnnouncements(session.user.id).then((dismissed) => setDismissedAnnouncementIds(dismissed));
+  }, [clientMode, session.user.id]);
+
+  useEffect(() => {
+    if (!clientMode) {
+      return;
+    }
+
+    void loadActiveAnnouncement();
+
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel('announcements-client:' + session.user.id)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => void loadActiveAnnouncement())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [clientMode, loadActiveAnnouncement, session.user.id]);
 
   useEffect(() => {
     if (!clientMode) {
@@ -1794,6 +1886,37 @@ export function MessagingApp({
     </View>
   );
 
+  const clientAnnouncementBanner =
+    !isDesktop && clientMode && activeAnnouncement ? (
+      <Pressable
+        style={styles.announcementBanner}
+        onPress={() => {
+          const title = activeAnnouncement.title?.trim() || 'Anuncio';
+          Alert.alert(title, activeAnnouncement.body, [
+            { text: 'Cerrar' },
+            {
+              text: 'No mostrar',
+              style: 'destructive',
+              onPress: () => {
+                const next = Array.from(new Set([...dismissedAnnouncementIds, activeAnnouncement.id]));
+                setDismissedAnnouncementIds(next);
+                setActiveAnnouncement(null);
+                void persistDismissedAnnouncements(session.user.id, next);
+              },
+            },
+          ]);
+        }}
+      >
+        <Text style={styles.announcementEyebrow}>Anuncio</Text>
+        <Text style={styles.announcementTitle} numberOfLines={1}>
+          {activeAnnouncement.title?.trim() || 'Informacion importante'}
+        </Text>
+        <Text style={styles.announcementBody} numberOfLines={2}>
+          {activeAnnouncement.body}
+        </Text>
+      </Pressable>
+    ) : null;
+
   return (
     <KeyboardAvoidingView
       style={styles.keyboardShell}
@@ -1818,6 +1941,7 @@ export function MessagingApp({
       ) : (
         <View style={styles.mobileRoot}>
           {header}
+          {clientAnnouncementBanner}
           {mobileSwitcher}
           <View style={styles.mobileContentArea}>{mobileView === 'chats' ? chatsPanel : conversationPanel}</View>
         </View>
@@ -1875,6 +1999,32 @@ const styles = StyleSheet.create({
   mobileContentArea: {
     flex: 1,
     minHeight: 0,
+  },
+  announcementBanner: {
+    backgroundColor: '#0d2b2a',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#0f766e',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 3,
+  },
+  announcementEyebrow: {
+    color: '#99f6e4',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  announcementTitle: {
+    color: '#ecfeff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  announcementBody: {
+    color: '#ccfbf1',
+    fontSize: 12,
+    lineHeight: 18,
   },
   headerShell: {
     gap: 14,

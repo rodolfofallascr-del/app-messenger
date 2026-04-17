@@ -105,3 +105,15 @@ export type MediaLibraryRecord = {
   created_at: string;
 };
 
+export type AnnouncementRecord = {
+  id: string;
+  title: string | null;
+  body: string;
+  active: boolean;
+  starts_at: string;
+  ends_at: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
