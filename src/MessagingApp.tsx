@@ -97,10 +97,6 @@ function dismissedAnnouncementsStorageKey(userId: string) {
   return 'messaging-dismissed-announcements:' + userId;
 }
 
-function promoDismissedStorageKey(userId: string) {
-  return 'messaging-promo-dismissed:' + userId;
-}
-
 function loadMessageFlags(userId: string): MessageFlagsStorage {
   if (Platform.OS !== 'web') {
     return { starred: [], pinned: [] };
@@ -172,37 +168,6 @@ async function persistDismissedAnnouncements(userId: string, dismissed: string[]
       return;
     }
     await SecureStore.setItemAsync(dismissedAnnouncementsStorageKey(userId), payload);
-  } catch {
-    // ignore
-  }
-}
-
-function todayKey() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-async function loadPromoDismissedKey(userId: string): Promise<string | null> {
-  try {
-    if (Platform.OS === 'web') {
-      return window.localStorage.getItem(promoDismissedStorageKey(userId));
-    }
-    return await SecureStore.getItemAsync(promoDismissedStorageKey(userId));
-  } catch {
-    return null;
-  }
-}
-
-async function persistPromoDismissedKey(userId: string, value: string) {
-  try {
-    if (Platform.OS === 'web') {
-      window.localStorage.setItem(promoDismissedStorageKey(userId), value);
-      return;
-    }
-    await SecureStore.setItemAsync(promoDismissedStorageKey(userId), value);
   } catch {
     // ignore
   }
@@ -304,7 +269,6 @@ export function MessagingApp({
   const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<string[]>([]);
   const [activeAnnouncements, setActiveAnnouncements] = useState<AnnouncementRecord[]>([]);
   const [activeAnnouncementIndex, setActiveAnnouncementIndex] = useState(0);
-  const [promoDismissedForToday, setPromoDismissedForToday] = useState(false);
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
   const [liveMessages, setLiveMessages] = useState<Record<string, ChatMessage[]>>({});
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
@@ -1185,15 +1149,7 @@ export function MessagingApp({
     void loadDismissedAnnouncements(session.user.id).then((dismissed) => setDismissedAnnouncementIds(dismissed));
   }, [clientMode, session.user.id]);
 
-  useEffect(() => {
-    if (!clientMode) {
-      return;
-    }
 
-    void loadPromoDismissedKey(session.user.id).then((value) => {
-      setPromoDismissedForToday(value === todayKey());
-    });
-  }, [clientMode, session.user.id]);
 
   useEffect(() => {
     if (!clientMode) {
@@ -1943,7 +1899,7 @@ export function MessagingApp({
   );
 
   const clientAnnouncementBanner =
-    !isDesktop && clientMode && !promoDismissedForToday && activeAnnouncements.length > 0 ? (
+    !isDesktop && clientMode && activeAnnouncements.length > 0 ? (
       <AnimatedAnnouncementBanner
         announcements={activeAnnouncements}
         index={activeAnnouncementIndex}
@@ -1952,27 +1908,7 @@ export function MessagingApp({
           const title = announcement.title?.trim() || 'Anuncio';
           Alert.alert(title, announcement.body, [
             { text: 'Cerrar' },
-            {
-              text: 'No mostrar',
-              style: 'destructive',
-              onPress: () => {
-                const next = Array.from(new Set([...dismissedAnnouncementIds, announcement.id]));
-                setDismissedAnnouncementIds(next);
-                void persistDismissedAnnouncements(session.user.id, next);
-              },
-            },
-            {
-              text: 'No mostrar hoy',
-              onPress: () => {
-                setPromoDismissedForToday(true);
-                void persistPromoDismissedKey(session.user.id, todayKey());
-              },
-            },
           ]);
-        }}
-        onDismissForToday={() => {
-          setPromoDismissedForToday(true);
-          void persistPromoDismissedKey(session.user.id, todayKey());
         }}
       />
     ) : null;
@@ -2007,7 +1943,10 @@ export function MessagingApp({
               <View style={styles.mobileContentArea}>{chatsPanel}</View>
             </>
           ) : (
-            <View style={styles.mobileContentArea}>{conversationPanel}</View>
+            <>
+              {clientAnnouncementBanner}
+              <View style={styles.mobileContentArea}>{conversationPanel}</View>
+            </>
           )}
         </View>
       )}
@@ -2020,13 +1959,11 @@ function AnimatedAnnouncementBanner({
   index,
   onChangeIndex,
   onOpen,
-  onDismissForToday,
 }: {
   announcements: AnnouncementRecord[];
   index: number;
   onChangeIndex: (next: number | ((previous: number) => number)) => void;
   onOpen: (announcement: AnnouncementRecord) => void;
-  onDismissForToday?: () => void;
 }) {
   const animation = useRef(new Animated.Value(0)).current;
   const marquee = useRef(new Animated.Value(0)).current;
@@ -2109,23 +2046,11 @@ function AnimatedAnnouncementBanner({
       <Animated.View style={{ transform: [{ translateY }, { scale: bannerScale }], opacity }}>
         <View style={styles.announcementHeaderRow}>
           <Text style={styles.announcementEyebrow}>📣 ANUNCIO</Text>
-          <View style={styles.announcementHeaderActions}>
-            {announcements.length > 1 ? (
-              <Text style={styles.announcementPager}>
-                {safeIndex + 1}/{announcements.length}
-              </Text>
-            ) : null}
-            <Pressable
-              onPress={(event) => {
-                (event as any)?.stopPropagation?.();
-                onDismissForToday?.();
-              }}
-              hitSlop={10}
-              style={styles.announcementDismiss}
-            >
-              <Text style={styles.announcementDismissText}>×</Text>
-            </Pressable>
-          </View>
+          {announcements.length > 1 ? (
+            <Text style={styles.announcementPager}>
+              {safeIndex + 1}/{announcements.length}
+            </Text>
+          ) : null}
           {announcements.length > 1 ? (
             null
           ) : null}
@@ -2226,27 +2151,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  announcementHeaderActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  announcementDismiss: {
-    width: 22,
-    height: 22,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(17,24,39,0.16)',
-    borderWidth: 1,
-    borderColor: 'rgba(17,24,39,0.25)',
-  },
-  announcementDismissText: {
-    color: '#111827',
-    fontSize: 18,
-    fontWeight: '900',
-    lineHeight: 18,
   },
   announcementPager: {
     color: '#111827',
