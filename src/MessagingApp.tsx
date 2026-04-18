@@ -1965,6 +1965,8 @@ function AnimatedAnnouncementBanner({
   onOpen: (announcement: AnnouncementRecord) => void;
 }) {
   const animation = useRef(new Animated.Value(0)).current;
+  const marquee = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Animate in whenever the active item changes.
@@ -1975,6 +1977,32 @@ function AnimatedAnnouncementBanner({
       useNativeDriver: true,
     }).start();
   }, [animation, index]);
+
+  useEffect(() => {
+    // Vertical marquee effect for the body line (attention-grabbing).
+    marquee.stopAnimation();
+    marquee.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(marquee, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.timing(marquee, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    ).start();
+    return () => marquee.stopAnimation();
+  }, [marquee, index]);
+
+  useEffect(() => {
+    // Subtle pulse for the whole banner (keeps attention without being too aggressive).
+    pulse.stopAnimation();
+    pulse.setValue(0);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+    return () => pulse.stopAnimation();
+  }, [pulse]);
 
   useEffect(() => {
     if (announcements.length <= 1) {
@@ -1994,12 +2022,14 @@ function AnimatedAnnouncementBanner({
 
   const translateY = animation.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const opacity = animation;
+  const bannerScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.01] });
+  const marqueeY = marquee.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
 
   return (
     <Pressable style={styles.announcementBanner} onPress={() => onOpen(active)}>
-      <Animated.View style={{ transform: [{ translateY }], opacity }}>
+      <Animated.View style={{ transform: [{ translateY }, { scale: bannerScale }], opacity }}>
         <View style={styles.announcementHeaderRow}>
-          <Text style={styles.announcementEyebrow}>Anuncio</Text>
+          <Text style={styles.announcementEyebrow}>📣 ANUNCIO</Text>
           {announcements.length > 1 ? (
             <Text style={styles.announcementPager}>
               {safeIndex + 1}/{announcements.length}
@@ -2009,9 +2039,16 @@ function AnimatedAnnouncementBanner({
         <Text style={styles.announcementTitle} numberOfLines={1}>
           {active.title?.trim() || 'Informacion importante'}
         </Text>
-        <Text style={styles.announcementBody} numberOfLines={2}>
-          {active.body}
-        </Text>
+        <View style={styles.announcementMarqueeFrame}>
+          <Animated.View style={{ transform: [{ translateY: marqueeY }] }}>
+            <Text style={styles.announcementBody} numberOfLines={1}>
+              {active.body}
+            </Text>
+            <Text style={styles.announcementBody} numberOfLines={1}>
+              {active.body}
+            </Text>
+          </Animated.View>
+        </View>
       </Animated.View>
     </Pressable>
   );
@@ -2068,16 +2105,16 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   announcementBanner: {
-    backgroundColor: '#0d2b2a',
+    backgroundColor: '#f59e0b',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#0f766e',
+    borderColor: '#fde68a',
     paddingHorizontal: 14,
     paddingVertical: 12,
     gap: 3,
   },
   announcementEyebrow: {
-    color: '#99f6e4',
+    color: '#111827',
     textTransform: 'uppercase',
     letterSpacing: 1,
     fontSize: 11,
@@ -2089,19 +2126,24 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   announcementPager: {
-    color: '#5eead4',
+    color: '#111827',
     fontSize: 11,
     fontWeight: '800',
   },
   announcementTitle: {
-    color: '#ecfeff',
+    color: '#111827',
     fontSize: 14,
     fontWeight: '800',
   },
   announcementBody: {
-    color: '#ccfbf1',
-    fontSize: 12,
+    color: '#111827',
+    fontSize: 13,
     lineHeight: 18,
+    fontWeight: '800',
+  },
+  announcementMarqueeFrame: {
+    height: 18,
+    overflow: 'hidden',
   },
   headerShell: {
     gap: 14,

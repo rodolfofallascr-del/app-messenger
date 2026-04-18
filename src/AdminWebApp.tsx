@@ -652,6 +652,27 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   };
 
+  const handleDeleteAnnouncement = async (announcementId: string) => {
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { error } = await supabase.from('announcements').delete().eq('id', announcementId);
+
+      if (error) {
+        throw error;
+      }
+
+      await loadAnnouncements();
+      setFeedback('Anuncio eliminado.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar el anuncio.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
   const formattedClock = useMemo(
     () =>
       new Intl.DateTimeFormat('es-CR', {
@@ -1181,16 +1202,36 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 <Text style={[styles.listTitle, { color: theme.title }]}>Anuncios publicados</Text>
                 {announcementsLoading ? <ActivityIndicator color={palette.accent} /> : null}
               </View>
-              <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator persistentScrollbar>
                 <View style={styles.libraryStack}>
                   {announcements.map((item) => (
                     <View key={item.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
-                      <Text style={[styles.libraryItemTitle, { color: theme.title }]}>
-                        {item.title?.trim() || 'Anuncio'}
-                      </Text>
-                      <Text style={[styles.libraryBody, { color: theme.text }]} numberOfLines={3}>
-                        {item.body}
-                      </Text>
+                      <View style={styles.announcementRow}>
+                        <Text style={styles.announcementIcon}>📣</Text>
+                        <View style={styles.announcementCopy}>
+                          <Text style={[styles.libraryItemTitle, { color: theme.title }]} numberOfLines={1}>
+                            {item.title?.trim() || 'Anuncio'}
+                          </Text>
+                          <Text style={[styles.libraryBody, { color: theme.text }]} numberOfLines={3}>
+                            {item.body}
+                          </Text>
+                        </View>
+                        <View style={styles.announcementBadges}>
+                          <View
+                            style={[
+                              styles.announcementBadge,
+                              {
+                                backgroundColor: item.active ? `${palette.accent}25` : `${palette.input}90`,
+                                borderColor: item.active ? palette.accent : palette.border,
+                              },
+                            ]}
+                          >
+                            <Text style={[styles.announcementBadgeText, { color: item.active ? palette.accent : theme.muted }]}>
+                              {item.active ? 'ACTIVO' : 'PAUSADO'}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
                       <Text style={[styles.userMeta, { color: theme.muted }]}>
                         {item.active ? 'Activo' : 'Inactivo'} | {new Date(item.updated_at).toLocaleString('es-CR')}
                       </Text>
@@ -1200,6 +1241,19 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                           tone={item.active ? 'neutral' : 'approve'}
                           disabled={resourceBusy}
                           onPress={() => void handleToggleAnnouncementActive(item.id, !item.active)}
+                          themeMode={themeMode}
+                        />
+                        <ActionButton
+                          label="Eliminar"
+                          tone="block"
+                          disabled={resourceBusy}
+                          onPress={() => {
+                            if (typeof window !== 'undefined') {
+                              const ok = window.confirm('¿Eliminar este anuncio?');
+                              if (!ok) return;
+                            }
+                            void handleDeleteAnnouncement(item.id);
+                          }}
                           themeMode={themeMode}
                         />
                       </View>
@@ -2145,6 +2199,34 @@ const styles = StyleSheet.create({
   libraryStack: {
     gap: 12,
     paddingBottom: 6,
+  },
+  announcementRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'flex-start',
+  },
+  announcementIcon: {
+    fontSize: 18,
+    marginTop: 2,
+  },
+  announcementCopy: {
+    flex: 1,
+    gap: 6,
+  },
+  announcementBadges: {
+    gap: 6,
+    alignItems: 'flex-end',
+  },
+  announcementBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  announcementBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   libraryItemCard: {
     backgroundColor: '#101a2d',
