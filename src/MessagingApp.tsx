@@ -8,6 +8,7 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -266,7 +267,8 @@ export function MessagingApp({
   const [search, setSearch] = useState('');
   const [adminInboxFilter, setAdminInboxFilter] = useState<AdminInboxFilter>('all');
   const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<string[]>([]);
-  const [activeAnnouncement, setActiveAnnouncement] = useState<AnnouncementRecord | null>(null);
+  const [activeAnnouncements, setActiveAnnouncements] = useState<AnnouncementRecord[]>([]);
+  const [activeAnnouncementIndex, setActiveAnnouncementIndex] = useState(0);
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
   const [liveMessages, setLiveMessages] = useState<Record<string, ChatMessage[]>>({});
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
@@ -1069,9 +1071,9 @@ export function MessagingApp({
     [selectedChatId, liveChats]
   );
 
-  const loadActiveAnnouncement = useCallback(async () => {
+  const loadActiveAnnouncements = useCallback(async () => {
     if (!clientMode) {
-      setActiveAnnouncement(null);
+      setActiveAnnouncements([]);
       return;
     }
 
@@ -1084,20 +1086,16 @@ export function MessagingApp({
       .lte('starts_at', nowIso)
       .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
       .order('updated_at', { ascending: false })
-      .limit(1);
+      .limit(10);
 
     if (error) {
-      setActiveAnnouncement(null);
+      setActiveAnnouncements([]);
       return;
     }
 
-    const announcement = ((data ?? [])[0] ?? null) as AnnouncementRecord | null;
-    if (announcement && dismissedAnnouncementIds.includes(announcement.id)) {
-      setActiveAnnouncement(null);
-      return;
-    }
-
-    setActiveAnnouncement(announcement);
+    const announcements = (data ?? []) as AnnouncementRecord[];
+    const visible = announcements.filter((item) => !dismissedAnnouncementIds.includes(item.id));
+    setActiveAnnouncements(visible);
   }, [clientMode, dismissedAnnouncementIds]);
 
   const visibleChats = useMemo(() => {
@@ -1156,18 +1154,30 @@ export function MessagingApp({
       return;
     }
 
-    void loadActiveAnnouncement();
+    void loadActiveAnnouncements();
 
     const supabase = getSupabaseClient();
     const channel = supabase
       .channel('announcements-client:' + session.user.id)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => void loadActiveAnnouncement())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'announcements' }, () => void loadActiveAnnouncements())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [clientMode, loadActiveAnnouncement, session.user.id]);
+  }, [clientMode, loadActiveAnnouncements, session.user.id]);
+
+  useEffect(() => {
+    if (!clientMode) {
+      return;
+    }
+
+    // Keep index valid whenever the list changes.
+    setActiveAnnouncementIndex((current) => {
+      if (activeAnnouncements.length === 0) return 0;
+      return Math.min(current, activeAnnouncements.length - 1);
+    });
+  }, [activeAnnouncements.length, clientMode]);
 
   useEffect(() => {
     if (!clientMode) {
@@ -1887,34 +1897,27 @@ export function MessagingApp({
   );
 
   const clientAnnouncementBanner =
-    !isDesktop && clientMode && activeAnnouncement ? (
-      <Pressable
-        style={styles.announcementBanner}
-        onPress={() => {
-          const title = activeAnnouncement.title?.trim() || 'Anuncio';
-          Alert.alert(title, activeAnnouncement.body, [
+    !isDesktop && clientMode && activeAnnouncements.length > 0 ? (
+      <AnimatedAnnouncementBanner
+        announcements={activeAnnouncements}
+        index={activeAnnouncementIndex}
+        onChangeIndex={setActiveAnnouncementIndex}
+        onOpen={(announcement) => {
+          const title = announcement.title?.trim() || 'Anuncio';
+          Alert.alert(title, announcement.body, [
             { text: 'Cerrar' },
             {
               text: 'No mostrar',
               style: 'destructive',
               onPress: () => {
-                const next = Array.from(new Set([...dismissedAnnouncementIds, activeAnnouncement.id]));
+                const next = Array.from(new Set([...dismissedAnnouncementIds, announcement.id]));
                 setDismissedAnnouncementIds(next);
-                setActiveAnnouncement(null);
                 void persistDismissedAnnouncements(session.user.id, next);
               },
             },
           ]);
         }}
-      >
-        <Text style={styles.announcementEyebrow}>Anuncio</Text>
-        <Text style={styles.announcementTitle} numberOfLines={1}>
-          {activeAnnouncement.title?.trim() || 'Informacion importante'}
-        </Text>
-        <Text style={styles.announcementBody} numberOfLines={2}>
-          {activeAnnouncement.body}
-        </Text>
-      </Pressable>
+      />
     ) : null;
 
   return (
@@ -1947,6 +1950,70 @@ export function MessagingApp({
         </View>
       )}
     </KeyboardAvoidingView>
+  );
+}
+
+function AnimatedAnnouncementBanner({
+  announcements,
+  index,
+  onChangeIndex,
+  onOpen,
+}: {
+  announcements: AnnouncementRecord[];
+  index: number;
+  onChangeIndex: (next: number | ((previous: number) => number)) => void;
+  onOpen: (announcement: AnnouncementRecord) => void;
+}) {
+  const animation = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animate in whenever the active item changes.
+    animation.setValue(0);
+    Animated.timing(animation, {
+      toValue: 1,
+      duration: 320,
+      useNativeDriver: true,
+    }).start();
+  }, [animation, index]);
+
+  useEffect(() => {
+    if (announcements.length <= 1) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      onChangeIndex((previous) => (previous + 1) % announcements.length);
+    }, 5500);
+
+    return () => clearInterval(intervalId);
+  }, [announcements.length, onChangeIndex]);
+
+  const safeIndex = announcements.length > 0 ? Math.min(Math.max(index, 0), announcements.length - 1) : 0;
+  const active = announcements[safeIndex];
+  if (!active) return null;
+
+  const translateY = animation.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
+  const opacity = animation;
+
+  return (
+    <Pressable style={styles.announcementBanner} onPress={() => onOpen(active)}>
+      <Animated.View style={{ transform: [{ translateY }], opacity }}>
+        <View style={styles.announcementHeaderRow}>
+          <Text style={styles.announcementEyebrow}>Anuncio</Text>
+          {announcements.length > 1 ? (
+            <Text style={styles.announcementPager}>
+              {safeIndex + 1}/{announcements.length}
+            </Text>
+          ) : null}
+        </View>
+        <Text style={styles.announcementTitle} numberOfLines={1}>
+          {active.title?.trim() || 'Informacion importante'}
+        </Text>
+        <Text style={styles.announcementBody} numberOfLines={2}>
+          {active.body}
+        </Text>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -2013,6 +2080,16 @@ const styles = StyleSheet.create({
     color: '#99f6e4',
     textTransform: 'uppercase',
     letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  announcementHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  announcementPager: {
+    color: '#5eead4',
     fontSize: 11,
     fontWeight: '800',
   },
