@@ -1967,6 +1967,8 @@ function AnimatedAnnouncementBanner({
   const animation = useRef(new Animated.Value(0)).current;
   const marquee = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
+  const [marqueeFrameWidth, setMarqueeFrameWidth] = useState(0);
+  const [marqueeTextWidth, setMarqueeTextWidth] = useState(0);
 
   useEffect(() => {
     // Animate in whenever the active item changes.
@@ -1979,17 +1981,28 @@ function AnimatedAnnouncementBanner({
   }, [animation, index]);
 
   useEffect(() => {
-    // Vertical marquee effect for the body line (attention-grabbing).
+    // Horizontal marquee (right-to-left) like an announcement LED screen.
     marquee.stopAnimation();
     marquee.setValue(0);
+
+    const gap = 40;
+    const distance = Math.max(0, marqueeTextWidth + gap);
+    if (!distance || !marqueeFrameWidth) {
+      return;
+    }
+
+    const pxPerSecond = 60; // readable speed
+    const duration = Math.max(3500, Math.round((distance / pxPerSecond) * 1000));
     Animated.loop(
-      Animated.sequence([
-        Animated.timing(marquee, { toValue: 1, duration: 1400, useNativeDriver: true }),
-        Animated.timing(marquee, { toValue: 0, duration: 0, useNativeDriver: true }),
-      ])
+      Animated.timing(marquee, {
+        toValue: 1,
+        duration,
+        useNativeDriver: true,
+      })
     ).start();
+
     return () => marquee.stopAnimation();
-  }, [marquee, index]);
+  }, [marquee, index, marqueeFrameWidth, marqueeTextWidth]);
 
   useEffect(() => {
     // Subtle pulse for the whole banner (keeps attention without being too aggressive).
@@ -2023,7 +2036,9 @@ function AnimatedAnnouncementBanner({
   const translateY = animation.interpolate({ inputRange: [0, 1], outputRange: [10, 0] });
   const opacity = animation;
   const bannerScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.01] });
-  const marqueeY = marquee.interpolate({ inputRange: [0, 1], outputRange: [0, -18] });
+  const gap = 40;
+  const distance = Math.max(0, marqueeTextWidth + gap);
+  const marqueeX = marquee.interpolate({ inputRange: [0, 1], outputRange: [0, -distance] });
 
   return (
     <Pressable style={styles.announcementBanner} onPress={() => onOpen(active)}>
@@ -2039,11 +2054,19 @@ function AnimatedAnnouncementBanner({
         <Text style={styles.announcementTitle} numberOfLines={1}>
           {active.title?.trim() || 'Informacion importante'}
         </Text>
-        <View style={styles.announcementMarqueeFrame}>
-          <Animated.View style={{ transform: [{ translateY: marqueeY }] }}>
-            <Text style={styles.announcementBody} numberOfLines={1}>
+        <View
+          style={styles.announcementMarqueeFrame}
+          onLayout={(event) => setMarqueeFrameWidth(event.nativeEvent.layout.width)}
+        >
+          <Animated.View style={{ flexDirection: 'row', transform: [{ translateX: marqueeX }] }}>
+            <Text
+              style={styles.announcementBody}
+              numberOfLines={1}
+              onLayout={(event) => setMarqueeTextWidth(event.nativeEvent.layout.width)}
+            >
               {active.body}
             </Text>
+            <Text style={styles.announcementBodySpacer}>{' '.repeat(10)}</Text>
             <Text style={styles.announcementBody} numberOfLines={1}>
               {active.body}
             </Text>
@@ -2132,17 +2155,20 @@ const styles = StyleSheet.create({
   },
   announcementTitle: {
     color: '#111827',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '800',
   },
   announcementBody: {
     color: '#111827',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 16,
+    lineHeight: 20,
     fontWeight: '800',
   },
+  announcementBodySpacer: {
+    width: 40,
+  },
   announcementMarqueeFrame: {
-    height: 18,
+    height: 22,
     overflow: 'hidden',
   },
   headerShell: {
