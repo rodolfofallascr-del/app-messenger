@@ -24,7 +24,11 @@ export function ChatList({ chats, selectedChatId, onSelect, showClearButton, onC
               <Pressable
                 onPress={(event) => {
                   // On web, prevent the row Pressable from stealing the click.
-                  (event as any)?.stopPropagation?.();
+                  const e = event as any;
+                  e?.preventDefault?.();
+                  e?.stopPropagation?.();
+                  e?.nativeEvent?.preventDefault?.();
+                  e?.nativeEvent?.stopPropagation?.();
                   onClearChat?.(chat.id);
                 }}
                 hitSlop={12}
