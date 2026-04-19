@@ -673,6 +673,58 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   };
 
+  const handleRepublishAnnouncement = async (item: AnnouncementRecord) => {
+    setResourceBusy(true);
+    setFeedback(null);
+
+    try {
+      const supabase = getSupabaseClient();
+
+      let nextEndsAt: string | null = item.ends_at ?? null;
+
+      if (typeof window !== 'undefined') {
+        const currentLocal = item.ends_at ? new Date(item.ends_at).toISOString().slice(0, 16) : '';
+        const raw = window.prompt(
+          'Nueva fecha/hora de caducidad (opcional). Formato: YYYY-MM-DDTHH:mm. Deja vacio para no caducar.',
+          currentLocal
+        );
+
+        if (raw === null) {
+          setResourceBusy(false);
+          return;
+        }
+
+        const trimmed = raw.trim();
+        if (!trimmed) {
+          nextEndsAt = null;
+        } else {
+          const parsed = new Date(trimmed);
+          nextEndsAt = Number.isNaN(parsed.getTime()) ? item.ends_at ?? null : parsed.toISOString();
+        }
+      }
+
+      const { error } = await supabase
+        .from('announcements')
+        .update({
+          active: true,
+          starts_at: new Date().toISOString(),
+          ends_at: nextEndsAt,
+        })
+        .eq('id', item.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await loadAnnouncements();
+      setFeedback('Anuncio republicado.');
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : 'No fue posible republicar el anuncio.');
+    } finally {
+      setResourceBusy(false);
+    }
+  };
+
   const formattedClock = useMemo(
     () =>
       new Intl.DateTimeFormat('es-CR', {
@@ -1251,19 +1303,26 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                       <Text style={[styles.userMeta, { color: theme.muted }]}>
                         {item.active ? 'Activo' : 'Inactivo'} | {new Date(item.updated_at).toLocaleString('es-CR')}
                       </Text>
-                      <View style={styles.actionsRow}>
-                        <ActionButton
-                          label={item.active ? 'Desactivar' : 'Activar'}
-                          tone={item.active ? 'neutral' : 'approve'}
-                          disabled={resourceBusy}
-                          onPress={() => void handleToggleAnnouncementActive(item.id, !item.active)}
-                          themeMode={themeMode}
-                        />
-                        <ActionButton
-                          label="Eliminar"
-                          tone="block"
-                          disabled={resourceBusy}
-                          onPress={() => {
+                        <View style={styles.actionsRow}>
+                          <ActionButton
+                            label={item.active ? 'Desactivar' : 'Activar'}
+                            tone={item.active ? 'neutral' : 'approve'}
+                            disabled={resourceBusy}
+                            onPress={() => void handleToggleAnnouncementActive(item.id, !item.active)}
+                            themeMode={themeMode}
+                          />
+                          <ActionButton
+                            label="Republicar"
+                            tone="approve"
+                            disabled={resourceBusy}
+                            onPress={() => void handleRepublishAnnouncement(item)}
+                            themeMode={themeMode}
+                          />
+                          <ActionButton
+                            label="Eliminar"
+                            tone="block"
+                            disabled={resourceBusy}
+                            onPress={() => {
                             if (typeof window !== 'undefined') {
                               const ok = window.confirm('¿Eliminar este anuncio?');
                               if (!ok) return;
