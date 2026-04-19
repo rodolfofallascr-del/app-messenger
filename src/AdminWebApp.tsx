@@ -686,9 +686,21 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
+      <View pointerEvents="none" style={styles.ambient}>
+        <View style={[styles.ambientBlob, styles.ambientBlobA]} />
+        <View style={[styles.ambientBlob, styles.ambientBlobB]} />
+        <View style={[styles.ambientBlob, styles.ambientBlobC]} />
+      </View>
       <ScrollView ref={screenScrollRef} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.shell}>
-        <View style={[styles.controlBar, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View
+          style={[
+            styles.controlBar,
+            Platform.OS === 'web' && (styles.controlBarSticky as any),
+            Platform.OS === 'web' && ({ backdropFilter: 'blur(14px)', boxShadow: '0 18px 50px rgba(0,0,0,0.35)' } as any),
+            { backgroundColor: theme.card, borderColor: theme.border },
+          ]}
+        >
           <View style={styles.controlBrand}>
             <Image source={brandLogo} style={styles.controlLogo} resizeMode="contain" />
             <View style={styles.controlBrandCopy}>
@@ -1343,16 +1355,47 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: palette.background,
+    minHeight: '100vh' as any,
   },
   content: {
-    paddingHorizontal: 10,
-    paddingTop: 88,
-    paddingBottom: 18,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 22,
   },
   shell: {
     width: '100%',
     alignSelf: 'stretch',
     gap: 16,
+  },
+  ambient: {
+    position: 'absolute',
+    inset: 0,
+    overflow: 'hidden',
+  },
+  ambientBlob: {
+    position: 'absolute',
+    width: 420,
+    height: 420,
+    borderRadius: 999,
+    opacity: 0.16,
+  },
+  ambientBlobA: {
+    backgroundColor: '#00e5a0',
+    top: -120,
+    right: -110,
+  },
+  ambientBlobB: {
+    backgroundColor: '#00b8ff',
+    bottom: -160,
+    left: -130,
+  },
+  ambientBlobC: {
+    backgroundColor: '#ff9500',
+    top: '42%',
+    left: '36%',
+    width: 260,
+    height: 260,
+    opacity: 0.08,
   },
   controlBar: {
     borderRadius: 24,
@@ -1363,6 +1406,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 18,
+  },
+  controlBarSticky: {
+    position: 'sticky' as any,
+    top: 14,
+    zIndex: 50,
   },
   controlBrand: {
     flexDirection: 'row',
