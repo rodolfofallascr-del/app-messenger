@@ -1424,12 +1424,11 @@ const styles = StyleSheet.create({
     minHeight: '100vh' as any,
   },
   content: {
-    paddingHorizontal: 22,
-    paddingTop: 20,
-    paddingBottom: 26,
-    maxWidth: 1480,
+    // Full-bleed CRM: use all available width (no centered maxWidth).
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 18,
     width: '100%',
-    alignSelf: 'center',
   },
   shell: {
     width: '100%',
@@ -1467,10 +1466,11 @@ const styles = StyleSheet.create({
     opacity: 0.08,
   },
   controlBar: {
-    borderRadius: 28,
+    // SaaS top app bar (less "recuadro", more chrome).
+    borderRadius: 18,
     borderWidth: 1,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1514,12 +1514,13 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   heroCard: {
-    backgroundColor: palette.card,
+    // Reduce heavy card framing; feel more like a CRM workspace.
+    backgroundColor: 'rgba(255,255,255,0.02)',
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 30,
-    padding: 22,
-    gap: 16,
+    borderRadius: 18,
+    padding: 16,
+    gap: 14,
   },
   heroHeader: {
     flexDirection: 'row',
@@ -1966,11 +1967,14 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   userCard: {
-    backgroundColor: '#101a2d',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: 12,
+    // Table-like row (less "recuadro").
+    backgroundColor: 'transparent',
+    borderRadius: 0,
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: palette.border,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     gap: 10,
   },
   userMain: {
