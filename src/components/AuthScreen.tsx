@@ -176,7 +176,7 @@ export function AuthScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.keyboardShell}
+      style={[styles.keyboardShell, Platform.OS === 'web' && (styles.keyboardShellWeb as any)]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
     >
@@ -189,7 +189,11 @@ export function AuthScreen() {
       >
         <View style={[styles.shell, isDesktop && styles.shellDesktop]}>
           <View style={[styles.authCard, isDesktop && styles.authCardDesktop]}>
-            <Image source={brandLogo} style={[styles.logo, isDesktop && styles.logoDesktop]} resizeMode="contain" />
+            <Image
+              source={brandLogo}
+              style={[styles.logo, isDesktop ? (styles.logoDesktop as any) : null]}
+              resizeMode="contain"
+            />
 
             <View style={styles.brandCopy}>
               <Text style={styles.eyebrow}>Chat Santanita</Text>
@@ -292,6 +296,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: palette.background,
   },
+  keyboardShellWeb: ({
+    backgroundImage:
+      'radial-gradient(1200px 800px at 85% 0%, rgba(34,197,94,0.22), transparent 62%), radial-gradient(900px 700px at 10% 100%, rgba(56,189,248,0.18), transparent 58%), linear-gradient(180deg, #050814 0%, #070B16 100%)',
+  } as any),
   screen: {
     flex: 1,
     backgroundColor: palette.background,
@@ -318,7 +326,7 @@ const styles = StyleSheet.create({
     maxWidth: 520,
   },
   authCard: {
-    backgroundColor: palette.card,
+    backgroundColor: 'rgba(16,27,47,0.70)',
     borderRadius: 26,
     borderWidth: 1,
     borderColor: palette.border,

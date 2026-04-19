@@ -106,12 +106,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: palette.border,
-    backgroundColor: '#111c30',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     zIndex: 1,
   },
   itemActive: {
     borderColor: palette.accent,
-    backgroundColor: '#16253e',
+    backgroundColor: 'rgba(34,197,94,0.10)',
     shadowColor: '#000000',
     shadowOpacity: 0.14,
     shadowRadius: 12,
@@ -119,8 +119,8 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   itemUnread: {
-    borderColor: '#27563b',
-    backgroundColor: '#102118',
+    borderColor: 'rgba(34,197,94,0.38)',
+    backgroundColor: 'rgba(34,197,94,0.08)',
   },
   avatar: {
     width: 46,
@@ -230,4 +230,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

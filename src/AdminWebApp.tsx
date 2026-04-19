@@ -736,6 +736,14 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     [clockNow]
   );
 
+  const sectionLabel = useMemo(() => {
+    if (section === 'users') return 'Usuarios';
+    if (section === 'conversations') return 'Conversaciones';
+    if (section === 'library') return 'Biblioteca';
+    if (section === 'announcements') return 'Anuncios';
+    return 'Panel';
+  }, [section]);
+
   return (
     <View style={[styles.screen, { backgroundColor: theme.background }]}>
       <View pointerEvents="none" style={styles.ambient}>
@@ -1416,14 +1424,17 @@ const styles = StyleSheet.create({
     minHeight: '100vh' as any,
   },
   content: {
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: 22,
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 26,
+    maxWidth: 1480,
+    width: '100%',
+    alignSelf: 'center',
   },
   shell: {
     width: '100%',
     alignSelf: 'stretch',
-    gap: 16,
+    gap: 18,
   },
   ambient: {
     position: 'absolute',
@@ -1456,14 +1467,14 @@ const styles = StyleSheet.create({
     opacity: 0.08,
   },
   controlBar: {
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 1,
     paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingVertical: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 18,
+    gap: 16,
   },
   controlBarSticky: {
     position: 'sticky' as any,
@@ -1478,16 +1489,17 @@ const styles = StyleSheet.create({
     flex: 1.1,
   },
   controlLogo: {
-    width: 86,
-    height: 48,
+    width: 92,
+    height: 52,
   },
   controlBrandCopy: {
     minWidth: 0,
     gap: 2,
   },
   controlTitle: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: -0.3,
   },
   controlSubtitle: {
     fontSize: 13,
@@ -1505,9 +1517,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.card,
     borderWidth: 1,
     borderColor: palette.border,
-    borderRadius: 28,
-    padding: 24,
-    gap: 18,
+    borderRadius: 30,
+    padding: 22,
+    gap: 16,
   },
   heroHeader: {
     flexDirection: 'row',
