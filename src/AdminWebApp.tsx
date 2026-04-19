@@ -721,6 +721,10 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
             <MetricPill label="Pend" value={String(counts.pending)} themeMode={themeMode} />
             <MetricPill label="Ok" value={String(counts.approved)} themeMode={themeMode} />
             <MetricPill label="Block" value={String(counts.blocked)} themeMode={themeMode} />
+            <View style={[styles.clockPill, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+              <Text style={[styles.clockPillLabel, { color: theme.muted }]}>Hora</Text>
+              <Text style={[styles.clockPillValue, { color: theme.title }]}>{formattedClock}</Text>
+            </View>
             <Pressable
               style={[
                 styles.themeToggle,
@@ -1278,11 +1282,6 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         ) : null}
         </View>
       </ScrollView>
-
-      <View style={[styles.floatingClockDock, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
-        <Text style={[styles.clockLabel, { color: theme.muted }]}>Hora actual</Text>
-        <Text style={[styles.clockValue, { color: theme.title }]}>{formattedClock}</Text>
-      </View>
     </View>
   );
 }
@@ -1464,6 +1463,25 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     flex: 1,
   },
+  clockPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clockPillLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  clockPillValue: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
   metricPill: {
     borderRadius: 999,
     borderWidth: 1,
@@ -1527,23 +1545,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
   },
-  floatingClockDock: {
-    position: 'absolute',
-    top: 18,
-    right: 18,
-    minWidth: 190,
-    borderRadius: 18,
-    borderWidth: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 2,
-    zIndex: 20,
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 8,
-  },
+  // Removed floating clock dock: it was overlapping/tapping UI controls on smaller screens.
   themeToggle: {
     borderRadius: 999,
     borderWidth: 1,
