@@ -1169,7 +1169,15 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.libraryStack}>
                       {quickReplies.map((reply) => (
-                        <View key={reply.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                        <Pressable
+                          key={reply.id}
+                          onPress={() => handleQueueQuickReply(reply)}
+                          style={[
+                            styles.libraryItemCard,
+                            { backgroundColor: theme.cardAlt, borderColor: theme.border },
+                            Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+                          ]}
+                        >
                           <View style={styles.savedReplyHeader}>
                             <View style={[styles.previewDot, { backgroundColor: reply.tag_color || tagColorOptions[0] }]} />
                             {reply.tag_emoji ? <Text style={styles.previewEmoji}>{reply.tag_emoji}</Text> : null}
@@ -1177,10 +1185,16 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                           </View>
                           <Text style={[styles.libraryItemTitle, { color: theme.title }]}>{reply.label}</Text>
                           <Text style={[styles.libraryBody, { color: theme.text }]}>{reply.body}</Text>
-                          <Pressable style={[styles.deleteButton, { backgroundColor: theme.cardSoft }]} onPress={() => void handleDeleteReply(reply.id)}>
+                          <Pressable
+                            style={[styles.deleteButton, { backgroundColor: theme.cardSoft }]}
+                            onPress={(event) => {
+                              (event as any)?.stopPropagation?.();
+                              void handleDeleteReply(reply.id);
+                            }}
+                          >
                             <Text style={[styles.deleteButtonText, { color: theme.danger }]}>Eliminar</Text>
                           </Pressable>
-                        </View>
+                        </Pressable>
                       ))}
                     </View>
                   </ScrollView>
@@ -1190,14 +1204,28 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.libraryStack}>
                       {mediaLibrary.map((item) => (
-                        <View key={item.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                        <Pressable
+                          key={item.id}
+                          onPress={() => handleQueueMedia(item)}
+                          style={[
+                            styles.libraryItemCard,
+                            { backgroundColor: theme.cardAlt, borderColor: theme.border },
+                            Platform.OS === 'web' && ({ cursor: 'pointer' } as any),
+                          ]}
+                        >
                           <Image source={{ uri: item.image_url }} style={[styles.savedImage, { backgroundColor: theme.card }]} resizeMode="cover" />
                           <Text style={[styles.libraryItemTitle, { color: theme.title }]}>{item.title}</Text>
                           <Text style={styles.libraryTag}>{item.tag || '#imagen'}</Text>
-                          <Pressable style={[styles.deleteButton, { backgroundColor: theme.cardSoft }]} onPress={() => void handleDeleteImage(item.id)}>
+                          <Pressable
+                            style={[styles.deleteButton, { backgroundColor: theme.cardSoft }]}
+                            onPress={(event) => {
+                              (event as any)?.stopPropagation?.();
+                              void handleDeleteImage(item.id);
+                            }}
+                          >
                             <Text style={[styles.deleteButtonText, { color: theme.danger }]}>Eliminar</Text>
                           </Pressable>
-                        </View>
+                        </Pressable>
                       ))}
                     </View>
                   </ScrollView>
