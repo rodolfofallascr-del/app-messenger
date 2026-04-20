@@ -24,19 +24,31 @@ function parseTimeToMinutes(value: string | null | undefined) {
 }
 
 function partsForTimezone(now: Date, timeZone: string) {
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  });
+  // Intl timezone support can vary across Android/JS engines. Keep it best-effort and fall back to local time.
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
 
-  const parts = formatter.formatToParts(now);
-  const weekday = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
-  const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
-  const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
-  return { weekday, hour, minute };
+    const parts = formatter.formatToParts(now);
+    const weekday = parts.find((p) => p.type === 'weekday')?.value ?? 'Sun';
+    const hour = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+    const minute = Number(parts.find((p) => p.type === 'minute')?.value ?? '0');
+    if (Number.isFinite(hour) && Number.isFinite(minute)) {
+      return { weekday, hour, minute };
+    }
+  } catch {
+    // ignore
+  }
+
+  // Local fallback.
+  const weekdayIndex = now.getDay();
+  const weekday = Object.entries(WEEKDAY_INDEX).find(([, idx]) => idx === weekdayIndex)?.[0] ?? 'Sun';
+  return { weekday, hour: now.getHours(), minute: now.getMinutes() };
 }
 
 function isWithinWindow(day: number, minutes: number, windowStart: number, windowEnd: number, daysOfWeek: number[]) {
@@ -85,8 +97,8 @@ export function isAnnouncementActiveNow(record: AnnouncementRecord, now: Date, d
     return false;
   }
 
-  const timeZone = record.timezone || defaultTimezone;
-  const { weekday, hour, minute } = partsForTimezone(now, timeZone);
+  const timeZone = (record.timezone || defaultTimezone || '').trim();
+  const { weekday, hour, minute } = partsForTimezone(now, timeZone || defaultTimezone);
   const dayIndex = WEEKDAY_INDEX[weekday] ?? now.getDay();
   const minutes = hour * 60 + minute;
   return isWithinWindow(dayIndex, minutes, windowStart, windowEnd, daysOfWeek);

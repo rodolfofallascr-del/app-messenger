@@ -1144,7 +1144,16 @@ export function MessagingApp({
 
     const supabase = getSupabaseClient();
     const now = new Date();
-    const nowIso = now.toISOString();
+    // Prefer server-side evaluation for scheduled announcements to avoid device timezone/Intl inconsistencies.
+    // If RPC isn't available yet, fall back to client-side evaluation.
+    const rpc = await supabase.rpc('get_active_announcements', { _default_timezone: 'America/Costa_Rica' });
+    if (!rpc.error && Array.isArray(rpc.data)) {
+      const announcements = rpc.data as AnnouncementRecord[];
+      const visible = announcements.filter((item) => !dismissedAnnouncementIds.includes(item.id));
+      setActiveAnnouncements(visible.slice(0, 10));
+      return;
+    }
+
     const { data, error } = await supabase
       .from('announcements')
       .select('id,title,body,active,starts_at,ends_at,is_recurring,days_of_week,start_time,end_time,timezone,created_by,created_at,updated_at')
@@ -1158,7 +1167,13 @@ export function MessagingApp({
     }
 
     const announcements = (data ?? []) as AnnouncementRecord[];
-    const activeNow = announcements.filter((item) => isAnnouncementActiveNow(item, now));
+    const activeNow = announcements.filter((item) => {
+      try {
+        return isAnnouncementActiveNow(item, now);
+      } catch {
+        return false;
+      }
+    });
     const visible = activeNow.filter((item) => !dismissedAnnouncementIds.includes(item.id));
     setActiveAnnouncements(visible.slice(0, 10));
   }, [clientMode, dismissedAnnouncementIds]);
