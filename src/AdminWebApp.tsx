@@ -26,6 +26,11 @@ const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 const ADMIN_THEME_STORAGE_KEY = 'chat-santanita-admin-theme';
 const ADMIN_SECTION_STORAGE_KEY = 'chat-santanita-admin-section';
 const ADMIN_SOUND_STORAGE_KEY = 'chat-santanita-admin-sound';
+const ADMIN_UI_BUILD_ID =
+  (process as any)?.env?.VERCEL_GIT_COMMIT_SHA?.slice?.(0, 7) ||
+  (process as any)?.env?.VERCEL_GIT_COMMIT_REF ||
+  (process as any)?.env?.NODE_ENV ||
+  'local';
 
 export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [themeMode, setThemeMode] = useState<AdminThemeMode>(() => {
@@ -811,6 +816,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               <Text style={styles.eyebrow}>Panel administrador</Text>
               <Text style={[styles.controlTitle, { color: theme.title }]}>Chat Santanita CRM</Text>
               <Text style={[styles.controlSubtitle, { color: theme.text }]}>Administra usuarios y conversaciones sin quitarle espacio al chat.</Text>
+              <View style={styles.buildRow}>
+                <View style={[styles.buildPill, { borderColor: theme.border, backgroundColor: theme.cardSoft }]}>
+                  <Text style={[styles.buildPillText, { color: theme.muted }]}>UI {ADMIN_UI_BUILD_ID}</Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -1693,6 +1703,25 @@ const styles = StyleSheet.create({
   controlSubtitle: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  buildRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    flexWrap: 'wrap',
+  },
+  buildPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+  },
+  buildPillText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
   },
   controlCenter: {
     flexDirection: 'row',
