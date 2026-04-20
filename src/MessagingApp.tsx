@@ -51,6 +51,7 @@ type AdminInboxFilter = 'all' | 'unread';
 type MessageFlagsStorage = {
   starred: string[];
   pinned: string[];
+  pinnedExpirations?: Record<string, number>;
 };
 type ReplyPreview = { author: string; snippet: string; messageId: string } | null;
 
@@ -136,9 +137,22 @@ function loadMessageFlags(userId: string): MessageFlagsStorage {
   try {
     const stored = window.localStorage.getItem(messageFlagsStorageKey(userId));
     const parsed = stored ? (JSON.parse(stored) as Partial<MessageFlagsStorage>) : {};
+    const expirationsRaw = parsed.pinnedExpirations;
+    const pinnedExpirations: Record<string, number> = {};
+    if (expirationsRaw && typeof expirationsRaw === 'object') {
+      for (const [key, value] of Object.entries(expirationsRaw as Record<string, unknown>)) {
+        if (typeof key === 'string' && (typeof value === 'number' || typeof value === 'string')) {
+          const numberValue = typeof value === 'number' ? value : Number(value);
+          if (Number.isFinite(numberValue)) {
+            pinnedExpirations[key] = numberValue;
+          }
+        }
+      }
+    }
     return {
       starred: Array.isArray(parsed.starred) ? parsed.starred.filter((id) => typeof id === 'string') : [],
       pinned: Array.isArray(parsed.pinned) ? parsed.pinned.filter((id) => typeof id === 'string') : [],
+      pinnedExpirations,
     };
   } catch {
     window.localStorage.removeItem(messageFlagsStorageKey(userId));
@@ -158,9 +172,22 @@ async function loadMessageFlagsMobile(userId: string): Promise<MessageFlagsStora
   try {
     const stored = await SecureStore.getItemAsync(messageFlagsStorageKey(userId));
     const parsed = stored ? (JSON.parse(stored) as Partial<MessageFlagsStorage>) : {};
+    const expirationsRaw = parsed.pinnedExpirations;
+    const pinnedExpirations: Record<string, number> = {};
+    if (expirationsRaw && typeof expirationsRaw === 'object') {
+      for (const [key, value] of Object.entries(expirationsRaw as Record<string, unknown>)) {
+        if (typeof key === 'string' && (typeof value === 'number' || typeof value === 'string')) {
+          const numberValue = typeof value === 'number' ? value : Number(value);
+          if (Number.isFinite(numberValue)) {
+            pinnedExpirations[key] = numberValue;
+          }
+        }
+      }
+    }
     return {
       starred: Array.isArray(parsed.starred) ? parsed.starred.filter((id) => typeof id === 'string') : [],
       pinned: Array.isArray(parsed.pinned) ? parsed.pinned.filter((id) => typeof id === 'string') : [],
+      pinnedExpirations,
     };
   } catch {
     return { starred: [], pinned: [] };
@@ -1230,7 +1257,52 @@ export function MessagingApp({
   const currentDraft = selectedChat ? drafts[selectedChat.id] ?? '' : '';
   const currentReplyPreview = selectedChat ? replyPreviewByChat[selectedChat.id] ?? null : null;
   const starredMessageIds = useMemo(() => new Set(messageFlags.starred), [messageFlags.starred]);
-  const pinnedMessageIds = useMemo(() => new Set(messageFlags.pinned), [messageFlags.pinned]);
+  const pinnedMessageIds = useMemo(() => {
+    const now = Date.now();
+    const expirations = messageFlags.pinnedExpirations ?? {};
+    return new Set(messageFlags.pinned.filter((id) => {
+      const expiresAt = expirations[id];
+      return !expiresAt || expiresAt > now;
+    }));
+  }, [messageFlags.pinned, messageFlags.pinnedExpirations]);
+
+  useEffect(() => {
+    const expirations = messageFlags.pinnedExpirations ?? {};
+    if (!messageFlags.pinned.length) {
+      return;
+    }
+
+    const now = Date.now();
+    const nextPinned = messageFlags.pinned.filter((id) => {
+      const expiresAt = expirations[id];
+      return !expiresAt || expiresAt > now;
+    });
+
+    if (nextPinned.length === messageFlags.pinned.length) {
+      return;
+    }
+
+    setMessageFlags((current) => {
+      const next = {
+        ...current,
+        pinned: nextPinned,
+        pinnedExpirations: { ...(current.pinnedExpirations ?? {}) },
+      };
+      for (const id of current.pinned) {
+        if (!nextPinned.includes(id)) {
+          delete next.pinnedExpirations?.[id];
+        }
+      }
+
+      if (Platform.OS === 'web') {
+        persistMessageFlagsWeb(session.user.id, next);
+      } else {
+        void persistMessageFlagsMobile(session.user.id, next);
+      }
+
+      return next;
+    });
+  }, [messageFlags.pinned, messageFlags.pinnedExpirations, session.user.id]);
   const latestUnreadChat = useMemo(() => visibleChats.find((chat) => chat.unreadCount > 0) ?? null, [visibleChats]);
   const unreadChatsCount = useMemo(() => liveChats.filter((chat) => chat.unreadCount > 0).length, [liveChats]);
   const incomingSnapshot = useMemo(() => {
@@ -1733,13 +1805,25 @@ export function MessagingApp({
   );
 
   const handleTogglePinMessage = useCallback(
-    (message: ChatMessage) => {
+    (message: ChatMessage, durationMs?: number | null) => {
       setMessageFlags((current) => {
         const exists = current.pinned.includes(message.id);
+        const currentExpirations = current.pinnedExpirations ?? {};
+        const nextExpirations = { ...currentExpirations };
+
         const next = {
           ...current,
           pinned: exists ? current.pinned.filter((id) => id !== message.id) : [message.id, ...current.pinned],
+          pinnedExpirations: nextExpirations,
         };
+
+        if (exists) {
+          delete nextExpirations[message.id];
+        } else {
+          const ttl = typeof durationMs === 'number' && Number.isFinite(durationMs) ? durationMs : 24 * 60 * 60 * 1000;
+          nextExpirations[message.id] = Date.now() + ttl;
+        }
+
         if (Platform.OS === 'web') {
           persistMessageFlagsWeb(session.user.id, next);
         } else {

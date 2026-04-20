@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Audio, type AVPlaybackStatus } from 'expo-av';
+import * as Clipboard from 'expo-clipboard';
 import { getAdminTagPresentation } from '../lib/adminTags';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
@@ -21,7 +22,7 @@ type ConversationViewProps = {
   starredMessageIds?: Set<string>;
   pinnedMessageIds?: Set<string>;
   onToggleStarMessage?: (message: ChatMessage) => void;
-  onTogglePinMessage?: (message: ChatMessage) => void;
+  onTogglePinMessage?: (message: ChatMessage, durationMs?: number | null) => void;
   onDownloadAttachment?: (message: ChatMessage) => void;
   onForwardMessage?: (message: ChatMessage) => void;
 };
@@ -50,6 +51,7 @@ export function ConversationView({
   const hoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [mobileExpandedMessageId, setMobileExpandedMessageId] = useState<string | null>(null);
+  const [pinDurationMessage, setPinDurationMessage] = useState<ChatMessage | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const dragStateRef = useRef<{ active: boolean; startX: number; startY: number; originX: number; originY: number }>({
@@ -59,6 +61,21 @@ export function ConversationView({
     originX: 0,
     originY: 0,
   });
+
+  const pinnedMessage = useMemo(() => {
+    if (!pinnedMessageIds?.size) {
+      return null;
+    }
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const candidate = messages[i];
+      if (candidate && pinnedMessageIds.has(candidate.id)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }, [messages, pinnedMessageIds]);
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && !compact;
   const imageWidth = isDesktopWeb ? Math.min(420, Math.max(320, width * 0.26)) : 260;
@@ -211,7 +228,10 @@ export function ConversationView({
     try {
       if (Platform.OS === 'web' && globalThis.navigator?.clipboard?.writeText) {
         await globalThis.navigator.clipboard.writeText(text);
+        return;
       }
+
+      await Clipboard.setStringAsync(text);
     } catch {
       // Best effort.
     }
@@ -314,6 +334,41 @@ export function ConversationView({
         </View>
       </View>
 
+      {!compact && pinnedMessage ? (
+        <View style={styles.pinnedBanner}>
+          <View style={styles.pinnedBannerLeft}>
+            <Text style={styles.pinnedBannerIcon}>📌</Text>
+            <View style={styles.pinnedBannerBody}>
+              <Text style={styles.pinnedBannerTitle}>Mensaje fijado</Text>
+              <Text style={styles.pinnedBannerSnippet} numberOfLines={1}>
+                {(pinnedMessage.content ?? '').trim() || pinnedMessage.attachmentLabel || 'Adjunto'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.pinnedBannerRight}>
+            <Pressable
+              style={styles.pinnedBannerAction}
+              onPress={() => {
+                // Quick jump: expand on mobile to make it easy to see the menu.
+                if (Platform.OS !== 'web') {
+                  setMobileExpandedMessageId(pinnedMessage.id);
+                }
+              }}
+            >
+              <Text style={styles.pinnedBannerActionText}>Ver</Text>
+            </Pressable>
+            {onTogglePinMessage ? (
+              <Pressable
+                style={[styles.pinnedBannerAction, styles.pinnedBannerUnpin]}
+                onPress={() => onTogglePinMessage(pinnedMessage, null)}
+              >
+                <Text style={styles.pinnedBannerActionText}>No fijar</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      ) : null}
+
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollArea}
@@ -411,12 +466,12 @@ export function ConversationView({
                   <Text style={styles.menuTriggerText}>▾</Text>
                 </Pressable>
               ) : null}
-              {Platform.OS === 'web' && !compact && isStarred ? (
+              {!compact && isStarred ? (
                 <View style={[styles.flagBadge, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
                   <Text style={[styles.flagBadgeText, styles.flagBadgeStarText]}>★</Text>
                 </View>
               ) : null}
-              {Platform.OS === 'web' && !compact && isPinned ? (
+              {!compact && isPinned ? (
                 <View style={[styles.flagBadge, styles.flagBadgePinned, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
                   <Text style={[styles.flagBadgeText, styles.flagBadgePinText]}>📌</Text>
                 </View>
@@ -521,7 +576,7 @@ export function ConversationView({
                     <Pressable
                       style={styles.menuItem}
                       onPress={() => {
-                        void handleCopy(message.content ?? '');
+                        void handleCopy((message.content ?? '').trim() || message.attachmentUrl || '');
                         closeMenu();
                       }}
                     >
@@ -566,7 +621,14 @@ export function ConversationView({
                       <Pressable
                         style={styles.menuItem}
                         onPress={() => {
-                          onTogglePinMessage(message);
+                          const isPinned = Boolean(pinnedMessageIds?.has(message.id));
+                          if (isPinned) {
+                            onTogglePinMessage(message, null);
+                            closeMenu();
+                            return;
+                          }
+
+                          setPinDurationMessage(message);
                           closeMenu();
                         }}
                       >
@@ -630,7 +692,7 @@ export function ConversationView({
                     <Pressable
                       style={styles.menuItem}
                       onPress={() => {
-                        void handleCopy(message.content ?? '');
+                        void handleCopy((message.content ?? '').trim() || message.attachmentUrl || '');
                         closeMenu();
                       }}
                     >
@@ -668,7 +730,14 @@ export function ConversationView({
                     <Pressable
                       style={styles.menuItem}
                       onPress={() => {
-                        onTogglePinMessage?.(message);
+                        const isPinned = Boolean(pinnedMessageIds?.has(message.id));
+                        if (isPinned) {
+                          onTogglePinMessage?.(message, null);
+                          closeMenu();
+                          return;
+                        }
+
+                        setPinDurationMessage(message);
                         closeMenu();
                       }}
                     >
@@ -688,6 +757,49 @@ export function ConversationView({
                   </View>
                 );
               })()}
+            </View>
+          </Pressable>
+        </Modal>
+      ) : null}
+
+      {pinDurationMessage && onTogglePinMessage ? (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setPinDurationMessage(null)}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setPinDurationMessage(null)}>
+            <View style={styles.pinDurationSheet}>
+              <View style={styles.pinDurationCard}>
+                <Text style={styles.pinDurationTitle}>Fijar mensaje</Text>
+                <Text style={styles.pinDurationSubtitle}>Elige cuanto tiempo quieres fijarlo.</Text>
+                <Pressable
+                  style={styles.pinDurationOption}
+                  onPress={() => {
+                    onTogglePinMessage(pinDurationMessage, 24 * 60 * 60 * 1000);
+                    setPinDurationMessage(null);
+                  }}
+                >
+                  <Text style={styles.pinDurationOptionText}>24 horas</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.pinDurationOption}
+                  onPress={() => {
+                    onTogglePinMessage(pinDurationMessage, 7 * 24 * 60 * 60 * 1000);
+                    setPinDurationMessage(null);
+                  }}
+                >
+                  <Text style={styles.pinDurationOptionText}>7 dias</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.pinDurationOption}
+                  onPress={() => {
+                    onTogglePinMessage(pinDurationMessage, 30 * 24 * 60 * 60 * 1000);
+                    setPinDurationMessage(null);
+                  }}
+                >
+                  <Text style={styles.pinDurationOptionText}>30 dias</Text>
+                </Pressable>
+                <Pressable style={styles.pinDurationCancel} onPress={() => setPinDurationMessage(null)}>
+                  <Text style={styles.pinDurationCancelText}>Cancelar</Text>
+                </Pressable>
+              </View>
             </View>
           </Pressable>
         </Modal>
@@ -829,6 +941,69 @@ const styles = StyleSheet.create({
     color: palette.accentSoft,
     fontWeight: '700',
     fontSize: 12,
+  },
+  pinnedBanner: {
+    marginHorizontal: 16,
+    marginBottom: 10,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.22)',
+    backgroundColor: 'rgba(248,113,113,0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  pinnedBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
+  },
+  pinnedBannerIcon: {
+    fontSize: 16,
+  },
+  pinnedBannerBody: {
+    flex: 1,
+    minWidth: 0,
+    gap: 1,
+  },
+  pinnedBannerTitle: {
+    color: '#fecaca',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  pinnedBannerSnippet: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  pinnedBannerRight: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  pinnedBannerAction: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    backgroundColor: 'rgba(15,23,42,0.5)',
+  },
+  pinnedBannerUnpin: {
+    borderColor: 'rgba(248,113,113,0.28)',
+    backgroundColor: 'rgba(248,113,113,0.12)',
+  },
+  pinnedBannerActionText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '900',
   },
   scrollArea: {
     flex: 1,
@@ -1112,6 +1287,61 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
     paddingBottom: 84,
+  },
+  pinDurationSheet: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    padding: 14,
+    paddingBottom: 38,
+  },
+  pinDurationCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0b1220',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    padding: 14,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 26,
+    shadowOffset: { width: 0, height: 14 },
+    elevation: 12,
+  },
+  pinDurationTitle: {
+    color: '#e2e8f0',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  pinDurationSubtitle: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 6,
+  },
+  pinDurationOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    backgroundColor: 'rgba(148,163,184,0.06)',
+  },
+  pinDurationOptionText: {
+    color: '#e2e8f0',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  pinDurationCancel: {
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  pinDurationCancelText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontWeight: '800',
   },
   menuItem: {
     paddingVertical: 10,
