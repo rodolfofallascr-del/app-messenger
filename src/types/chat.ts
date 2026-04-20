@@ -112,6 +112,11 @@ export type AnnouncementRecord = {
   active: boolean;
   starts_at: string;
   ends_at: string | null;
+  is_recurring?: boolean;
+  days_of_week?: number[] | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  timezone?: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

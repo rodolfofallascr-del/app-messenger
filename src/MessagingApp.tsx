@@ -32,6 +32,7 @@ import { adminClearChatMessages, createChat, deleteOwnMessage, fetchAdminChatCle
 import { getSupabaseClient } from './lib/supabase';
 import { palette } from './theme/palette';
 import { AnnouncementRecord, ChatMessage, ChatThread, MediaLibraryRecord, PendingAttachment, QuickReplyRecord, SelectableUser } from './types/chat';
+import { isAnnouncementActiveNow } from './lib/announcementScheduling';
 
 type MessagingAppProps = {
   session: Session;
@@ -1142,15 +1143,14 @@ export function MessagingApp({
     }
 
     const supabase = getSupabaseClient();
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
     const { data, error } = await supabase
       .from('announcements')
-      .select('id,title,body,active,starts_at,ends_at,created_by,created_at,updated_at')
+      .select('id,title,body,active,starts_at,ends_at,is_recurring,days_of_week,start_time,end_time,timezone,created_by,created_at,updated_at')
       .eq('active', true)
-      .lte('starts_at', nowIso)
-      .or(`ends_at.is.null,ends_at.gt.${nowIso}`)
       .order('updated_at', { ascending: false })
-      .limit(10);
+      .limit(50);
 
     if (error) {
       setActiveAnnouncements([]);
@@ -1158,8 +1158,9 @@ export function MessagingApp({
     }
 
     const announcements = (data ?? []) as AnnouncementRecord[];
-    const visible = announcements.filter((item) => !dismissedAnnouncementIds.includes(item.id));
-    setActiveAnnouncements(visible);
+    const activeNow = announcements.filter((item) => isAnnouncementActiveNow(item, now));
+    const visible = activeNow.filter((item) => !dismissedAnnouncementIds.includes(item.id));
+    setActiveAnnouncements(visible.slice(0, 10));
   }, [clientMode, dismissedAnnouncementIds]);
 
   const visibleChats = useMemo(() => {

@@ -7,6 +7,7 @@ import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickRe
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
 import { ADMIN_TAG_PRESETS, ADMIN_TAG_SYMBOL_PRESETS, getAdminTagPresentation } from './lib/adminTags';
 import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
+import { isAnnouncementActiveNow, normalizeRecurringTimeInput } from './lib/announcementScheduling';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
 import { AnnouncementRecord, AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
@@ -67,6 +68,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [announcementBody, setAnnouncementBody] = useState('');
   const [announcementActive, setAnnouncementActive] = useState(true);
   const [announcementEndsAt, setAnnouncementEndsAt] = useState(''); // ISO date-time string (local)
+  const [announcementRecurring, setAnnouncementRecurring] = useState(false);
+  const [announcementDaysOfWeek, setAnnouncementDaysOfWeek] = useState<number[]>([2]); // default: Tuesday
+  const [announcementStartTime, setAnnouncementStartTime] = useState('07:00');
+  const [announcementEndTime, setAnnouncementEndTime] = useState('11:00');
+  const [announcementTimezone, setAnnouncementTimezone] = useState('America/Costa_Rica');
   const [resourceBusy, setResourceBusy] = useState(false);
   const [replyLabel, setReplyLabel] = useState('');
   const [replyTag, setReplyTag] = useState('');
@@ -86,6 +92,20 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [quickToolsSection, setQuickToolsSection] = useState<'replies' | 'media'>('replies');
   const screenScrollRef = useRef<ScrollView | null>(null);
   const theme = adminThemes[themeMode];
+
+  const weekdayChips = useMemo(
+    () =>
+      [
+        { id: 1, label: 'Lun' },
+        { id: 2, label: 'Mar' },
+        { id: 3, label: 'Mie' },
+        { id: 4, label: 'Jue' },
+        { id: 5, label: 'Vie' },
+        { id: 6, label: 'Sab' },
+        { id: 0, label: 'Dom' },
+      ] as const,
+    []
+  );
 
   const loadUsers = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -130,7 +150,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       const supabase = getSupabaseClient();
       const { data, error } = await supabase
         .from('announcements')
-        .select('id,title,body,active,starts_at,ends_at,created_by,created_at,updated_at')
+        .select('id,title,body,active,starts_at,ends_at,is_recurring,days_of_week,start_time,end_time,timezone,created_by,created_at,updated_at')
         .order('updated_at', { ascending: false })
         .limit(50);
 
@@ -593,6 +613,20 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       return;
     }
 
+    if (announcementRecurring) {
+      const startTime = normalizeRecurringTimeInput(announcementStartTime);
+      const endTime = normalizeRecurringTimeInput(announcementEndTime);
+      if (!startTime || !endTime) {
+        setFeedback('Define hora inicio y hora fin para la programacion.');
+        return;
+      }
+
+      if (!announcementDaysOfWeek.length) {
+        setFeedback('Selecciona al menos un dia de la semana.');
+        return;
+      }
+    }
+
     setResourceBusy(true);
     setFeedback(null);
 
@@ -609,6 +643,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         ends_at: parsedEndsAt && !Number.isNaN(parsedEndsAt.getTime()) ? parsedEndsAt.toISOString() : null,
         starts_at: new Date().toISOString(),
         created_by: profile.id,
+        is_recurring: Boolean(announcementRecurring),
+        days_of_week: announcementRecurring ? announcementDaysOfWeek : null,
+        start_time: announcementRecurring ? normalizeRecurringTimeInput(announcementStartTime) : null,
+        end_time: announcementRecurring ? normalizeRecurringTimeInput(announcementEndTime) : null,
+        timezone: announcementRecurring ? announcementTimezone.trim() || 'America/Costa_Rica' : null,
       });
 
       if (error) {
@@ -619,6 +658,11 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       setAnnouncementBody('');
       setAnnouncementActive(true);
       setAnnouncementEndsAt('');
+      setAnnouncementRecurring(false);
+      setAnnouncementDaysOfWeek([2]);
+      setAnnouncementStartTime('07:00');
+      setAnnouncementEndTime('11:00');
+      setAnnouncementTimezone('America/Costa_Rica');
       setFeedback('Anuncio publicado.');
       await loadAnnouncements();
     } catch (error) {
@@ -1254,6 +1298,76 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 multiline
                 style={[styles.longTextInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
               />
+              <View style={styles.actionsRow}>
+                <ActionButton
+                  label={announcementRecurring ? 'Programado' : 'Unico'}
+                  tone={announcementRecurring ? 'approve' : 'neutral'}
+                  disabled={resourceBusy}
+                  onPress={() => setAnnouncementRecurring((current) => !current)}
+                  themeMode={themeMode}
+                />
+              </View>
+              {announcementRecurring ? (
+                <View style={[styles.scheduleCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
+                  <Text style={[styles.scheduleTitle, { color: theme.title }]}>Programacion automatica</Text>
+                  <Text style={[styles.helperText, { color: theme.muted }]}>
+                    El anuncio aparecera solo en los dias y horas seleccionadas (zona horaria configurable).
+                  </Text>
+                  <View style={styles.scheduleRow}>
+                    {weekdayChips.map((chip) => {
+                      const selected = announcementDaysOfWeek.includes(chip.id);
+                      return (
+                        <Pressable
+                          key={chip.id}
+                          onPress={() =>
+                            setAnnouncementDaysOfWeek((current) =>
+                              current.includes(chip.id) ? current.filter((value) => value !== chip.id) : [...current, chip.id]
+                            )
+                          }
+                          style={[
+                            styles.scheduleChip,
+                            { borderColor: selected ? palette.accent : theme.border, backgroundColor: selected ? `${palette.accent}22` : theme.input },
+                          ]}
+                        >
+                          <Text style={[styles.scheduleChipText, { color: selected ? palette.accent : theme.muted }]}>{chip.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.scheduleTimes}>
+                    <View style={styles.scheduleTimeBlock}>
+                      <Text style={[styles.scheduleLabel, { color: theme.muted }]}>Inicio</Text>
+                      <TextInput
+                        value={announcementStartTime}
+                        onChangeText={(value) => setAnnouncementStartTime(normalizeRecurringTimeInput(value))}
+                        placeholder="07:00"
+                        placeholderTextColor={theme.muted}
+                        style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                      />
+                    </View>
+                    <View style={styles.scheduleTimeBlock}>
+                      <Text style={[styles.scheduleLabel, { color: theme.muted }]}>Fin</Text>
+                      <TextInput
+                        value={announcementEndTime}
+                        onChangeText={(value) => setAnnouncementEndTime(normalizeRecurringTimeInput(value))}
+                        placeholder="11:00"
+                        placeholderTextColor={theme.muted}
+                        style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                      />
+                    </View>
+                    <View style={styles.scheduleTimeBlock}>
+                      <Text style={[styles.scheduleLabel, { color: theme.muted }]}>Zona</Text>
+                      <TextInput
+                        value={announcementTimezone}
+                        onChangeText={setAnnouncementTimezone}
+                        placeholder="America/Costa_Rica"
+                        placeholderTextColor={theme.muted}
+                        style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                      />
+                    </View>
+                  </View>
+                </View>
+              ) : null}
               {Platform.OS === 'web' ? (
                 <View style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border }]}>
                   {React.createElement('input', {
@@ -1297,7 +1411,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                 />
               </View>
               <Text style={[styles.helperText, { color: theme.muted }]}>
-                Los clientes ven el anuncio en la parte superior de la app movil. Toca "No mostrar" para ocultarlo por usuario.
+                Los clientes ven el anuncio en la parte superior de la app movil. Los anuncios programados se activan solos segun el horario.
               </Text>
             </View>
 
@@ -1334,10 +1448,44 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                               {item.active ? 'ACTIVO' : 'PAUSADO'}
                             </Text>
                           </View>
+                          {item.is_recurring ? (
+                            <View
+                              style={[
+                                styles.announcementBadge,
+                                {
+                                  backgroundColor: `${palette.accentSoft}18`,
+                                  borderColor: `${palette.accentSoft}55`,
+                                },
+                              ]}
+                            >
+                              <Text style={[styles.announcementBadgeText, { color: palette.accentSoft }]}>PROGRAMADO</Text>
+                            </View>
+                          ) : null}
+                          {item.is_recurring && item.active ? (
+                            <View
+                              style={[
+                                styles.announcementBadge,
+                                {
+                                  backgroundColor: isAnnouncementActiveNow(item, clockNow) ? `${palette.accent}20` : `${palette.input}90`,
+                                  borderColor: isAnnouncementActiveNow(item, clockNow) ? palette.accent : palette.border,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.announcementBadgeText,
+                                  { color: isAnnouncementActiveNow(item, clockNow) ? palette.accent : theme.muted },
+                                ]}
+                              >
+                                {isAnnouncementActiveNow(item, clockNow) ? 'EN LINEA' : 'FUERA'}
+                              </Text>
+                            </View>
+                          ) : null}
                         </View>
                       </View>
                       <Text style={[styles.userMeta, { color: theme.muted }]}>
                         {item.active ? 'Activo' : 'Inactivo'} | {new Date(item.updated_at).toLocaleString('es-CR')}
+                        {item.is_recurring ? ` | ${formatRecurringLabel(item)}` : ''}
                       </Text>
                         <View style={styles.actionsRow}>
                           <ActionButton
@@ -1389,6 +1537,19 @@ function MetricCard({ label, value, themeMode }: { label: string; value: string;
       <Text style={[styles.metricLabel, { color: theme.text }]}>{label}</Text>
     </View>
   );
+}
+
+function formatRecurringLabel(item: AnnouncementRecord) {
+  const days = Array.isArray(item.days_of_week) ? item.days_of_week : [];
+  const labelByDay: Record<number, string> = { 0: 'Dom', 1: 'Lun', 2: 'Mar', 3: 'Mie', 4: 'Jue', 5: 'Vie', 6: 'Sab' };
+  const dayLabel = days
+    .filter((value) => typeof value === 'number')
+    .map((value) => labelByDay[value] ?? String(value))
+    .join(', ');
+  const start = (item.start_time ?? '').slice(0, 5);
+  const end = (item.end_time ?? '').slice(0, 5);
+  const zone = item.timezone ?? 'America/Costa_Rica';
+  return `${dayLabel || 'Dias'} ${start || '??'}-${end || '??'} (${zone})`;
 }
 
 function MetricPill({ label, value, themeMode }: { label: string; value: string; themeMode: AdminThemeMode }) {
@@ -2352,6 +2513,53 @@ const styles = StyleSheet.create({
   libraryStack: {
     gap: 12,
     paddingBottom: 6,
+  },
+  scheduleCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    padding: 12,
+    gap: 10,
+  },
+  scheduleTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  scheduleChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  scheduleChipText: {
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  scheduleTimes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  scheduleTimeBlock: {
+    flex: 1,
+    minWidth: 140,
+    gap: 6,
+  },
+  scheduleLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  scheduleInput: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontWeight: '800',
   },
   announcementRow: {
     flexDirection: 'row',
