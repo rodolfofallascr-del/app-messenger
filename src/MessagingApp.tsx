@@ -56,6 +56,36 @@ type ReplyPreview = { author: string; snippet: string; messageId: string } | nul
 
 const brandLogo = require('../assets/chat-santanita-logo.jpeg');
 
+function pickWebRecorderMimeType() {
+  if (typeof MediaRecorder === 'undefined') {
+    return '';
+  }
+
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg'];
+
+  for (const candidate of candidates) {
+    try {
+      if ((MediaRecorder as any).isTypeSupported?.(candidate)) {
+        return candidate;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return '';
+}
+
+function extensionForMimeType(mimeType: string) {
+  const normalized = (mimeType || '').toLowerCase();
+  if (normalized.includes('ogg')) return 'ogg';
+  if (normalized.includes('webm')) return 'webm';
+  if (normalized.includes('mpeg') || normalized.includes('mp3')) return 'mp3';
+  if (normalized.includes('wav')) return 'wav';
+  if (normalized.includes('m4a') || normalized.includes('mp4')) return 'm4a';
+  return 'webm';
+}
+
 function getReadableErrorMessage(error: unknown, fallback: string) {
   if (!error) {
     return fallback;
@@ -286,6 +316,10 @@ export function MessagingApp({
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
   const [audioRecording, setAudioRecording] = useState<Audio.Recording | null>(null);
   const [audioRecordingBusy, setAudioRecordingBusy] = useState(false);
+  const webMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const webAudioStreamRef = useRef<MediaStream | null>(null);
+  const webAudioChunksRef = useRef<BlobPart[]>([]);
+  const [webAudioRecording, setWebAudioRecording] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
@@ -1257,7 +1291,102 @@ export function MessagingApp({
 
   const handleToggleAudioRecording = useCallback(async () => {
     if (Platform.OS === 'web') {
-      // Web admin can send audio via "+ Archivo" (upload an mp3/m4a/wav).
+      // Admin web: WhatsApp-like voice notes recording via MediaRecorder.
+      if (!adminMode) {
+        return;
+      }
+
+      if (audioRecordingBusy) return;
+
+      setAudioRecordingBusy(true);
+      setLoadingError(null);
+
+      try {
+        if (!webAudioRecording) {
+          if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+            Alert.alert('Audio', 'Tu navegador no soporta grabar audio.');
+            return;
+          }
+
+          if (typeof MediaRecorder === 'undefined') {
+            Alert.alert('Audio', 'Tu navegador no soporta MediaRecorder.');
+            return;
+          }
+
+          // Avoid mixing actions with any prior attachment.
+          replacePendingAttachment(null);
+
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          webAudioStreamRef.current = stream;
+
+          const mimeType = pickWebRecorderMimeType();
+          const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+          webMediaRecorderRef.current = recorder;
+          webAudioChunksRef.current = [];
+
+          recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+              webAudioChunksRef.current.push(event.data);
+            }
+          };
+
+          recorder.onstop = () => {
+            const chunks = webAudioChunksRef.current;
+            webAudioChunksRef.current = [];
+
+            const finalMime = recorder.mimeType || mimeType || 'audio/webm';
+            const blob = new Blob(chunks, { type: finalMime });
+            const uri = URL.createObjectURL(blob);
+            const ext = extensionForMimeType(finalMime);
+
+            replacePendingAttachment({
+              uri,
+              name: `audio-${Date.now()}.${ext}`,
+              mimeType: finalMime,
+              type: 'file',
+            });
+
+            try {
+              webAudioStreamRef.current?.getTracks()?.forEach((t) => t.stop());
+            } catch {
+              // ignore
+            } finally {
+              webAudioStreamRef.current = null;
+            }
+          };
+
+          recorder.start();
+          setWebAudioRecording(true);
+          return;
+        }
+
+        try {
+          webMediaRecorderRef.current?.stop();
+        } finally {
+          webMediaRecorderRef.current = null;
+          setWebAudioRecording(false);
+        }
+      } catch (error) {
+        setLoadingError(getReadableErrorMessage(error, 'No fue posible grabar el audio.'));
+        try {
+          webMediaRecorderRef.current?.stop();
+        } catch {
+          // ignore
+        } finally {
+          webMediaRecorderRef.current = null;
+          setWebAudioRecording(false);
+          try {
+            webAudioStreamRef.current?.getTracks()?.forEach((t) => t.stop());
+          } catch {
+            // ignore
+          } finally {
+            webAudioStreamRef.current = null;
+          }
+        }
+      } finally {
+        setAudioRecordingBusy(false);
+      }
+
       return;
     }
 
@@ -1268,6 +1397,7 @@ export function MessagingApp({
 
     try {
       if (!audioRecording) {
+        replacePendingAttachment(null);
         const permission = await Audio.requestPermissionsAsync();
         if (!permission.granted) {
           Alert.alert('Audio', 'Necesitas permitir el microfono para grabar un audio.');
@@ -1312,7 +1442,7 @@ export function MessagingApp({
     } finally {
       setAudioRecordingBusy(false);
     }
-  }, [audioRecording, audioRecordingBusy]);
+  }, [adminMode, audioRecording, audioRecordingBusy, replacePendingAttachment, webAudioRecording]);
 
   useEffect(() => {
     return () => {
@@ -1321,6 +1451,31 @@ export function MessagingApp({
       }
     };
   }, [pendingAttachment]);
+
+  useEffect(() => {
+    return () => {
+      if (Platform.OS !== 'web') {
+        return;
+      }
+
+      try {
+        webMediaRecorderRef.current?.stop();
+      } catch {
+        // ignore
+      } finally {
+        webMediaRecorderRef.current = null;
+        setWebAudioRecording(false);
+      }
+
+      try {
+        webAudioStreamRef.current?.getTracks()?.forEach((t) => t.stop());
+      } catch {
+        // ignore
+      } finally {
+        webAudioStreamRef.current = null;
+      }
+    };
+  }, []);
 
   const handleToggleUser = (userId: string) => {
     setSelectedUserIds((current) =>
@@ -1926,8 +2081,8 @@ export function MessagingApp({
               focusSignal={composerFocusSignal}
               showEmojiPicker={Boolean(adminMode)}
               emojiPickerOpen={emojiPickerOpen}
-              showAudioRecorder={Boolean(Platform.OS !== 'web')}
-              audioRecording={Boolean(audioRecording)}
+              showAudioRecorder={Platform.OS !== 'web' ? true : Boolean(adminMode)}
+              audioRecording={Platform.OS !== 'web' ? Boolean(audioRecording) : webAudioRecording}
               replyPreview={currentReplyPreview ? { author: currentReplyPreview.author, snippet: currentReplyPreview.snippet } : null}
               onClearReplyPreview={() => {
                 if (!selectedChat) return;
