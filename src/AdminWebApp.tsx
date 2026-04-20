@@ -7,7 +7,7 @@ import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickRe
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
 import { ADMIN_TAG_PRESETS, ADMIN_TAG_SYMBOL_PRESETS, getAdminTagPresentation } from './lib/adminTags';
 import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
-import { isAnnouncementActiveNow, normalizeRecurringTimeInput } from './lib/announcementScheduling';
+import { isAnnouncementActiveNow, normalizeRecurringTimeInput, toSqlTimeLiteral } from './lib/announcementScheduling';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
 import { AnnouncementRecord, AppUserStatus, MediaLibraryRecord, PendingAttachment, ProfileRecord, QuickReplyRecord } from './types/chat';
@@ -650,8 +650,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         created_by: profile.id,
         is_recurring: Boolean(announcementRecurring),
         days_of_week: announcementRecurring ? announcementDaysOfWeek : null,
-        start_time: announcementRecurring ? normalizeRecurringTimeInput(announcementStartTime) : null,
-        end_time: announcementRecurring ? normalizeRecurringTimeInput(announcementEndTime) : null,
+        start_time: announcementRecurring ? toSqlTimeLiteral(announcementStartTime) : null,
+        end_time: announcementRecurring ? toSqlTimeLiteral(announcementEndTime) : null,
         timezone: announcementRecurring ? announcementTimezone.trim() || 'America/Costa_Rica' : null,
       });
 

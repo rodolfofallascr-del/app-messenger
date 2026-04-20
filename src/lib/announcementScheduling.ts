@@ -102,3 +102,9 @@ export function normalizeRecurringTimeInput(value: string) {
   return `${hour}:${minute}`;
 }
 
+// Supabase "time" columns accept HH:MM:SS. Keep seconds at 00 for clarity.
+export function toSqlTimeLiteral(value: string) {
+  const normalized = normalizeRecurringTimeInput(value);
+  if (!normalized) return '';
+  return normalized.length === 5 ? `${normalized}:00` : normalized;
+}
