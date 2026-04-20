@@ -1347,23 +1347,61 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   <View style={styles.scheduleTimes}>
                     <View style={styles.scheduleTimeBlock}>
                       <Text style={[styles.scheduleLabel, { color: theme.muted }]}>Inicio</Text>
-                      <TextInput
-                        value={announcementStartTime}
-                        onChangeText={(value) => setAnnouncementStartTime(normalizeRecurringTimeInput(value))}
-                        placeholder="07:00"
-                        placeholderTextColor={theme.muted}
-                        style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
-                      />
+                      {Platform.OS === 'web' ? (
+                        <View style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border }]}>
+                          {React.createElement('input', {
+                            type: 'time',
+                            value: announcementStartTime,
+                            onChange: (event: any) => setAnnouncementStartTime(normalizeRecurringTimeInput(String(event?.target?.value ?? ''))),
+                            style: {
+                              width: '100%',
+                              background: 'transparent',
+                              border: 'none',
+                              outline: 'none',
+                              color: theme.title,
+                              fontSize: 14,
+                              fontWeight: 800,
+                            },
+                          })}
+                        </View>
+                      ) : (
+                        <TextInput
+                          value={announcementStartTime}
+                          onChangeText={(value) => setAnnouncementStartTime(normalizeRecurringTimeInput(value))}
+                          placeholder="07:00"
+                          placeholderTextColor={theme.muted}
+                          style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                        />
+                      )}
                     </View>
                     <View style={styles.scheduleTimeBlock}>
                       <Text style={[styles.scheduleLabel, { color: theme.muted }]}>Fin</Text>
-                      <TextInput
-                        value={announcementEndTime}
-                        onChangeText={(value) => setAnnouncementEndTime(normalizeRecurringTimeInput(value))}
-                        placeholder="11:00"
-                        placeholderTextColor={theme.muted}
-                        style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
-                      />
+                      {Platform.OS === 'web' ? (
+                        <View style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border }]}>
+                          {React.createElement('input', {
+                            type: 'time',
+                            value: announcementEndTime,
+                            onChange: (event: any) => setAnnouncementEndTime(normalizeRecurringTimeInput(String(event?.target?.value ?? ''))),
+                            style: {
+                              width: '100%',
+                              background: 'transparent',
+                              border: 'none',
+                              outline: 'none',
+                              color: theme.title,
+                              fontSize: 14,
+                              fontWeight: 800,
+                            },
+                          })}
+                        </View>
+                      ) : (
+                        <TextInput
+                          value={announcementEndTime}
+                          onChangeText={(value) => setAnnouncementEndTime(normalizeRecurringTimeInput(value))}
+                          placeholder="11:00"
+                          placeholderTextColor={theme.muted}
+                          style={[styles.scheduleInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
+                        />
+                      )}
                     </View>
                     <View style={styles.scheduleTimeBlock}>
                       <Text style={[styles.scheduleLabel, { color: theme.muted }]}>Zona</Text>
@@ -1376,6 +1414,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                       />
                     </View>
                   </View>
+                  <Text style={[styles.helperText, { color: theme.muted }]}>
+                    Horas en formato 24h (ej: 07:00, 14:30). Se mostrara automaticamente dentro de esa ventana sin refrescar.
+                  </Text>
                 </View>
               ) : null}
               {Platform.OS === 'web' ? (
@@ -1550,16 +1591,28 @@ function MetricCard({ label, value, themeMode }: { label: string; value: string;
 }
 
 function formatRecurringLabel(item: AnnouncementRecord) {
+  const formatTime = (value: string) => {
+    const raw = (value || '').slice(0, 5);
+    const parts = raw.split(':');
+    if (parts.length < 2) return raw || '??';
+    const hour24 = Number(parts[0]);
+    const minute = parts[1].padStart(2, '0');
+    if (!Number.isFinite(hour24)) return raw || '??';
+    const suffix = hour24 >= 12 ? 'p. m.' : 'a. m.';
+    const hour12 = ((hour24 + 11) % 12) + 1;
+    return `${hour12}:${minute} ${suffix}`;
+  };
+
   const days = Array.isArray(item.days_of_week) ? item.days_of_week : [];
   const labelByDay: Record<number, string> = { 0: 'Dom', 1: 'Lun', 2: 'Mar', 3: 'Mie', 4: 'Jue', 5: 'Vie', 6: 'Sab' };
   const dayLabel = days
     .filter((value) => typeof value === 'number')
     .map((value) => labelByDay[value] ?? String(value))
     .join(', ');
-  const start = (item.start_time ?? '').slice(0, 5);
-  const end = (item.end_time ?? '').slice(0, 5);
+  const start = formatTime(String(item.start_time ?? ''));
+  const end = formatTime(String(item.end_time ?? ''));
   const zone = item.timezone ?? 'America/Costa_Rica';
-  return `${dayLabel || 'Dias'} ${start || '??'}-${end || '??'} (${zone})`;
+  return `${dayLabel || 'Dias'} ${start}-${end} (${zone})`;
 }
 
 function MetricPill({ label, value, themeMode }: { label: string; value: string; themeMode: AdminThemeMode }) {

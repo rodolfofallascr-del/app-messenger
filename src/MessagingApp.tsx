@@ -1223,6 +1223,11 @@ export function MessagingApp({
 
     void loadActiveAnnouncements();
 
+    // Scheduled announcements need polling because time windows can change without DB updates.
+    const intervalId = setInterval(() => {
+      void loadActiveAnnouncements();
+    }, 30_000);
+
     const supabase = getSupabaseClient();
     const channel = supabase
       .channel('announcements-client:' + session.user.id)
@@ -1230,6 +1235,7 @@ export function MessagingApp({
       .subscribe();
 
     return () => {
+      clearInterval(intervalId);
       supabase.removeChannel(channel);
     };
   }, [clientMode, loadActiveAnnouncements, session.user.id]);
