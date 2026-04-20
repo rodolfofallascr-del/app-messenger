@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Image, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Audio, type AVPlaybackStatus } from 'expo-av';
 import { getAdminTagPresentation } from '../lib/adminTags';
 import { palette } from '../theme/palette';
 import { ChatMessage, ChatThread } from '../types/chat';
@@ -62,6 +63,75 @@ export function ConversationView({
   const isDesktopWeb = Platform.OS === 'web' && !compact;
   const imageWidth = isDesktopWeb ? Math.min(420, Math.max(320, width * 0.26)) : 260;
   const imageHeight = Math.round(imageWidth * 0.78);
+
+  const audioSoundRef = useRef<Audio.Sound | null>(null);
+  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      void (async () => {
+        try {
+          if (audioSoundRef.current) {
+            await audioSoundRef.current.unloadAsync();
+          }
+        } catch {
+          // ignore
+        } finally {
+          audioSoundRef.current = null;
+        }
+      })();
+    };
+  }, []);
+
+  const togglePlayAudio = useCallback(async (message: ChatMessage) => {
+    const url = message.attachmentUrl;
+    if (!url) return;
+
+    try {
+      // If tapping the same audio, toggle stop.
+      if (playingAudioId === message.id) {
+        if (audioSoundRef.current) {
+          await audioSoundRef.current.stopAsync();
+          await audioSoundRef.current.unloadAsync();
+          audioSoundRef.current = null;
+        }
+        setPlayingAudioId(null);
+        return;
+      }
+
+      // Stop any current audio first.
+      if (audioSoundRef.current) {
+        await audioSoundRef.current.stopAsync();
+        await audioSoundRef.current.unloadAsync();
+        audioSoundRef.current = null;
+      }
+
+      const { sound } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true });
+      audioSoundRef.current = sound;
+      setPlayingAudioId(message.id);
+
+      sound.setOnPlaybackStatusUpdate((status: AVPlaybackStatus) => {
+        if (!status.isLoaded) return;
+        if ((status as any).didJustFinish) {
+          setPlayingAudioId(null);
+          void (async () => {
+            try {
+              await sound.unloadAsync();
+            } catch {
+              // ignore
+            } finally {
+              if (audioSoundRef.current === sound) {
+                audioSoundRef.current = null;
+              }
+            }
+          })();
+        }
+      });
+    } catch (error) {
+      Alert.alert('Audio', error instanceof Error ? error.message : 'No fue posible reproducir el audio.');
+      setPlayingAudioId(null);
+    }
+  }, [playingAudioId]);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
@@ -258,6 +328,7 @@ export function ConversationView({
             const canOpenAttachment = Boolean(message.attachmentLabel && message.attachmentUrl);
             const isImageAttachment = message.attachmentType === 'image' && Boolean(message.attachmentUrl);
             const isVideoAttachment = message.attachmentType === 'video' && Boolean(message.attachmentUrl);
+            const isAudioAttachment = message.attachmentType === 'audio' && Boolean(message.attachmentUrl);
             const hasVisibleText = !isImageAttachment && Boolean(message.content?.trim());
           const allowLongPressDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
           const allowMobileDelete = Boolean(Platform.OS !== 'web' && isOutgoing && message.canDelete && onDeleteMessage);
@@ -378,7 +449,26 @@ export function ConversationView({
                   </Pressable>
                 )
               ) : null}
-              {canOpenAttachment && !isImageAttachment && !isVideoAttachment ? (
+              {isAudioAttachment ? (
+                Platform.OS === 'web' ? (
+                  <View style={[styles.audioOnlyWrap, { width: imageWidth }]}>
+                    <audio
+                      src={message.attachmentUrl as string}
+                      controls
+                      style={{ width: '100%' }}
+                    />
+                  </View>
+                ) : (
+                  <Pressable onPress={() => void togglePlayAudio(message)} style={styles.audioCard}>
+                    <Text style={styles.attachmentType}>Audio</Text>
+                    <Text style={styles.attachment} numberOfLines={1}>
+                      {message.attachmentLabel || 'audio'}
+                    </Text>
+                    <Text style={styles.attachmentHint}>{playingAudioId === message.id ? 'Detener audio' : 'Reproducir audio'}</Text>
+                  </Pressable>
+                )
+              ) : null}
+              {canOpenAttachment && !isImageAttachment && !isVideoAttachment && !isAudioAttachment ? (
                 <Pressable onPress={() => void handleOpenAttachment(message.attachmentUrl as string, 'file')} style={styles.attachmentCard}>
                   <Text style={styles.attachmentType}>{message.attachmentType === 'image' ? 'Imagen' : 'Archivo'}</Text>
                   <Text style={styles.attachment}>{message.attachmentLabel}</Text>
@@ -837,6 +927,15 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#0b1220',
   },
+  audioOnlyWrap: {
+    marginTop: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    padding: 10,
+  },
   imageModalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(2,6,23,0.92)',
@@ -898,6 +997,14 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 11,
     gap: 3,
+  },
+  audioCard: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    padding: 11,
+    gap: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
   },
   attachmentType: {
     color: '#93c5fd',

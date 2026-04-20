@@ -72,7 +72,9 @@ export function buildChatMessages(messages: MessageRecord[], currentUserId: stri
         : message.message_type === 'file'
           ? isVideoFile(message.attachment_name, message.attachment_url)
             ? 'video'
-            : 'file'
+            : isAudioFile(message.attachment_name, message.attachment_url)
+              ? 'audio'
+              : 'file'
           : undefined;
 
     return {
@@ -93,6 +95,11 @@ export function buildChatMessages(messages: MessageRecord[], currentUserId: stri
 function isVideoFile(name?: string | null, url?: string | null) {
   const source = `${name ?? ''} ${url ?? ''}`.toLowerCase();
   return /\.(mp4|mov|webm|m4v)\b/.test(source);
+}
+
+function isAudioFile(name?: string | null, url?: string | null) {
+  const source = `${name ?? ''} ${url ?? ''}`.toLowerCase();
+  return /\.(m4a|mp3|wav|ogg|aac|flac)\b/.test(source);
 }
 
 function messagePreview(message?: MessageRecord | null) {

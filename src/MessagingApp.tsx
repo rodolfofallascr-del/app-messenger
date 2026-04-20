@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
+import { Audio } from 'expo-av';
 import * as SecureStore from 'expo-secure-store';
 import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -283,6 +284,8 @@ export function MessagingApp({
   const [groupName, setGroupName] = useState('');
   const [createMessage, setCreateMessage] = useState<string | null>(null);
   const [pendingAttachment, setPendingAttachment] = useState<PendingAttachment | null>(null);
+  const [audioRecording, setAudioRecording] = useState<Audio.Recording | null>(null);
+  const [audioRecordingBusy, setAudioRecordingBusy] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [composerFocusSignal, setComposerFocusSignal] = useState(0);
@@ -1252,6 +1255,65 @@ export function MessagingApp({
     replacePendingAttachment(null);
   }, [replacePendingAttachment]);
 
+  const handleToggleAudioRecording = useCallback(async () => {
+    if (Platform.OS === 'web') {
+      // Web admin can send audio via "+ Archivo" (upload an mp3/m4a/wav).
+      return;
+    }
+
+    if (audioRecordingBusy) return;
+
+    setAudioRecordingBusy(true);
+    setLoadingError(null);
+
+    try {
+      if (!audioRecording) {
+        const permission = await Audio.requestPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Audio', 'Necesitas permitir el microfono para grabar un audio.');
+          return;
+        }
+
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        setAudioRecording(recording);
+        return;
+      }
+
+      await audioRecording.stopAndUnloadAsync();
+      const uri = audioRecording.getURI();
+      setAudioRecording(null);
+
+      if (!uri) {
+        throw new Error('No se encontro el archivo de audio grabado.');
+      }
+
+      setPendingAttachment({
+        uri,
+        name: `audio-${Date.now()}.m4a`,
+        mimeType: 'audio/m4a',
+        type: 'file',
+      });
+    } catch (error) {
+      setLoadingError(getReadableErrorMessage(error, 'No fue posible grabar el audio.'));
+      try {
+        if (audioRecording) {
+          await audioRecording.stopAndUnloadAsync();
+        }
+      } catch {
+        // ignore
+      } finally {
+        setAudioRecording(null);
+      }
+    } finally {
+      setAudioRecordingBusy(false);
+    }
+  }, [audioRecording, audioRecordingBusy]);
+
   useEffect(() => {
     return () => {
       if (Platform.OS === 'web' && pendingAttachment?.uri.startsWith('blob:')) {
@@ -1864,6 +1926,8 @@ export function MessagingApp({
               focusSignal={composerFocusSignal}
               showEmojiPicker={Boolean(adminMode)}
               emojiPickerOpen={emojiPickerOpen}
+              showAudioRecorder={Boolean(Platform.OS !== 'web')}
+              audioRecording={Boolean(audioRecording)}
               replyPreview={currentReplyPreview ? { author: currentReplyPreview.author, snippet: currentReplyPreview.snippet } : null}
               onClearReplyPreview={() => {
                 if (!selectedChat) return;
@@ -1884,6 +1948,7 @@ export function MessagingApp({
             }
             onPickImage={handlePickImage}
             onPickFile={handlePickFile}
+            onPickAudio={() => void handleToggleAudioRecording()}
             onClearAttachment={clearPendingAttachment}
             onSend={handleSend}
           />

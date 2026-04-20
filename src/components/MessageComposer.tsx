@@ -12,11 +12,14 @@ type MessageComposerProps = {
   clipboardPasteEnabled?: boolean;
   showEmojiPicker?: boolean;
   emojiPickerOpen?: boolean;
+  showAudioRecorder?: boolean;
+  audioRecording?: boolean;
   replyPreview?: { author: string; snippet: string } | null;
   onClearReplyPreview?: () => void;
   onChangeText: (value: string) => void;
   onPickImage: () => void;
   onPickFile: () => void;
+  onPickAudio?: () => void;
   onClearAttachment: () => void;
   onSend: () => void;
   onToggleEmojiPicker?: () => void;
@@ -33,11 +36,14 @@ export function MessageComposer({
   clipboardPasteEnabled,
   showEmojiPicker,
   emojiPickerOpen,
+  showAudioRecorder,
+  audioRecording,
   replyPreview,
   onClearReplyPreview,
   onChangeText,
   onPickImage,
   onPickFile,
+  onPickAudio,
   onClearAttachment,
   onSend,
   onToggleEmojiPicker,
@@ -81,6 +87,9 @@ export function MessageComposer({
       <View style={styles.attachments}>
         <Tag label="+ Foto" onPress={onPickImage} />
         <Tag label="+ Archivo" onPress={onPickFile} />
+        {showAudioRecorder ? (
+          <Tag label={audioRecording ? 'Detener audio' : '+ Audio'} onPress={onPickAudio ?? (() => undefined)} />
+        ) : null}
         {showEmojiPicker ? <Tag label={emojiPickerOpen ? 'Ocultar emojis' : '+ Emojis'} onPress={onToggleEmojiPicker ?? (() => undefined)} /> : null}
         {clipboardPasteEnabled ? <Text style={styles.clipboardHint}>Ctrl + V para pegar captura</Text> : null}
       </View>
@@ -105,7 +114,13 @@ export function MessageComposer({
         <View style={styles.attachmentPreview}>
           <View style={styles.attachmentInfo}>
             <Text style={styles.attachmentName}>{attachment.name}</Text>
-            <Text style={styles.attachmentMeta}>{attachment.type === 'image' ? 'Imagen lista para enviar' : 'Archivo listo para enviar'}</Text>
+            <Text style={styles.attachmentMeta}>
+              {attachment.type === 'image'
+                ? 'Imagen lista para enviar'
+                : attachment.mimeType?.startsWith('audio/')
+                  ? 'Audio listo para enviar'
+                  : 'Archivo listo para enviar'}
+            </Text>
           </View>
           <Pressable onPress={onClearAttachment} style={styles.removeButton}>
             <Text style={styles.removeButtonText}>Quitar</Text>

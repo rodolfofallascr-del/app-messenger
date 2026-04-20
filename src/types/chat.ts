@@ -28,7 +28,7 @@ export type ChatMessage = {
   status?: MessageStatus;
   attachmentLabel?: string;
   attachmentUrl?: string;
-  attachmentType?: 'image' | 'video' | 'file';
+  attachmentType?: 'image' | 'video' | 'audio' | 'file';
   canDelete?: boolean;
 };
 
