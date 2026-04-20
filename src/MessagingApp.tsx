@@ -1224,9 +1224,10 @@ export function MessagingApp({
     void loadActiveAnnouncements();
 
     // Scheduled announcements need polling because time windows can change without DB updates.
+    // Use a short cadence so 3-minute windows reliably appear without manual refresh.
     const intervalId = setInterval(() => {
       void loadActiveAnnouncements();
-    }, 30_000);
+    }, 5_000);
 
     const supabase = getSupabaseClient();
     const channel = supabase
