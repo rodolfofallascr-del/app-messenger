@@ -625,6 +625,16 @@ export function MessagingApp({
     const armAudio = () => {
       notificationAudioArmedRef.current = true;
 
+      // Also request web notification permission on a user gesture (helps Franz/desktop wrappers).
+      try {
+        const WebNotification: any = (globalThis as any).Notification;
+        if (WebNotification && WebNotification.permission === 'default') {
+          void WebNotification.requestPermission?.().catch?.(() => undefined);
+        }
+      } catch {
+        // ignore
+      }
+
       const AudioContextCtor = getBrowserAudioContext();
       if (!AudioContextCtor || audioContextRef.current) {
         return;
@@ -1464,6 +1474,63 @@ export function MessagingApp({
 
     if (hasIncomingMessage) {
       void playIncomingMessageTone();
+
+      // Desktop notification (best effort). This is useful when the admin uses wrappers like Franz.
+      try {
+        const WebNotification: any = (globalThis as any).Notification;
+        if (!WebNotification || WebNotification.permission !== 'granted') {
+          return;
+        }
+
+        const previousEntries = new Set(previousMap.keys());
+        const changedChatIds = Object.entries(latestIncomingByChat)
+          .filter(([chatId, timestamp]) => {
+            if (!timestamp) return false;
+            const previousTimestamp = previousMap.get(chatId) ?? '';
+            return !previousTimestamp || timestamp > previousTimestamp;
+          })
+          .map(([chatId]) => chatId);
+
+        const activeChatId = selectedChatIdRef.current;
+        const candidateId = changedChatIds.find((id) => !(id === activeChatId && conversationVisibleRef.current)) ?? '';
+        if (!candidateId) return;
+
+        const chat = liveChats.find((value) => value.id === candidateId);
+        const chatLabel = chat?.name || 'una conversacion';
+        const unread = chat?.unreadCount ?? 0;
+
+        const notification = new WebNotification('Chat Santanita', {
+          body: unread > 1 ? `${unread} mensajes nuevos de ${chatLabel}` : `Mensaje nuevo de ${chatLabel}`,
+          silent: true,
+        });
+
+        notification.onclick = () => {
+          try {
+            (globalThis as any).window?.focus?.();
+          } catch {
+            // ignore
+          }
+          if (candidateId) {
+            setSelectedChatId(candidateId);
+          }
+          try {
+            notification.close?.();
+          } catch {
+            // ignore
+          }
+        };
+
+        // Auto-close after a short delay to avoid piling up.
+        setTimeout(() => {
+          try {
+            notification.close?.();
+          } catch {
+            // ignore
+          }
+        }, 5000);
+      } catch {
+        // ignore
+      }
     }
   }, [adminMode, adminSoundEnabled, incomingSnapshot, latestIncomingByChat, playIncomingMessageTone]);
 
