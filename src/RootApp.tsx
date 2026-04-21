@@ -12,6 +12,27 @@ import { getSupabaseClient, hasSupabaseConfig } from './lib/supabase';
 import { palette } from './theme/palette';
 import { PendingAttachment, ProfileRecord } from './types/chat';
 
+function getWebHostname() {
+  if (Platform.OS !== 'web') return '';
+  try {
+    return (globalThis as any)?.location?.hostname ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function isClientWebEnabled() {
+  if (Platform.OS !== 'web') return false;
+
+  // Set in Vercel for the client web deployment.
+  const envEnabled = String(process.env.EXPO_PUBLIC_ENABLE_CLIENT_WEB ?? '').toLowerCase() === 'true';
+  if (envEnabled) return true;
+
+  // Safety net: enable automatically on the intended subdomain.
+  const host = getWebHostname().toLowerCase();
+  return host === 'app.chatsantanita.com';
+}
+
 export function RootApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<ProfileRecord | null>(null);
@@ -225,6 +246,17 @@ export function RootApp() {
   }
 
   if (profile.role === 'client' && Platform.OS === 'web') {
+    if (isClientWebEnabled()) {
+      return (
+        <MessagingApp
+          session={session}
+          clientMode
+          incomingSharedAttachment={null}
+          incomingSharedText={null}
+        />
+      );
+    }
+
     return (
       <AccessStatusScreen
         eyebrow="Version cliente"
