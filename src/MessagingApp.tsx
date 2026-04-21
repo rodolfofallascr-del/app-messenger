@@ -364,6 +364,8 @@ export function MessagingApp({
   const lastNotifiedAtRef = useRef<Record<string, number>>({});
   const [mobileUnreadTotal, setMobileUnreadTotal] = useState(0);
   const [pushStatus, setPushStatus] = useState<string>('');
+  const webFaviconOriginalHrefRef = useRef<string | null>(null);
+  const webTitleOriginalRef = useRef<string | null>(null);
 
   useEffect(() => {
     // Message flags (star/pin) are an admin-only convenience. On mobile we persist them in SecureStore.
@@ -381,6 +383,87 @@ export function MessagingApp({
       cancelled = true;
     };
   }, [adminMode, session.user.id]);
+
+  useEffect(() => {
+    // Admin web: show unread count on the tab/favicon (WhatsApp-style).
+    if (Platform.OS !== 'web') return;
+    if (!adminMode) return;
+    if (typeof document === 'undefined') return;
+
+    const totalUnread = liveChats.reduce((sum, chat) => sum + (chat.unreadCount ?? 0), 0);
+
+    // Badging API (installed PWA on Chrome/Edge).
+    try {
+      const nav: any = globalThis.navigator as any;
+      if (totalUnread > 0) {
+        void nav?.setAppBadge?.(totalUnread)?.catch?.(() => undefined);
+      } else {
+        void nav?.clearAppBadge?.()?.catch?.(() => undefined);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Title prefix fallback (works everywhere).
+    if (!webTitleOriginalRef.current) {
+      webTitleOriginalRef.current = document.title || 'Chat Santanita CRM';
+    }
+    const baseTitle = webTitleOriginalRef.current;
+    document.title = totalUnread > 0 ? `(${totalUnread > 99 ? '99+' : totalUnread}) ${baseTitle}` : baseTitle;
+
+    // Favicon badge (tab icon).
+    const iconLink =
+      (document.querySelector('link[rel=\"icon\"]') as HTMLLinkElement | null) ??
+      (document.querySelector('link[rel=\"shortcut icon\"]') as HTMLLinkElement | null);
+    if (!iconLink) return;
+
+    if (!webFaviconOriginalHrefRef.current) {
+      webFaviconOriginalHrefRef.current = iconLink.href;
+    }
+
+    if (totalUnread <= 0) {
+      iconLink.href = webFaviconOriginalHrefRef.current;
+      return;
+    }
+
+    const faviconSrc = webFaviconOriginalHrefRef.current;
+    const ImgCtor: any = (globalThis as any).Image;
+    const img: any = ImgCtor ? new ImgCtor() : null;
+    if (!img) return;
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.clearRect(0, 0, size, size);
+      ctx.drawImage(img, 0, 0, size, size);
+
+      // Red badge circle on top-right.
+      const r = 18;
+      const cx = size - r;
+      const cy = r;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#ef4444';
+      ctx.fill();
+
+      // Count text.
+      const text = totalUnread > 99 ? '99+' : String(totalUnread);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, cx, cy + 1);
+
+      iconLink.href = canvas.toDataURL('image/png');
+    };
+    img.onerror = () => undefined;
+    img.src = faviconSrc;
+  }, [adminMode, liveChats]);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
