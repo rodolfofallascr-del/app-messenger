@@ -334,10 +334,10 @@ export function ConversationView({
         </View>
       </View>
 
-      {!compact && pinnedMessage ? (
-        <View style={styles.pinnedBanner}>
+      {pinnedMessage ? (
+        <View style={[styles.pinnedBanner, compact && styles.pinnedBannerCompact]}>
           <View style={styles.pinnedBannerLeft}>
-            <Text style={styles.pinnedBannerIcon}>📌</Text>
+            <Text style={styles.pinnedBannerIcon}>{'\uD83D\uDCCC'}</Text>
             <View style={styles.pinnedBannerBody}>
               <Text style={styles.pinnedBannerTitle}>Mensaje fijado</Text>
               <Text style={styles.pinnedBannerSnippet} numberOfLines={1}>
@@ -463,17 +463,17 @@ export function ConversationView({
                   }}
                   hitSlop={10}
                 >
-                  <Text style={styles.menuTriggerText}>▾</Text>
+                  <Text style={styles.menuTriggerText}>{'\u25BE'}</Text>
                 </Pressable>
               ) : null}
-              {!compact && isStarred ? (
+              {isStarred && (!compact || isExpandedOnMobile) ? (
                 <View style={[styles.flagBadge, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={[styles.flagBadgeText, styles.flagBadgeStarText]}>★</Text>
+                  <Text style={[styles.flagBadgeText, styles.flagBadgeStarText]}>{'\u2B50'}</Text>
                 </View>
               ) : null}
-              {!compact && isPinned ? (
+              {isPinned && (!compact || isExpandedOnMobile) ? (
                 <View style={[styles.flagBadge, styles.flagBadgePinned, isOutgoing ? styles.flagBadgeOutgoing : styles.flagBadgeIncoming]}>
-                  <Text style={[styles.flagBadgeText, styles.flagBadgePinText]}>📌</Text>
+                  <Text style={[styles.flagBadgeText, styles.flagBadgePinText]}>{'\uD83D\uDCCC'}</Text>
                 </View>
               ) : null}
               {!isOutgoing ? <Text style={styles.author}>{message.author}</Text> : null}
@@ -535,7 +535,7 @@ export function ConversationView({
                 {isOutgoing && message.status ? (
                   <Text style={message.status === 'leido' ? styles.readReceiptRead : styles.readReceiptDelivered}>
                     {' '}
-                    ✓✓
+                    {'\u2713\u2713'}
                   </Text>
                 ) : null}
                 {isPinned ? '  📌' : ''}
@@ -955,6 +955,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 10,
+  },
+  pinnedBannerCompact: {
+    marginHorizontal: 12,
+    marginBottom: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
   },
   pinnedBannerLeft: {
     flexDirection: 'row',
