@@ -340,14 +340,24 @@ export function ConversationView({
           </View>
         </View>
         <View style={styles.headerRight}>
-          {Platform.OS === 'web' && !compact ? (
+          {!compact || Platform.OS !== 'web' ? (
             <Pressable
-              style={[styles.headerActionPill, starredMessages.length > 0 && styles.headerActionPillActive]}
+              style={[
+                styles.headerActionPill,
+                compact && styles.headerActionPillCompact,
+                starredMessages.length > 0 && styles.headerActionPillActive,
+              ]}
               onPress={() => setStarredDrawerVisible(true)}
               accessibilityLabel="Ver mensajes destacados"
             >
-              <Text style={[styles.headerActionPillText, starredMessages.length > 0 && styles.headerActionPillTextActive]}>
-                {'\u2B50'} Destacados{starredMessages.length ? ` (${starredMessages.length})` : ''}
+              <Text
+                style={[
+                  styles.headerActionPillText,
+                  compact && styles.headerActionPillTextCompact,
+                  starredMessages.length > 0 && styles.headerActionPillTextActive,
+                ]}
+              >
+                {'\u2B50'} {compact ? `${starredMessages.length}` : `Destacados${starredMessages.length ? ` (${starredMessages.length})` : ''}`}
               </Text>
             </Pressable>
           ) : null}
@@ -428,10 +438,6 @@ export function ConversationView({
                 isExpandedOnMobile ? styles.bubbleExpanded : null,
               ]}
               onLayout={(event) => {
-                if (Platform.OS !== 'web') {
-                  return;
-                }
-
                 const y = (event as any)?.nativeEvent?.layout?.y;
                 if (typeof y === 'number') {
                   messageOffsetByIdRef.current[message.id] = y;
@@ -846,6 +852,60 @@ export function ConversationView({
         </Modal>
       ) : null}
 
+      {Platform.OS !== 'web' && starredDrawerVisible ? (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setStarredDrawerVisible(false)}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setStarredDrawerVisible(false)}>
+            <Pressable
+              style={styles.starredSheet}
+              onPress={(event) => {
+                (event as any)?.stopPropagation?.();
+              }}
+            >
+              <View style={styles.starredDrawerHeader}>
+                <Text style={styles.starredDrawerTitle}>{'\u2B50'} Mensajes destacados</Text>
+                <Pressable style={styles.starredDrawerClose} onPress={() => setStarredDrawerVisible(false)}>
+                  <Text style={styles.starredDrawerCloseText}>Cerrar</Text>
+                </Pressable>
+              </View>
+
+              {starredMessages.length === 0 ? (
+                <Text style={styles.starredDrawerEmpty}>No hay mensajes destacados en este chat.</Text>
+              ) : (
+                <ScrollView style={styles.starredDrawerList} showsVerticalScrollIndicator={false}>
+                  {starredMessages
+                    .slice()
+                    .reverse()
+                    .map((m) => {
+                      const snippet = ((m.content ?? '').trim() || m.attachmentLabel || 'Adjunto').slice(0, 140);
+                      return (
+                        <Pressable
+                          key={'starred-mobile-' + m.id}
+                          style={styles.starredDrawerItem}
+                          onPress={() => {
+                            const y = messageOffsetByIdRef.current[m.id];
+                            if (typeof y === 'number') {
+                              scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 60), animated: true });
+                            }
+                            // Help the user see the message immediately.
+                            setMobileExpandedMessageId(m.id);
+                            setStarredDrawerVisible(false);
+                          }}
+                        >
+                          <Text style={styles.starredDrawerItemAuthor}>{m.author}</Text>
+                          <Text style={styles.starredDrawerItemSnippet} numberOfLines={2}>
+                            {snippet}
+                          </Text>
+                          <Text style={styles.starredDrawerItemMeta}>{m.timestamp}</Text>
+                        </Pressable>
+                      );
+                    })}
+                </ScrollView>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+
       {pinDurationMessage && onTogglePinMessage ? (
         <Modal transparent animationType="fade" visible onRequestClose={() => setPinDurationMessage(null)}>
           <Pressable style={styles.menuBackdrop} onPress={() => setPinDurationMessage(null)}>
@@ -1033,6 +1093,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
   },
+  headerActionPillCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerActionPillTextCompact: {
+    fontSize: 12,
+    letterSpacing: 0.2,
+  },
   headerActionPillTextActive: {
     color: '#fde68a',
   },
@@ -1062,6 +1133,20 @@ const styles = StyleSheet.create({
     padding: 16,
     alignSelf: 'center',
     marginTop: 72,
+  },
+  starredSheet: {
+    width: '100%',
+    maxHeight: '78%',
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    backgroundColor: 'rgba(15,23,42,0.98)',
+    padding: 16,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   starredDrawerHeader: {
     flexDirection: 'row',
