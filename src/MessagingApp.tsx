@@ -2000,7 +2000,20 @@ export function MessagingApp({
 
   const mobileStatusText = Platform.OS !== 'web' && pushStatus ? `${statusText} ${pushStatus}` : statusText;
 
-  const header = adminMode && isDesktop ? null : isDesktop ? (
+  const header = adminMode && isDesktop ? null : clientMode && Platform.OS === 'web' ? (
+    <View style={[styles.mobileTopBar, styles.clientWebTopBar]}>
+      <View style={styles.mobileBrandRow}>
+        <Image source={brandLogo} style={styles.mobileLogo} resizeMode="contain" />
+        <View style={styles.mobileBrandCopy}>
+          <Text style={styles.mobileBrandTitle}>Chat Santanita</Text>
+          <Text style={styles.mobileBrandStatus}>{statusText}</Text>
+        </View>
+      </View>
+      <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
+        <Text style={styles.mobileHeaderActionText}>Salir</Text>
+      </Pressable>
+    </View>
+  ) : isDesktop ? (
     <View style={[styles.headerShell, styles.headerShellDesktop]}>
       <View style={styles.heroCard}>
         <Image source={brandLogo} style={styles.heroLogo} resizeMode="contain" />
@@ -2567,6 +2580,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 10,
+  },
+  clientWebTopBar: {
+    // Keep it compact so the chat composer is always visible on laptop screens.
+    paddingVertical: 8,
+    borderRadius: 22,
   },
   mobileBrandRow: {
     flexDirection: 'row',
