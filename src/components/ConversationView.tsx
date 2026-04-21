@@ -44,6 +44,7 @@ export function ConversationView({
   onForwardMessage,
 }: ConversationViewProps) {
   const scrollViewRef = useRef<ScrollView | null>(null);
+  const messageOffsetByIdRef = useRef<Record<string, number>>({});
   const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
   const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; outgoing: boolean } | null>(null);
@@ -51,6 +52,7 @@ export function ConversationView({
   const hoverHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mobileMenuVisible, setMobileMenuVisible] = useState(false);
   const [mobileExpandedMessageId, setMobileExpandedMessageId] = useState<string | null>(null);
+  const [starredDrawerVisible, setStarredDrawerVisible] = useState(false);
   const [pinDurationMessage, setPinDurationMessage] = useState<ChatMessage | null>(null);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
@@ -76,6 +78,14 @@ export function ConversationView({
 
     return null;
   }, [messages, pinnedMessageIds]);
+
+  const starredMessages = useMemo(() => {
+    if (!starredMessageIds?.size) {
+      return [];
+    }
+
+    return messages.filter((message) => starredMessageIds.has(message.id));
+  }, [messages, starredMessageIds]);
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === 'web' && !compact;
   const imageWidth = isDesktopWeb ? Math.min(420, Math.max(320, width * 0.26)) : 260;
@@ -329,8 +339,21 @@ export function ConversationView({
             ) : null}
           </View>
         </View>
-        <View style={[styles.headerBadge, compact && styles.headerBadgeCompact]}>
-          <Text style={styles.headerBadgeText}>{chat.encryptionLabel}</Text>
+        <View style={styles.headerRight}>
+          {Platform.OS === 'web' && !compact ? (
+            <Pressable
+              style={[styles.headerActionPill, starredMessages.length > 0 && styles.headerActionPillActive]}
+              onPress={() => setStarredDrawerVisible(true)}
+              accessibilityLabel="Ver mensajes destacados"
+            >
+              <Text style={[styles.headerActionPillText, starredMessages.length > 0 && styles.headerActionPillTextActive]}>
+                {'\u2B50'} Destacados{starredMessages.length ? ` (${starredMessages.length})` : ''}
+              </Text>
+            </Pressable>
+          ) : null}
+          <View style={[styles.headerBadge, compact && styles.headerBadgeCompact]}>
+            <Text style={styles.headerBadgeText}>{chat.encryptionLabel}</Text>
+          </View>
         </View>
       </View>
 
@@ -404,6 +427,16 @@ export function ConversationView({
                 isOutgoing ? styles.outgoing : styles.incoming,
                 isExpandedOnMobile ? styles.bubbleExpanded : null,
               ]}
+              onLayout={(event) => {
+                if (Platform.OS !== 'web') {
+                  return;
+                }
+
+                const y = (event as any)?.nativeEvent?.layout?.y;
+                if (typeof y === 'number') {
+                  messageOffsetByIdRef.current[message.id] = y;
+                }
+              }}
               onPress={() => {
                 if (!isMobile) return;
                 setMobileExpandedMessageId((current) => (current === message.id ? null : message.id));
@@ -762,6 +795,57 @@ export function ConversationView({
         </Modal>
       ) : null}
 
+      {Platform.OS === 'web' && !compact && starredDrawerVisible ? (
+        <Modal transparent animationType="fade" visible onRequestClose={() => setStarredDrawerVisible(false)}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setStarredDrawerVisible(false)}>
+            <Pressable
+              style={styles.starredDrawer}
+              onPress={(event) => {
+                (event as any)?.stopPropagation?.();
+              }}
+            >
+              <View style={styles.starredDrawerHeader}>
+                <Text style={styles.starredDrawerTitle}>{'\u2B50'} Mensajes destacados</Text>
+                <Pressable style={styles.starredDrawerClose} onPress={() => setStarredDrawerVisible(false)}>
+                  <Text style={styles.starredDrawerCloseText}>Cerrar</Text>
+                </Pressable>
+              </View>
+              {starredMessages.length === 0 ? (
+                <Text style={styles.starredDrawerEmpty}>No hay mensajes destacados en este chat.</Text>
+              ) : (
+                <ScrollView style={styles.starredDrawerList} showsVerticalScrollIndicator={false}>
+                  {starredMessages
+                    .slice()
+                    .reverse()
+                    .map((m) => {
+                      const snippet = ((m.content ?? '').trim() || m.attachmentLabel || 'Adjunto').slice(0, 140);
+                      return (
+                        <Pressable
+                          key={'starred-' + m.id}
+                          style={styles.starredDrawerItem}
+                          onPress={() => {
+                            const y = messageOffsetByIdRef.current[m.id];
+                            if (typeof y === 'number') {
+                              scrollViewRef.current?.scrollTo({ y: Math.max(0, y - 60), animated: true });
+                            }
+                            setStarredDrawerVisible(false);
+                          }}
+                        >
+                          <Text style={styles.starredDrawerItemAuthor}>{m.author}</Text>
+                          <Text style={styles.starredDrawerItemSnippet} numberOfLines={2}>
+                            {snippet}
+                          </Text>
+                          <Text style={styles.starredDrawerItemMeta}>{m.timestamp}</Text>
+                        </Pressable>
+                      );
+                    })}
+                </ScrollView>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
+
       {pinDurationMessage && onTogglePinMessage ? (
         <Modal transparent animationType="fade" visible onRequestClose={() => setPinDurationMessage(null)}>
           <Pressable style={styles.menuBackdrop} onPress={() => setPinDurationMessage(null)}>
@@ -927,6 +1011,31 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerActionPill: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.22)',
+    backgroundColor: 'rgba(15,23,42,0.4)',
+  },
+  headerActionPillActive: {
+    borderColor: 'rgba(250,204,21,0.35)',
+    backgroundColor: 'rgba(250,204,21,0.10)',
+  },
+  headerActionPillText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  headerActionPillTextActive: {
+    color: '#fde68a',
+  },
   headerBadge: {
     backgroundColor: '#16253e',
     borderRadius: 999,
@@ -941,6 +1050,77 @@ const styles = StyleSheet.create({
     color: palette.accentSoft,
     fontWeight: '700',
     fontSize: 12,
+  },
+  starredDrawer: {
+    width: 380,
+    maxWidth: '92%',
+    maxHeight: '80%',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    backgroundColor: 'rgba(15,23,42,0.96)',
+    padding: 16,
+    alignSelf: 'center',
+    marginTop: 72,
+  },
+  starredDrawerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 12,
+  },
+  starredDrawerTitle: {
+    color: '#f8fafc',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  starredDrawerClose: {
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    backgroundColor: 'rgba(30,41,59,0.6)',
+  },
+  starredDrawerCloseText: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '900',
+  },
+  starredDrawerEmpty: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  starredDrawerList: {
+    flexGrow: 0,
+  },
+  starredDrawerItem: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.14)',
+    backgroundColor: 'rgba(2,6,23,0.55)',
+    padding: 12,
+    marginBottom: 10,
+  },
+  starredDrawerItemAuthor: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  starredDrawerItemSnippet: {
+    color: '#f8fafc',
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '700',
+  },
+  starredDrawerItemMeta: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 8,
   },
   pinnedBanner: {
     marginHorizontal: 16,
