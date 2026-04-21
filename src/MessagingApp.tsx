@@ -2255,7 +2255,14 @@ export function MessagingApp({
           <View style={[styles.root, styles.rootDesktop, adminMode && styles.rootAdminDesktop, { height: desktopViewportHeight }]}>
 
             {header}
-            <View style={[styles.workspace, styles.workspaceDesktop, adminMode && styles.workspaceAdminDesktop]}>
+            <View
+              style={[
+                styles.workspace,
+                styles.workspaceDesktop,
+                adminMode && styles.workspaceAdminDesktop,
+                clientMode && Platform.OS === 'web' && isDesktop && styles.workspaceClientDesktop,
+              ]}
+            >
               {chatsPanel}
               {conversationPanel}
             </View>
@@ -2671,6 +2678,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 0,
   },
+  workspaceClientDesktop: {
+    maxWidth: '100%',
+    alignSelf: 'stretch',
+    paddingHorizontal: 18,
+  },
   workspaceAdminDesktop: {
     maxWidth: '100%',
     gap: 18,
@@ -2684,7 +2696,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   sidebarDesktop: {
-    width: 380,
+    width: 360,
   },
   sidebarAdminDesktop: {
     width: 292,
