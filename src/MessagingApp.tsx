@@ -721,6 +721,10 @@ export function MessagingApp({
       };
 
       persistReadMarkers(nextMarkers);
+
+      // Optimistic UI: unread counters (and favicon/title badges) should clear immediately when opening a chat.
+      unreadCountsRef.current = { ...unreadCountsRef.current, [chatId]: 0 };
+      setLiveChats((current) => current.map((chat) => (chat.id === chatId ? { ...chat, unreadCount: 0 } : chat)));
       void upsertChatReadMarker(chatId, latestIncoming).catch(() => undefined);
     },
     [persistReadMarkers]
