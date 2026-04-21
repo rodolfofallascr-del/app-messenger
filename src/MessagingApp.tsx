@@ -2252,7 +2252,15 @@ export function MessagingApp({
           contentContainerStyle={[styles.screenContent, styles.screenContentDesktop, { minHeight: desktopViewportHeight }]}
           showsVerticalScrollIndicator={false}
         >
-          <View style={[styles.root, styles.rootDesktop, adminMode && styles.rootAdminDesktop, { height: desktopViewportHeight }]}>
+           <View
+             style={[
+               styles.root,
+               styles.rootDesktop,
+               adminMode && styles.rootAdminDesktop,
+               clientMode && Platform.OS === 'web' && isDesktop && styles.rootClientDesktop,
+               { height: desktopViewportHeight },
+             ]}
+           >
 
             {header}
             <View
@@ -2452,6 +2460,10 @@ const styles = StyleSheet.create({
   rootAdminDesktop: {
     paddingHorizontal: 0,
     gap: 0,
+  },
+  rootClientDesktop: {
+    // Client web should use the full monitor width (no centered "mobile" margins).
+    paddingHorizontal: 0,
   },
   mobileRoot: {
     flex: 1,
@@ -2681,7 +2693,8 @@ const styles = StyleSheet.create({
   workspaceClientDesktop: {
     maxWidth: '100%',
     alignSelf: 'stretch',
-    paddingHorizontal: 18,
+    // Keep a small gutter; avoid the "big centered card" look on desktop monitors.
+    paddingHorizontal: 12,
   },
   workspaceAdminDesktop: {
     maxWidth: '100%',
