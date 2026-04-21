@@ -3,14 +3,40 @@ import * as SecureStore from 'expo-secure-store';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { Platform } from 'react-native';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const rawSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const rawSupabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey);
+function normalizeSupabaseUrl(value: string) {
+  const trimmed = value.trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // Users sometimes paste the host without protocol; Supabase client expects a full URL.
+  return `https://${trimmed}`;
+}
+
+export const hasSupabaseConfig = Boolean(
+  typeof rawSupabaseUrl === 'string' &&
+    rawSupabaseUrl.trim() &&
+    typeof rawSupabaseAnonKey === 'string' &&
+    rawSupabaseAnonKey.trim()
+);
 
 export function getSupabaseConfig() {
-  if (!hasSupabaseConfig || !supabaseUrl || !supabaseAnonKey) {
+  if (!hasSupabaseConfig || !rawSupabaseUrl || !rawSupabaseAnonKey) {
     throw new Error('Supabase no esta configurado. Agrega EXPO_PUBLIC_SUPABASE_URL y EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+  }
+
+  const supabaseUrl = normalizeSupabaseUrl(rawSupabaseUrl);
+  const supabaseAnonKey = rawSupabaseAnonKey.trim();
+
+  try {
+    // Validate early so we fail with a helpful message on misconfigured web deployments.
+    // eslint-disable-next-line no-new
+    new URL(supabaseUrl);
+  } catch {
+    throw new Error(
+      'EXPO_PUBLIC_SUPABASE_URL es invalida. Debe verse como "https://TU-PROYECTO.supabase.co". Revisa las variables de entorno en Vercel/Expo.'
+    );
   }
 
   return { supabaseUrl, supabaseAnonKey };
