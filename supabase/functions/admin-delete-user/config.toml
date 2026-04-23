@@ -1,0 +1,4 @@
+# Supabase Edge Function configuration
+# We do auth inside the function via `auth.getUser()` to decide who can delete users.
+verify_jwt = false
+

@@ -46,6 +46,25 @@ export async function deleteBlockedUserChats(userId: string) {
   return Number(data ?? 0);
 }
 
+export async function deleteUserCompletely(userId: string) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+    body: { target_user_id: userId },
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const ok = Boolean((data as any)?.ok);
+  if (!ok) {
+    const message = (data as any)?.error ?? 'No fue posible eliminar el usuario.';
+    throw new Error(typeof message === 'string' ? message : 'No fue posible eliminar el usuario.');
+  }
+
+  return data as { ok: true };
+}
+
 export async function updateAdminAlias(userId: string, alias: string | null) {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase.rpc('admin_set_user_alias', {

@@ -6,7 +6,7 @@ import { MessagingApp } from './MessagingApp';
 import { createMediaLibraryItem, createMediaLibraryItemFromUpload, createQuickReply, deleteMediaLibraryItem, deleteQuickReply, fetchMediaLibrary, fetchQuickReplies } from './lib/adminLibraryService';
 import { ADMIN_EMOJI_LIBRARY } from './constants/adminEmojiLibrary';
 import { ADMIN_TAG_PRESETS, ADMIN_TAG_SYMBOL_PRESETS, getAdminTagPresentation } from './lib/adminTags';
-import { deleteBlockedUserChats, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
+import { deleteUserCompletely, fetchAdminUsers, updateAdminAlias, updateAdminTags, updateUserAccess } from './lib/adminService';
 import { isAnnouncementActiveNow, normalizeRecurringTimeInput, toSqlTimeLiteral } from './lib/announcementScheduling';
 import { getSupabaseClient } from './lib/supabase';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
@@ -377,19 +377,27 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   };
 
-  const handleDeleteBlockedChats = async (userId: string) => {
+  const handleDeleteBlockedUser = async (userId: string) => {
     setActionUserId(userId);
     setFeedback(null);
 
     try {
-      const deletedCount = await deleteBlockedUserChats(userId);
-      setFeedback(
-        deletedCount > 0
-          ? `Se eliminaron ${deletedCount} conversaciones del usuario bloqueado.`
-          : 'El usuario bloqueado no tenia conversaciones para eliminar.'
-      );
+      const confirmed = typeof (globalThis as any).confirm === 'function'
+        ? (globalThis as any).confirm(
+            'Vas a eliminar este usuario PERMANENTEMENTE.\n\nEsto borrara:\n- Su acceso (Auth)\n- Su perfil y su historial de chat\n\nEsta accion no se puede deshacer.\n\nDeseas continuar?'
+          )
+        : true;
+
+      if (!confirmed) {
+        setFeedback('Accion cancelada.');
+        return;
+      }
+
+      await deleteUserCompletely(userId);
+      setUsers((current) => current.filter((user) => user.id !== userId));
+      setFeedback('Usuario eliminado permanentemente.');
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar las conversaciones del usuario.');
+      setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar el usuario.');
     } finally {
       setActionUserId(null);
     }
@@ -1067,7 +1075,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                           <ActionButton label="Pendiente" tone="neutral" disabled={busy || user.status === 'pending'} onPress={() => void handleUpdateStatus(user.id, 'pending')} themeMode={themeMode} />
                           <ActionButton label="Bloquear" tone="block" disabled={busy || user.status === 'blocked'} onPress={() => void handleUpdateStatus(user.id, 'blocked')} themeMode={themeMode} />
                           {user.status === 'blocked' ? (
-                            <ActionButton label="Eliminar chats" tone="neutral" disabled={busy} onPress={() => void handleDeleteBlockedChats(user.id)} themeMode={themeMode} />
+                            <ActionButton label="Eliminar usuario" tone="danger" disabled={busy} onPress={() => void handleDeleteBlockedUser(user.id)} themeMode={themeMode} />
                           ) : null}
                         </View>
                       </View>
@@ -1694,8 +1702,9 @@ function FilterChip({ label, active, onPress, themeMode }: { label: string; acti
   );
 }
 
-function ActionButton({ label, tone, disabled, onPress, themeMode }: { label: string; tone: 'approve' | 'block' | 'neutral'; disabled?: boolean; onPress: () => void; themeMode: AdminThemeMode }) {
+function ActionButton({ label, tone, disabled, onPress, themeMode }: { label: string; tone: 'approve' | 'block' | 'danger' | 'neutral'; disabled?: boolean; onPress: () => void; themeMode: AdminThemeMode }) {
   const theme = adminThemes[themeMode];
+  const isDestructive = tone === 'block' || tone === 'danger';
   return (
     <Pressable
       onPress={onPress}
@@ -1704,11 +1713,19 @@ function ActionButton({ label, tone, disabled, onPress, themeMode }: { label: st
         styles.actionButton,
         { backgroundColor: theme.input, borderColor: theme.border },
         tone === 'approve' && [styles.actionApprove, { backgroundColor: theme.accent, borderColor: theme.accent }],
-        tone === 'block' && styles.actionBlock,
+        isDestructive && styles.actionBlock,
         disabled && styles.actionDisabled,
       ]}
     >
-      <Text style={[styles.actionText, { color: theme.text }, tone !== 'neutral' && [styles.actionTextDark, { color: tone === 'approve' ? theme.buttonText : '#111827' }]]}>{label}</Text>
+      <Text
+        style={[
+          styles.actionText,
+          { color: theme.text },
+          tone !== 'neutral' && [styles.actionTextDark, { color: tone === 'approve' ? theme.buttonText : '#111827' }],
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
