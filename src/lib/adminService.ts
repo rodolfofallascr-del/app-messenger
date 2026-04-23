@@ -33,6 +33,8 @@ export async function updateUserAccess(userId: string, status: AppUserStatus) {
 
 export async function deleteBlockedUserChats(userId: string) {
   const supabase = getSupabaseClient();
+  // Backend function name in Supabase is `admin_delete_user_chats`.
+  // Keep the frontend aligned to avoid silent "not found" failures.
   const { data, error } = await supabase.rpc('admin_delete_user_chats', {
     target_user_id: userId,
   });
