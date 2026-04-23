@@ -96,6 +96,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [quickToolsOpen, setQuickToolsOpen] = useState(false);
   const [quickToolsSection, setQuickToolsSection] = useState<'replies' | 'media'>('replies');
   const screenScrollRef = useRef<ScrollView | null>(null);
+  const dirtyAliasDraftsRef = useRef<Set<string>>(new Set());
+  const dirtyTagDraftsRef = useRef<Set<string>>(new Set());
   const theme = adminThemes[themeMode];
 
   const weekdayChips = useMemo(
@@ -121,8 +123,43 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     try {
       const nextUsers = await fetchAdminUsers();
       setUsers(nextUsers);
-      setAliasDrafts(Object.fromEntries(nextUsers.map((user) => [user.id, user.admin_alias?.trim() || ''])));
-      setTagDrafts(Object.fromEntries(nextUsers.map((user) => [user.id, (user.admin_tags ?? []).filter(Boolean).join(', ')])));
+
+      setAliasDrafts((current) => {
+        const next = { ...current };
+        const keep = new Set(nextUsers.map((user) => user.id));
+        for (const key of Object.keys(next)) {
+          if (!keep.has(key)) {
+            delete next[key];
+          }
+        }
+
+        for (const user of nextUsers) {
+          if (!dirtyAliasDraftsRef.current.has(user.id) || !(user.id in next)) {
+            next[user.id] = user.admin_alias?.trim() || '';
+          }
+        }
+
+        return next;
+      });
+
+      setTagDrafts((current) => {
+        const next = { ...current };
+        const keep = new Set(nextUsers.map((user) => user.id));
+        for (const key of Object.keys(next)) {
+          if (!keep.has(key)) {
+            delete next[key];
+          }
+        }
+
+        for (const user of nextUsers) {
+          const serverValue = (user.admin_tags ?? []).filter(Boolean).join(', ');
+          if (!dirtyTagDraftsRef.current.has(user.id) || !(user.id in next)) {
+            next[user.id] = serverValue;
+          }
+        }
+
+        return next;
+      });
     } catch (error) {
       if (!options?.silent) {
         setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los usuarios.');
@@ -372,6 +409,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         ...current,
         [userId]: updatedProfile.admin_alias?.trim() || '',
       }));
+      dirtyAliasDraftsRef.current.delete(userId);
       setFeedback(nextAlias ? 'Alias administrativo guardado.' : 'Alias administrativo eliminado.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible guardar el alias administrativo.');
@@ -401,6 +439,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         ...current,
         [userId]: (updatedProfile.admin_tags ?? []).join(', '),
       }));
+      dirtyTagDraftsRef.current.delete(userId);
       setFeedback(nextTags.length ? 'Etiquetas administrativas guardadas.' : 'Etiquetas administrativas eliminadas.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible guardar las etiquetas administrativas.');
@@ -410,6 +449,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   };
 
   const handleAppendTagPreset = useCallback((userId: string, nextTag: string) => {
+    dirtyTagDraftsRef.current.add(userId);
     setTagDrafts((current) => {
       const parsed = Array.from(
         new Set(
@@ -432,6 +472,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   }, []);
 
   const handleAppendTagSymbol = useCallback((userId: string, nextSymbol: string) => {
+    dirtyTagDraftsRef.current.add(userId);
     setTagDrafts((current) => {
       const draft = current[userId] ?? '';
       const nextDraft = draft.trim().length > 0 ? `${draft}${nextSymbol}` : `${nextSymbol} `;
@@ -458,6 +499,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         ...current,
         [userId]: (updatedProfile.admin_tags ?? []).join(', '),
       }));
+      dirtyTagDraftsRef.current.delete(userId);
       setFeedback('Etiqueta eliminada.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible eliminar la etiqueta.');
@@ -950,12 +992,13 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                             <View style={styles.aliasEditorRow}>
                               <TextInput
                                 value={aliasDrafts[user.id] ?? ''}
-                                onChangeText={(value) =>
+                                onChangeText={(value) => {
+                                  dirtyAliasDraftsRef.current.add(user.id);
                                   setAliasDrafts((current) => ({
                                     ...current,
                                     [user.id]: value,
-                                  }))
-                                }
+                                  }));
+                                }}
                                 placeholder="Alias solo para admin"
                                 placeholderTextColor={theme.muted}
                                 style={[styles.aliasInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
@@ -973,12 +1016,13 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                             <View style={styles.aliasEditorRow}>
                               <TextInput
                                 value={tagDrafts[user.id] ?? ''}
-                                onChangeText={(value) =>
+                                onChangeText={(value) => {
+                                  dirtyTagDraftsRef.current.add(user.id);
                                   setTagDrafts((current) => ({
                                     ...current,
                                     [user.id]: value,
-                                  }))
-                                }
+                                  }));
+                                }}
                                 placeholder="Etiquetas admin: VIP, Pendiente, SINPE"
                                 placeholderTextColor={theme.muted}
                                 style={[styles.aliasInput, styles.tagsInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
