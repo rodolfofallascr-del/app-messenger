@@ -3,10 +3,7 @@ export const ADMIN_TAG_PRESETS = [
   { value: 'Pendiente', symbol: '\u23F3', color: '#f59e0b' },
   { value: 'SINPE', symbol: '\uD83D\uDCB8', color: '#0ea5e9' },
   { value: 'Pago', symbol: '\u2705', color: '#22c55e' },
-  { value: 'Favor', symbol: '\uD83D\uDC9A', color: '#10b981' },
   { value: 'No pago', symbol: '\u274C', color: '#ef4444' },
-  { value: 'Promo', symbol: '\uD83C\uDF89', color: '#f97316' },
-  { value: 'Codigo', symbol: '\uD83C\uDFF7\uFE0F', color: '#3b82f6' },
 ] as const;
 
 export const ADMIN_TAG_SYMBOL_PRESETS = [
