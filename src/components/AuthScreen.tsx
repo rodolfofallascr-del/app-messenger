@@ -19,17 +19,40 @@ import { palette } from '../theme/palette';
 const brandLogo = require('../../assets/chat-santanita-logo.jpeg');
 const buildLabel = 'Build 1.0.1 / Android fix';
 const REMEMBER_LOGIN_STORAGE_KEY = 'chat-santanita-remember-login';
+const CLIENT_AUTH_HOSTNAMES = new Set(['app.chatsantanita.com']);
+
+function normalizePhoneInput(raw: string) {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  const hasPlus = trimmed.startsWith('+');
+  const digitsOnly = trimmed.replace(/[^\d]/g, '');
+  if (!digitsOnly) return '';
+
+  // If user didn't include a country code and typed 8 digits, assume Costa Rica (+506).
+  const normalizedDigits = !hasPlus && digitsOnly.length === 8 ? `506${digitsOnly}` : digitsOnly;
+  return `+${normalizedDigits}`;
+}
+
+function phoneToAuthEmail(phoneE164: string) {
+  const digits = phoneE164.replace(/[^\d]/g, '');
+  return `u_${digits}@phone.chatsantanita.local`;
+}
 
 export function AuthScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 960;
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [rememberLogin, setRememberLogin] = useState(false);
   const [fullName, setFullName] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const isClientAuth = Platform.OS !== 'web'
+    ? true
+    : CLIENT_AUTH_HOSTNAMES.has(globalThis.location?.hostname ?? '');
 
   useEffect(() => {
     if (Platform.OS === 'web') {
@@ -40,9 +63,9 @@ export function AuthScreen() {
           return;
         }
 
-        const parsed = JSON.parse(stored) as { email?: string; password?: string; remember?: boolean };
+        const parsed = JSON.parse(stored) as { email?: string; phone?: string; password?: string; remember?: boolean };
         setRememberLogin(parsed.remember === true);
-        setEmail(parsed.email ?? '');
+        setLoginId(parsed.phone ?? parsed.email ?? '');
         setPassword(parsed.password ?? '');
       } catch {
         window.localStorage.removeItem(REMEMBER_LOGIN_STORAGE_KEY);
@@ -60,9 +83,9 @@ export function AuthScreen() {
           return;
         }
 
-        const parsed = JSON.parse(stored) as { email?: string; password?: string; remember?: boolean };
+        const parsed = JSON.parse(stored) as { email?: string; phone?: string; password?: string; remember?: boolean };
         setRememberLogin(parsed.remember === true);
-        setEmail(parsed.email ?? '');
+        setLoginId(parsed.phone ?? parsed.email ?? '');
         setPassword(parsed.password ?? '');
       } catch {
         await SecureStore.deleteItemAsync(REMEMBER_LOGIN_STORAGE_KEY);
@@ -82,7 +105,7 @@ export function AuthScreen() {
         REMEMBER_LOGIN_STORAGE_KEY,
         JSON.stringify({
           remember: true,
-          email,
+          phone: loginId,
           password,
         })
       );
@@ -99,17 +122,36 @@ export function AuthScreen() {
         REMEMBER_LOGIN_STORAGE_KEY,
         JSON.stringify({
           remember: true,
-          email,
+          phone: loginId,
           password,
         })
       );
     })();
-  }, [email, password, rememberLogin]);
+  }, [loginId, password, rememberLogin]);
 
   const submit = async () => {
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !password.trim()) {
-      setMessage('Ingresa correo y contrasena.');
+    const normalizedPassword = password.trim();
+    const normalizedPhone = isClientAuth ? normalizePhoneInput(loginId) : '';
+    const normalizedEmail = !isClientAuth ? loginId.trim().toLowerCase() : phoneToAuthEmail(normalizedPhone);
+
+    if (isClientAuth) {
+      if (!normalizedPhone || normalizedPhone.length < 9) {
+        setMessage('Ingresa tu numero de telefono. Ejemplo: +50671314515');
+        return;
+      }
+      if (!normalizedPassword) {
+        setMessage('Ingresa tu contrasena.');
+        return;
+      }
+    } else {
+      if (!normalizedEmail || !normalizedPassword) {
+        setMessage('Ingresa correo y contrasena.');
+        return;
+      }
+    }
+
+    if (!normalizedEmail || !normalizedPassword) {
+      setMessage('Completa los datos para continuar.');
       return;
     }
 
@@ -123,11 +165,12 @@ export function AuthScreen() {
         const emailRedirectTo = Platform.OS === 'web' ? globalThis.location?.origin : undefined;
         const { data, error } = await supabase.auth.signUp({
           email: normalizedEmail,
-          password,
+          password: normalizedPassword,
           options: {
             emailRedirectTo,
             data: {
               full_name: fullName.trim(),
+              phone: isClientAuth ? normalizedPhone : undefined,
             },
           },
         });
@@ -139,14 +182,14 @@ export function AuthScreen() {
         if (data.session) {
           setMessage('Cuenta creada y sesion iniciada correctamente.');
         } else {
-          setMessage('Cuenta creada. Revisa tu correo y confirma la direccion antes de iniciar sesion.');
+          setMessage(isClientAuth ? 'Cuenta creada. Ya puedes iniciar sesion.' : 'Cuenta creada. Revisa tu correo y confirma la direccion antes de iniciar sesion.');
         }
         return;
       }
 
       const { error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
-        password,
+        password: normalizedPassword,
       });
 
       if (error) {
@@ -159,8 +202,8 @@ export function AuthScreen() {
             REMEMBER_LOGIN_STORAGE_KEY,
             JSON.stringify({
               remember: true,
-              email: normalizedEmail,
-              password,
+              phone: loginId,
+              password: normalizedPassword,
             })
           );
         } else {
@@ -219,12 +262,12 @@ export function AuthScreen() {
             ) : null}
 
             <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Correo"
+              value={loginId}
+              onChangeText={setLoginId}
+              placeholder={isClientAuth ? 'Telefono (+506...)' : 'Correo'}
               placeholderTextColor={palette.mutedText}
               autoCapitalize="none"
-              keyboardType="email-address"
+              keyboardType={isClientAuth ? 'phone-pad' : 'email-address'}
               style={styles.input}
               returnKeyType="next"
             />
