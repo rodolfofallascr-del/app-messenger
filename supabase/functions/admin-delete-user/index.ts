@@ -144,13 +144,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Use a DB client with the caller JWT for RLS-protected reads (profiles/admin check).
+    // This avoids relying on the Edge Function gateway Authorization header.
+    const callerDbClient = createClient(url, anonKey, {
+      global: {
+        headers: {
+          apikey: anonKey,
+          authorization: `Bearer ${callerToken}`,
+        },
+      },
+    });
+
     // Prevent accidental lockout.
     if (targetUserId === user.id) {
       return json(400, { error: "No puedes eliminar tu propio usuario admin desde aqui." });
     }
 
     // Verify caller is an approved admin (via RLS-protected table).
-    const adminCheck = await authedClient
+    const adminCheck = await callerDbClient
       .from("profiles")
       .select("id, role, status")
       .eq("id", user.id)

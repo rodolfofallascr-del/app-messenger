@@ -2142,6 +2142,10 @@ export function MessagingApp({
       .catch(() => undefined);
   };
 
+  const handleOpenResults = () => {
+    void Linking.openURL('https://www.santanitacr.com');
+  };
+
   const statusText = formatStatusError(loadingError)
     ? `Estado: ${formatStatusError(loadingError)}`
     : sending
@@ -2163,9 +2167,14 @@ export function MessagingApp({
           <Text style={styles.mobileBrandStatus}>{statusText}</Text>
         </View>
       </View>
-      <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
-        <Text style={styles.mobileHeaderActionText}>Salir</Text>
-      </Pressable>
+      <View style={styles.mobileHeaderActionsRow}>
+        <Pressable style={styles.mobileHeaderSecondaryAction} onPress={handleOpenResults}>
+          <Text style={styles.mobileHeaderSecondaryText}>Resultados</Text>
+        </Pressable>
+        <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
+          <Text style={styles.mobileHeaderActionText}>Salir</Text>
+        </Pressable>
+      </View>
     </View>
   ) : isDesktop ? (
     <View style={[styles.headerShell, styles.headerShellDesktop]}>
@@ -2182,9 +2191,14 @@ export function MessagingApp({
         <Text style={styles.statusLabel}>Sesion actual</Text>
         <Text style={styles.statusEmail}>{session.user.email ?? 'usuario@local'}</Text>
         <Text style={styles.statusCopy}>{statusText}</Text>
-        <Pressable style={styles.headerAction} onPress={handleSignOut}>
-          <Text style={styles.headerActionText}>Salir</Text>
-        </Pressable>
+        <View style={styles.desktopHeaderActionsRow}>
+          <Pressable style={styles.headerSecondaryAction} onPress={handleOpenResults}>
+            <Text style={styles.headerSecondaryText}>Resultados</Text>
+          </Pressable>
+          <Pressable style={styles.headerAction} onPress={handleSignOut}>
+            <Text style={styles.headerActionText}>Salir</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   ) : (
@@ -2196,9 +2210,14 @@ export function MessagingApp({
           <Text style={styles.mobileBrandStatus}>{mobileStatusText}</Text>
         </View>
       </View>
-      <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
-        <Text style={styles.mobileHeaderActionText}>Salir</Text>
-      </Pressable>
+      <View style={styles.mobileHeaderActionsRow}>
+        <Pressable style={styles.mobileHeaderSecondaryAction} onPress={handleOpenResults}>
+          <Text style={styles.mobileHeaderSecondaryText}>Resultados</Text>
+        </Pressable>
+        <Pressable style={styles.mobileHeaderAction} onPress={handleSignOut}>
+          <Text style={styles.mobileHeaderActionText}>Salir</Text>
+        </Pressable>
+      </View>
     </View>
   );
 
@@ -2775,6 +2794,24 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 12,
   },
+  mobileHeaderActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mobileHeaderSecondaryAction: {
+    backgroundColor: palette.panel,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  mobileHeaderSecondaryText: {
+    color: palette.primaryText,
+    fontWeight: '800',
+    fontSize: 12,
+  },
   mobileSwitcher: {
     flexDirection: 'row',
     gap: 8,
@@ -2848,6 +2885,25 @@ const styles = StyleSheet.create({
   },
   headerActionText: {
     color: palette.buttonText,
+    fontWeight: '800',
+  },
+  desktopHeaderActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
+  },
+  headerSecondaryAction: {
+    alignSelf: 'flex-start',
+    backgroundColor: palette.panel,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: palette.border,
+  },
+  headerSecondaryText: {
+    color: palette.primaryText,
     fontWeight: '800',
   },
   workspace: {
