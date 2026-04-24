@@ -57,6 +57,25 @@ function looksLikeUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
+async function probeAuthUserEndpoint(url: string, anonKey: string, accessToken: string) {
+  const endpoint = `${url}/auth/v1/user`;
+  const res = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      apikey: anonKey,
+      authorization: `Bearer ${accessToken}`,
+    },
+  });
+  const contentType = res.headers.get("content-type") ?? "";
+  const text = await res.text().catch(() => "");
+  return {
+    endpoint,
+    status: res.status,
+    contentType,
+    bodyPrefix: text.slice(0, 140),
+  };
+}
+
 Deno.serve(async (req) => {
   try {
     if (req.method === "OPTIONS") return noContent();
@@ -68,10 +87,12 @@ Deno.serve(async (req) => {
     const anonKey = getEnv("SUPABASE_ANON_KEY");
     const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
+    // Important: do NOT set a global Authorization header here.
+    // The admin web may call this function with Authorization=Bearer <anon_key> to satisfy
+    // the legacy JWT gateway, but we validate the real caller token via `getUser(callerToken)`.
     const authedClient = createClient(url, anonKey, {
       global: {
         headers: {
-          authorization: authHeader,
           apikey: anonKey,
         },
       },
@@ -88,18 +109,37 @@ Deno.serve(async (req) => {
     // Identify the caller. We accept either:
     // - a normal auth token in the Authorization header (preferred), OR
     // - a caller_access_token in the body (needed when the gateway enforces legacy JWT on Authorization).
-    const {
-      data: { user },
-      error: userError,
-    } = await authedClient.auth.getUser(callerToken || undefined);
+    const tokenToCheck = callerToken || undefined;
+    let user: { id: string } | null = null;
+    let userError: { message?: string } | null = null;
+
+    try {
+      const result = await authedClient.auth.getUser(tokenToCheck);
+      user = result.data.user ? { id: result.data.user.id } : null;
+      userError = result.error ? { message: result.error.message } : null;
+    } catch (err) {
+      user = null;
+      userError = { message: err instanceof Error ? err.message : "Unknown auth error" };
+    }
 
     if (userError || !user) {
+      // Help debug common misconfig where SUPABASE_URL includes /rest/v1 and GoTrue returns HTML.
+      let probe: any = null;
+      try {
+        if (callerToken) {
+          probe = await probeAuthUserEndpoint(url, anonKey, callerToken);
+        }
+      } catch (err) {
+        probe = { error: err instanceof Error ? err.message : "Probe failed" };
+      }
       return json(401, {
         error: "Unauthorized",
         debug: {
+          url,
           hasAuthHeader: Boolean(authHeader),
           hasCallerToken: Boolean(callerToken),
           userError: userError?.message ?? null,
+          probe,
         },
       });
     }
