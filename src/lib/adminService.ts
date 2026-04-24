@@ -1,5 +1,5 @@
 import { AppUserStatus, ProfileRecord } from '../types/chat';
-import { getSupabaseClient } from './supabase';
+import { getSupabaseClient, getSupabaseConfig } from './supabase';
 
 export async function fetchAdminUsers() {
   const supabase = getSupabaseClient();
@@ -48,6 +48,7 @@ export async function deleteBlockedUserChats(userId: string) {
 
 export async function deleteUserCompletely(userId: string) {
   const supabase = getSupabaseClient();
+  const { supabaseAnonKey } = getSupabaseConfig();
   const {
     data: { session },
     error: sessionError,
@@ -63,9 +64,12 @@ export async function deleteUserCompletely(userId: string) {
   }
 
   const { data, error } = await supabase.functions.invoke('admin-delete-user', {
-    body: { target_user_id: userId },
+    // Pass the caller token in the body so the edge function can validate it even if
+    // the Supabase gateway is set to require legacy (HS256) JWTs on the Authorization header.
+    body: { target_user_id: userId, caller_access_token: accessToken },
     headers: {
-      authorization: `Bearer ${accessToken}`,
+      authorization: `Bearer ${supabaseAnonKey}`,
+      apikey: supabaseAnonKey,
     },
   });
 

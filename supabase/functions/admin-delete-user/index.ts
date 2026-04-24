@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 
 type DeleteBody = {
   target_user_id?: string;
+  caller_access_token?: string;
 };
 
 function json(status: number, body: unknown) {
@@ -69,20 +70,31 @@ Deno.serve(async (req) => {
       },
     });
 
-    const {
-      data: { user },
-      error: userError,
-    } = await authedClient.auth.getUser();
-
-    if (userError || !user) {
-      return json(401, { error: "Unauthorized" });
-    }
-
     const body = (await req.json().catch(() => ({}))) as DeleteBody;
     const targetUserId = (body.target_user_id ?? "").trim();
+    const callerToken = (body.caller_access_token ?? "").trim();
 
     if (!targetUserId || !looksLikeUuid(targetUserId)) {
       return json(400, { error: "Invalid target_user_id" });
+    }
+
+    // Identify the caller. We accept either:
+    // - a normal auth token in the Authorization header (preferred), OR
+    // - a caller_access_token in the body (needed when the gateway enforces legacy JWT on Authorization).
+    const {
+      data: { user },
+      error: userError,
+    } = await authedClient.auth.getUser(callerToken || undefined);
+
+    if (userError || !user) {
+      return json(401, {
+        error: "Unauthorized",
+        debug: {
+          hasAuthHeader: Boolean(authHeader),
+          hasCallerToken: Boolean(callerToken),
+          userError: userError?.message ?? null,
+        },
+      });
     }
 
     // Prevent accidental lockout.
@@ -124,4 +136,3 @@ Deno.serve(async (req) => {
     return json(500, { error: error instanceof Error ? error.message : "Unknown error" });
   }
 });
-
