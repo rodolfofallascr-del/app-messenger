@@ -78,6 +78,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [announcementStartTime, setAnnouncementStartTime] = useState('07:00');
   const [announcementEndTime, setAnnouncementEndTime] = useState('11:00');
   const [announcementTimezone, setAnnouncementTimezone] = useState('America/Costa_Rica');
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
   const [resourceBusy, setResourceBusy] = useState(false);
   const [replyLabel, setReplyLabel] = useState('');
   const [replyTag, setReplyTag] = useState('');
@@ -662,6 +663,39 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     getSupabaseClient().auth.signOut().catch(() => undefined);
   };
 
+  const resetAnnouncementForm = () => {
+    setEditingAnnouncementId(null);
+    setAnnouncementTitle('');
+    setAnnouncementBody('');
+    setAnnouncementActive(true);
+    setAnnouncementEndsAt('');
+    setAnnouncementRecurring(false);
+    setAnnouncementDaysOfWeek([2]);
+    setAnnouncementStartTime('07:00');
+    setAnnouncementEndTime('11:00');
+    setAnnouncementTimezone('America/Costa_Rica');
+  };
+
+  const fromSqlTimeLiteral = (value: string | null | undefined) => {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) return '';
+    return normalizeRecurringTimeInput(trimmed.slice(0, 5));
+  };
+
+  const handleEditAnnouncement = (item: AnnouncementRecord) => {
+    setFeedback(null);
+    setEditingAnnouncementId(item.id);
+    setAnnouncementTitle(item.title?.trim() ?? '');
+    setAnnouncementBody(item.body?.trim() ?? '');
+    setAnnouncementActive(Boolean(item.active));
+    setAnnouncementEndsAt(item.ends_at ? new Date(item.ends_at).toISOString().slice(0, 16) : '');
+    setAnnouncementRecurring(Boolean(item.is_recurring));
+    setAnnouncementDaysOfWeek(item.days_of_week?.length ? item.days_of_week : [2]);
+    setAnnouncementStartTime(fromSqlTimeLiteral(item.start_time) || '07:00');
+    setAnnouncementEndTime(fromSqlTimeLiteral(item.end_time) || '11:00');
+    setAnnouncementTimezone((item.timezone ?? 'America/Costa_Rica').trim() || 'America/Costa_Rica');
+  };
+
   const handlePublishAnnouncement = async () => {
     if (!announcementBody.trim()) {
       setFeedback('Escribe el mensaje del anuncio.');
@@ -691,37 +725,35 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       const normalizedEndsAt = endsAt ? (endsAt.includes('T') ? endsAt : endsAt.replace(' ', 'T')) : '';
       const parsedEndsAt = normalizedEndsAt ? new Date(normalizedEndsAt) : null;
 
-      const { error } = await supabase.from('announcements').insert({
+      const payload = {
         title: announcementTitle.trim() || null,
         body: announcementBody.trim(),
         active: Boolean(announcementActive),
         ends_at: parsedEndsAt && !Number.isNaN(parsedEndsAt.getTime()) ? parsedEndsAt.toISOString() : null,
-        starts_at: new Date().toISOString(),
-        created_by: profile.id,
         is_recurring: Boolean(announcementRecurring),
         days_of_week: announcementRecurring ? announcementDaysOfWeek : null,
         start_time: announcementRecurring ? toSqlTimeLiteral(announcementStartTime) : null,
         end_time: announcementRecurring ? toSqlTimeLiteral(announcementEndTime) : null,
         timezone: announcementRecurring ? announcementTimezone.trim() || 'America/Costa_Rica' : null,
-      });
+      };
+
+      const { error } = editingAnnouncementId
+        ? await supabase.from('announcements').update(payload).eq('id', editingAnnouncementId)
+        : await supabase.from('announcements').insert({
+            ...payload,
+            starts_at: new Date().toISOString(),
+            created_by: profile.id,
+          });
 
       if (error) {
         throw error;
       }
 
-      setAnnouncementTitle('');
-      setAnnouncementBody('');
-      setAnnouncementActive(true);
-      setAnnouncementEndsAt('');
-      setAnnouncementRecurring(false);
-      setAnnouncementDaysOfWeek([2]);
-      setAnnouncementStartTime('07:00');
-      setAnnouncementEndTime('11:00');
-      setAnnouncementTimezone('America/Costa_Rica');
-      setFeedback('Anuncio publicado.');
+      resetAnnouncementForm();
+      setFeedback(editingAnnouncementId ? 'Anuncio actualizado.' : 'Anuncio publicado.');
       await loadAnnouncements();
     } catch (error) {
-      setFeedback(error instanceof Error ? error.message : 'No fue posible publicar el anuncio.');
+      setFeedback(error instanceof Error ? error.message : editingAnnouncementId ? 'No fue posible actualizar el anuncio.' : 'No fue posible publicar el anuncio.');
     } finally {
       setResourceBusy(false);
     }
@@ -1341,15 +1373,17 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
           </View>
         ) : null}
 
-        {section === 'announcements' ? (
-          <View style={styles.libraryLayout}>
-            <View style={[styles.formCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
-              <Text style={[styles.formTitle, { color: theme.title }]}>Nuevo anuncio</Text>
-              <TextInput
-                value={announcementTitle}
-                onChangeText={setAnnouncementTitle}
-                placeholder="Titulo (opcional)"
-                placeholderTextColor={theme.muted}
+        {section === 'announcements' ? ( 
+          <View style={styles.libraryLayout}> 
+            <View style={[styles.formCard, { backgroundColor: theme.panel, borderColor: theme.border }]}> 
+              <Text style={[styles.formTitle, { color: theme.title }]}> 
+                {editingAnnouncementId ? 'Editar anuncio' : 'Nuevo anuncio'} 
+              </Text> 
+              <TextInput 
+                value={announcementTitle} 
+                onChangeText={setAnnouncementTitle} 
+                placeholder="Titulo (opcional)" 
+                placeholderTextColor={theme.muted} 
                 style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
               />
               <TextInput
@@ -1496,27 +1530,46 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                   placeholderTextColor={theme.muted}
                   style={[styles.searchInput, { backgroundColor: theme.input, borderColor: theme.border, color: theme.title }]}
                 />
-              )}
-              <View style={styles.actionsRow}>
-                <ActionButton
-                  label={announcementActive ? 'Activo' : 'Inactivo'}
-                  tone="neutral"
-                  disabled={resourceBusy}
-                  onPress={() => setAnnouncementActive((current) => !current)}
-                  themeMode={themeMode}
-                />
-                <ActionButton
-                  label="Publicar"
-                  tone="approve"
-                  disabled={resourceBusy}
-                  onPress={() => void handlePublishAnnouncement()}
-                  themeMode={themeMode}
-                />
-              </View>
-              <Text style={[styles.helperText, { color: theme.muted }]}>
-                Los clientes ven el anuncio en la parte superior de la app movil. Los anuncios programados se activan solos segun el horario.
-              </Text>
-            </View>
+              )} 
+              <View style={styles.actionsRow}> 
+                <ActionButton 
+                  label={announcementActive ? 'Activo' : 'Inactivo'} 
+                  tone="neutral" 
+                  disabled={resourceBusy} 
+                  onPress={() => setAnnouncementActive((current) => !current)} 
+                  themeMode={themeMode} 
+                /> 
+                {editingAnnouncementId ? ( 
+                  <> 
+                    <ActionButton 
+                      label="Cancelar" 
+                      tone="neutral" 
+                      disabled={resourceBusy} 
+                      onPress={resetAnnouncementForm} 
+                      themeMode={themeMode} 
+                    /> 
+                    <ActionButton 
+                      label="Guardar cambios" 
+                      tone="approve" 
+                      disabled={resourceBusy} 
+                      onPress={() => void handlePublishAnnouncement()} 
+                      themeMode={themeMode} 
+                    /> 
+                  </> 
+                ) : ( 
+                  <ActionButton 
+                    label="Publicar" 
+                    tone="approve" 
+                    disabled={resourceBusy} 
+                    onPress={() => void handlePublishAnnouncement()} 
+                    themeMode={themeMode} 
+                  /> 
+                )} 
+              </View> 
+              <Text style={[styles.helperText, { color: theme.muted }]}> 
+                Los clientes ven el anuncio en la parte superior de la app movil. Los anuncios programados se activan solos segun el horario. 
+              </Text> 
+            </View> 
 
             <View style={[styles.libraryListCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
               <View style={styles.listHeader}>
@@ -1585,16 +1638,23 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                             </View>
                           ) : null}
                         </View>
-                      </View>
-                      <Text style={[styles.userMeta, { color: theme.muted }]}>
-                        {item.active ? 'Activo' : 'Inactivo'} | {new Date(item.updated_at).toLocaleString('es-CR')}
-                        {item.is_recurring ? ` | ${formatRecurringLabel(item)}` : ''}
-                      </Text>
-                        <View style={styles.actionsRow}>
-                          <ActionButton
-                            label={item.active ? 'Desactivar' : 'Activar'}
-                            tone={item.active ? 'neutral' : 'approve'}
-                            disabled={resourceBusy}
+                      </View> 
+                      <Text style={[styles.userMeta, { color: theme.muted }]}> 
+                        {item.active ? 'Activo' : 'Inactivo'} | {new Date(item.updated_at).toLocaleString('es-CR')} 
+                        {item.is_recurring ? ` | ${formatRecurringLabel(item)}` : ''} 
+                      </Text> 
+                        <View style={styles.actionsRow}> 
+                          <ActionButton 
+                            label="Editar" 
+                            tone="neutral" 
+                            disabled={resourceBusy} 
+                            onPress={() => handleEditAnnouncement(item)} 
+                            themeMode={themeMode} 
+                          /> 
+                          <ActionButton 
+                            label={item.active ? 'Desactivar' : 'Activar'} 
+                            tone={item.active ? 'neutral' : 'approve'} 
+                            disabled={resourceBusy} 
                             onPress={() => void handleToggleAnnouncementActive(item.id, !item.active)}
                             themeMode={themeMode}
                           />
