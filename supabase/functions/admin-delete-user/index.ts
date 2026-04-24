@@ -45,6 +45,13 @@ function getEnv(name: string) {
   return value;
 }
 
+function normalizeSupabaseUrl(value: string) {
+  const trimmed = value.trim().replace(/\/+$/, "");
+  if (!trimmed) return trimmed;
+  // Prevent common misconfig: pasting the REST endpoint instead of the project base URL.
+  return trimmed.replace(/\/rest\/v1$/i, "");
+}
+
 function looksLikeUuid(value: string) {
   // Good enough for input validation.
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -57,7 +64,7 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get("authorization") ?? "";
 
-    const url = getEnv("SUPABASE_URL");
+    const url = normalizeSupabaseUrl(getEnv("SUPABASE_URL"));
     const anonKey = getEnv("SUPABASE_ANON_KEY");
     const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
 
