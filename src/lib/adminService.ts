@@ -48,8 +48,25 @@ export async function deleteBlockedUserChats(userId: string) {
 
 export async function deleteUserCompletely(userId: string) {
   const supabase = getSupabaseClient();
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const accessToken = session?.access_token;
+  if (!accessToken) {
+    throw new Error('No hay sesion activa. Vuelve a iniciar sesion como administrador.');
+  }
+
   const { data, error } = await supabase.functions.invoke('admin-delete-user', {
     body: { target_user_id: userId },
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+    },
   });
 
   if (error) {
