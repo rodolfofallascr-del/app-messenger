@@ -191,14 +191,14 @@ Deno.serve(async (req) => {
     const title = "Chat Santanita";
     const messageBody = safePreview(body.preview ?? "Mensaje nuevo");
 
-    const payload = expoTokens.map((to) => ({
-      to,
-      title,
-      body: messageBody,
-      sound: "default",
-      channelId: "messages",
-      data: { chatId },
-    }));
+    const payload = expoTokens.map((to) => ({ 
+      to, 
+      title, 
+      body: messageBody, 
+      sound: "default", 
+      channelId: "messages_v2", 
+      data: { chatId }, 
+    })); 
 
     const response = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",

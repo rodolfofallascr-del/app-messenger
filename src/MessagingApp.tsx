@@ -465,20 +465,26 @@ export function MessagingApp({
     img.src = faviconSrc;
   }, [adminMode, liveChats]);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      return;
-    }
+  useEffect(() => { 
+    if (Platform.OS === 'web') { 
+      return; 
+    } 
+ 
+    // Important: Android notification channels are immutable once created (sound/importance changes
+    // may not apply). We use a versioned channel id so upgrades can reliably enable sound.
+    const PUSH_CHANNEL_ID = 'messages_v2'; 
 
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldShowBanner: true,
-        shouldShowList: true,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      }),
-    });
+    Notifications.setNotificationHandler({ 
+      handleNotification: async () => ({ 
+        shouldShowAlert: true, 
+        shouldShowBanner: true, 
+        shouldShowList: true, 
+        // Allow sound when a notification is shown while the app is in foreground.
+        // Background sound is controlled by the Expo push payload + Android channel config.
+        shouldPlaySound: true, 
+        shouldSetBadge: false, 
+      }), 
+    }); 
 
     void (async () => {
       try {
@@ -487,20 +493,21 @@ export function MessagingApp({
           await Notifications.requestPermissionsAsync();
         }
 
-        if (Platform.OS === 'android') {
-          await Notifications.setNotificationChannelAsync('messages', {
-            name: 'Mensajes',
-            importance: Notifications.AndroidImportance.DEFAULT,
-            sound: undefined,
-            vibrationPattern: [0, 120],
-            lightColor: '#4ade80',
-          });
-        }
-      } catch {
-        // Best effort; app still works without local notifications.
-      }
-    })();
-  }, []);
+        if (Platform.OS === 'android') { 
+          await Notifications.setNotificationChannelAsync(PUSH_CHANNEL_ID, { 
+            name: 'Mensajes', 
+            // Use a high-importance channel so Android is allowed to play sound/vibrate even after long inactivity.
+            importance: Notifications.AndroidImportance.HIGH, 
+            sound: 'default', 
+            vibrationPattern: [0, 180, 100, 180], 
+            lightColor: '#4ade80', 
+          }); 
+        } 
+      } catch { 
+        // Best effort; app still works without local notifications. 
+      } 
+    })(); 
+  }, []); 
 
   useEffect(() => {
     if (Platform.OS === 'web') {
