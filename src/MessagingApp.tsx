@@ -358,7 +358,8 @@ export function MessagingApp({
   const latestIncomingByChatRef = useRef(latestIncomingByChat);
   const conversationVisibleRef = useRef(isDesktop || mobileView === 'conversation');
   const audioContextRef = useRef<AudioContext | null>(null);
-  const notificationAudioArmedRef = useRef(false);
+  const notificationAudioArmedRef = useRef(false); 
+  const pendingAdminToneRef = useRef(false);
   const lastIncomingSnapshotRef = useRef('');
   const unreadCountsRef = useRef<Record<string, number>>({});
   const lastNotifiedAtRef = useRef<Record<string, number>>({});
@@ -620,17 +621,45 @@ export function MessagingApp({
     latestIncomingByChatRef.current = latestIncomingByChat;
   }, [latestIncomingByChat]);
 
-  useEffect(() => {
-    conversationVisibleRef.current = isDesktop || mobileView === 'conversation';
-  }, [isDesktop, mobileView]);
-
-  useEffect(() => {
-    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled) {
-      return;
-    }
-
-    const armAudio = () => {
-      notificationAudioArmedRef.current = true;
+  useEffect(() => { 
+    conversationVisibleRef.current = isDesktop || mobileView === 'conversation'; 
+  }, [isDesktop, mobileView]); 
+ 
+  const playAdminSiren = useCallback((context: any) => { 
+    const now = context.currentTime; 
+    const masterGain = context.createGain(); 
+    masterGain.connect(context.destination); 
+    masterGain.gain.setValueAtTime(0.0001, now); 
+ 
+    // Siren-like sweep: loud and hard to miss. 
+    masterGain.gain.exponentialRampToValueAtTime(0.28, now + 0.02); 
+    masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.15); 
+ 
+    const siren = context.createOscillator(); 
+    siren.type = 'sawtooth'; 
+    siren.connect(masterGain); 
+ 
+    // Sweep up/down a few times (roughly 1.1s total). 
+    const low = 520; 
+    const high = 1180; 
+    siren.frequency.setValueAtTime(low, now); 
+    siren.frequency.linearRampToValueAtTime(high, now + 0.22); 
+    siren.frequency.linearRampToValueAtTime(low, now + 0.44); 
+    siren.frequency.linearRampToValueAtTime(high, now + 0.66); 
+    siren.frequency.linearRampToValueAtTime(low, now + 0.88); 
+    siren.frequency.linearRampToValueAtTime(high, now + 1.1); 
+ 
+    siren.start(now); 
+    siren.stop(now + 1.12); 
+  }, []); 
+ 
+  useEffect(() => {  
+    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled) {  
+      return;  
+    } 
+ 
+    const armAudio = () => { 
+      notificationAudioArmedRef.current = true; 
 
       // Also request web notification permission on a user gesture (helps Franz/desktop wrappers).
       try {
@@ -647,25 +676,40 @@ export function MessagingApp({
         return;
       }
 
-      try {
-        audioContextRef.current = new AudioContextCtor();
-      } catch {
-        audioContextRef.current = null;
-      }
-    };
+      try { 
+        audioContextRef.current = new AudioContextCtor(); 
+      } catch { 
+        audioContextRef.current = null; 
+      } 
 
-    window.addEventListener('pointerdown', armAudio, { passive: true });
-    window.addEventListener('keydown', armAudio);
+      // If a message arrived before the browser allowed audio (autoplay restrictions), 
+      // play the tone immediately after the first user gesture. 
+      if (pendingAdminToneRef.current) { 
+        pendingAdminToneRef.current = false; 
+        try { 
+          const context = audioContextRef.current; 
+          if (context) { 
+            void context.resume?.().catch?.(() => undefined); 
+            playAdminSiren(context); 
+          } 
+        } catch { 
+          // ignore 
+        } 
+      } 
+    };  
+ 
+    window.addEventListener('pointerdown', armAudio, { passive: true }); 
+    window.addEventListener('keydown', armAudio); 
 
     return () => {
-      window.removeEventListener('pointerdown', armAudio);
-      window.removeEventListener('keydown', armAudio);
-    };
-  }, [adminMode, adminSoundEnabled]);
-
-  const playIncomingMessageTone = useCallback(async () => {
-    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled || !notificationAudioArmedRef.current) {
-      return;
+      window.removeEventListener('pointerdown', armAudio); 
+      window.removeEventListener('keydown', armAudio); 
+    }; 
+  }, [adminMode, adminSoundEnabled, playAdminSiren]); 
+ 
+  const playIncomingMessageTone = useCallback(async () => { 
+    if (Platform.OS !== 'web' || !adminMode || !adminSoundEnabled || !notificationAudioArmedRef.current) { 
+      return; 
     }
 
     const AudioContextCtor = getBrowserAudioContext();
@@ -677,38 +721,15 @@ export function MessagingApp({
       const context = audioContextRef.current ?? new AudioContextCtor();
       audioContextRef.current = context;
 
-      if (context.state === 'suspended') {
-        await context.resume();
-      }
-
-      const now = context.currentTime; 
-      const masterGain = context.createGain(); 
-      masterGain.connect(context.destination); 
-      masterGain.gain.setValueAtTime(0.0001, now); 
-      // Siren-like sweep: loud and hard to miss.
-      masterGain.gain.exponentialRampToValueAtTime(0.28, now + 0.02); 
-      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.15); 
+      if (context.state === 'suspended') { 
+        await context.resume(); 
+      } 
  
-      const siren = context.createOscillator(); 
-      siren.type = 'sawtooth'; 
-      siren.connect(masterGain); 
- 
-      // Sweep up/down a few times (roughly 1.1s total).
-      const low = 520; 
-      const high = 1180; 
-      siren.frequency.setValueAtTime(low, now); 
-      siren.frequency.linearRampToValueAtTime(high, now + 0.22); 
-      siren.frequency.linearRampToValueAtTime(low, now + 0.44); 
-      siren.frequency.linearRampToValueAtTime(high, now + 0.66); 
-      siren.frequency.linearRampToValueAtTime(low, now + 0.88); 
-      siren.frequency.linearRampToValueAtTime(high, now + 1.1); 
- 
-      siren.start(now); 
-      siren.stop(now + 1.12); 
-    } catch { 
-      return; 
-    } 
-  }, [adminMode, adminSoundEnabled]); 
+      playAdminSiren(context); 
+    } catch {  
+      return;  
+    }  
+  }, [adminMode, adminSoundEnabled, playAdminSiren]);  
 
   const persistReadMarkers = useCallback(
     (nextMarkers: Record<string, string>) => {
@@ -1479,10 +1500,15 @@ export function MessagingApp({
       return !previousTimestamp || timestamp > previousTimestamp;
     });
 
-    lastIncomingSnapshotRef.current = incomingSnapshot;
-
-    if (hasIncomingMessage) {
-      void playIncomingMessageTone();
+    lastIncomingSnapshotRef.current = incomingSnapshot; 
+ 
+    if (hasIncomingMessage) { 
+      if (!notificationAudioArmedRef.current) {
+        // We can't play audio until the user interacts with the page at least once.
+        pendingAdminToneRef.current = true;
+      } else {
+        void playIncomingMessageTone(); 
+      }
 
       // Desktop notification (best effort). This is useful when the admin uses wrappers like Franz.
       try {
