@@ -685,33 +685,26 @@ export function MessagingApp({
       const masterGain = context.createGain(); 
       masterGain.connect(context.destination); 
       masterGain.gain.setValueAtTime(0.0001, now); 
-      // Louder, more noticeable tone for the admin panel.
-      masterGain.gain.exponentialRampToValueAtTime(0.22, now + 0.02); 
-      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75); 
+      // Siren-like sweep: loud and hard to miss.
+      masterGain.gain.exponentialRampToValueAtTime(0.28, now + 0.02); 
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.15); 
  
-      const firstOscillator = context.createOscillator(); 
-      firstOscillator.type = 'triangle'; 
-      firstOscillator.frequency.setValueAtTime(720, now); 
-      firstOscillator.frequency.exponentialRampToValueAtTime(640, now + 0.2); 
-      firstOscillator.connect(masterGain); 
-      firstOscillator.start(now); 
-      firstOscillator.stop(now + 0.2); 
-
-      const secondOscillator = context.createOscillator(); 
-      secondOscillator.type = 'triangle'; 
-      secondOscillator.frequency.setValueAtTime(820, now + 0.24); 
-      secondOscillator.frequency.exponentialRampToValueAtTime(700, now + 0.46); 
-      secondOscillator.connect(masterGain); 
-      secondOscillator.start(now + 0.24); 
-      secondOscillator.stop(now + 0.46); 
-
-      const thirdOscillator = context.createOscillator();
-      thirdOscillator.type = 'square';
-      thirdOscillator.frequency.setValueAtTime(520, now + 0.52);
-      thirdOscillator.frequency.exponentialRampToValueAtTime(460, now + 0.7);
-      thirdOscillator.connect(masterGain);
-      thirdOscillator.start(now + 0.52);
-      thirdOscillator.stop(now + 0.7);
+      const siren = context.createOscillator(); 
+      siren.type = 'sawtooth'; 
+      siren.connect(masterGain); 
+ 
+      // Sweep up/down a few times (roughly 1.1s total).
+      const low = 520; 
+      const high = 1180; 
+      siren.frequency.setValueAtTime(low, now); 
+      siren.frequency.linearRampToValueAtTime(high, now + 0.22); 
+      siren.frequency.linearRampToValueAtTime(low, now + 0.44); 
+      siren.frequency.linearRampToValueAtTime(high, now + 0.66); 
+      siren.frequency.linearRampToValueAtTime(low, now + 0.88); 
+      siren.frequency.linearRampToValueAtTime(high, now + 1.1); 
+ 
+      siren.start(now); 
+      siren.stop(now + 1.12); 
     } catch { 
       return; 
     } 
