@@ -681,32 +681,41 @@ export function MessagingApp({
         await context.resume();
       }
 
-      const now = context.currentTime;
-      const masterGain = context.createGain();
-      masterGain.connect(context.destination);
-      masterGain.gain.setValueAtTime(0.0001, now);
-      masterGain.gain.exponentialRampToValueAtTime(0.08, now + 0.02);
-      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.58);
+      const now = context.currentTime; 
+      const masterGain = context.createGain(); 
+      masterGain.connect(context.destination); 
+      masterGain.gain.setValueAtTime(0.0001, now); 
+      // Louder, more noticeable tone for the admin panel.
+      masterGain.gain.exponentialRampToValueAtTime(0.22, now + 0.02); 
+      masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.75); 
+ 
+      const firstOscillator = context.createOscillator(); 
+      firstOscillator.type = 'triangle'; 
+      firstOscillator.frequency.setValueAtTime(720, now); 
+      firstOscillator.frequency.exponentialRampToValueAtTime(640, now + 0.2); 
+      firstOscillator.connect(masterGain); 
+      firstOscillator.start(now); 
+      firstOscillator.stop(now + 0.2); 
 
-      const firstOscillator = context.createOscillator();
-      firstOscillator.type = 'sine';
-      firstOscillator.frequency.setValueAtTime(720, now);
-      firstOscillator.frequency.exponentialRampToValueAtTime(640, now + 0.2);
-      firstOscillator.connect(masterGain);
-      firstOscillator.start(now);
-      firstOscillator.stop(now + 0.2);
+      const secondOscillator = context.createOscillator(); 
+      secondOscillator.type = 'triangle'; 
+      secondOscillator.frequency.setValueAtTime(820, now + 0.24); 
+      secondOscillator.frequency.exponentialRampToValueAtTime(700, now + 0.46); 
+      secondOscillator.connect(masterGain); 
+      secondOscillator.start(now + 0.24); 
+      secondOscillator.stop(now + 0.46); 
 
-      const secondOscillator = context.createOscillator();
-      secondOscillator.type = 'sine';
-      secondOscillator.frequency.setValueAtTime(820, now + 0.24);
-      secondOscillator.frequency.exponentialRampToValueAtTime(700, now + 0.46);
-      secondOscillator.connect(masterGain);
-      secondOscillator.start(now + 0.24);
-      secondOscillator.stop(now + 0.46);
-    } catch {
-      return;
-    }
-  }, [adminMode, adminSoundEnabled]);
+      const thirdOscillator = context.createOscillator();
+      thirdOscillator.type = 'square';
+      thirdOscillator.frequency.setValueAtTime(520, now + 0.52);
+      thirdOscillator.frequency.exponentialRampToValueAtTime(460, now + 0.7);
+      thirdOscillator.connect(masterGain);
+      thirdOscillator.start(now + 0.52);
+      thirdOscillator.stop(now + 0.7);
+    } catch { 
+      return; 
+    } 
+  }, [adminMode, adminSoundEnabled]); 
 
   const persistReadMarkers = useCallback(
     (nextMarkers: Record<string, string>) => {
