@@ -56,6 +56,7 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
   const [trendTop, setTrendTop] = useState<TrendRow[]>([]);
   const [winnersTop, setWinnersTop] = useState<WinnerRow[]>([]);
   const [winnersMeta, setWinnersMeta] = useState<{ sourceUrl: string; fetchedAt: string; totalCandidates: number } | null>(null);
+  const [winnersWarning, setWinnersWarning] = useState<string | null>(null);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -188,24 +189,40 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
 
       // External "más ganadores": scraped via Supabase Edge Function (avoids browser CORS).
       // If the source site changes, this may fail gracefully.
-      const { data: winners, error: winnersErr } = await withTimeout(
-        supabase.functions.invoke('winning-numbers', {
-          body: { limit: 20 },
-        }),
-        20000,
-        'Cargar ganadores (scraping)'
-      );
-      if (winnersErr) {
-        // Keep the rest of report working even if scraping fails.
+      setWinnersWarning(null);
+      try {
+        const winnersRes = await withTimeout<any>(
+          supabase.functions.invoke('winning-numbers', {
+            body: { limit: 20 },
+          }),
+          45000,
+          'Cargar ganadores (scraping)'
+        );
+
+        const winnersErr = (winnersRes as any)?.error ?? null;
+        const winners = (winnersRes as any)?.data ?? null;
+
+        if (winnersErr) {
+          setWinnersTop([]);
+          setWinnersMeta(null);
+          setWinnersWarning(`Scraping no disponible: ${String((winnersErr as any).message ?? winnersErr)}`);
+        } else if (winners) {
+          setWinnersTop(((winners as any).top ?? []) as WinnerRow[]);
+          setWinnersMeta({
+            sourceUrl: String((winners as any).sourceUrl ?? ''),
+            fetchedAt: String((winners as any).fetchedAt ?? ''),
+            totalCandidates: Number((winners as any).totalCandidates ?? 0),
+          });
+        } else {
+          setWinnersTop([]);
+          setWinnersMeta(null);
+          setWinnersWarning('Scraping no disponible: respuesta vacía.');
+        }
+      } catch (e) {
+        // Non-fatal: we still want the rest of the report to load.
         setWinnersTop([]);
         setWinnersMeta(null);
-      } else if (winners) {
-        setWinnersTop(((winners as any).top ?? []) as WinnerRow[]);
-        setWinnersMeta({
-          sourceUrl: String((winners as any).sourceUrl ?? ''),
-          fetchedAt: String((winners as any).fetchedAt ?? ''),
-          totalCandidates: Number((winners as any).totalCandidates ?? 0),
-        });
+        setWinnersWarning(e instanceof Error ? e.message : 'Scraping no disponible.');
       }
     } catch (err) {
       setSnapshot(null);
@@ -215,6 +232,7 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
       setTrendTop([]);
       setWinnersTop([]);
       setWinnersMeta(null);
+      setWinnersWarning(null);
       const msg = err instanceof Error ? err.message : 'No fue posible cargar reportes.';
       setError(
         `${msg}\n\nTip: en Vercel, EXPO_PUBLIC_SUPABASE_URL debe ser exactamente "https://unheokgkwybhzyvgzcbi.supabase.co" (sin /rest/v1).`
@@ -465,15 +483,12 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
 
               <View>
                 <Text style={[styles.metricLabel, { color: theme.muted, marginBottom: 6 }]}>Más ganadores (scraping)</Text>
+                {winnersWarning ? <Text style={[styles.helper, { color: theme.danger }]}>{winnersWarning}</Text> : null}
                 {winnersMeta ? (
                   <Text style={[styles.helper, { color: theme.muted }]}>
                     Fuente: {winnersMeta.sourceUrl || 'externa'} · actualizado {new Date(winnersMeta.fetchedAt).toLocaleString('es-CR')} · muestras {winnersMeta.totalCandidates}
                   </Text>
-                ) : (
-                  <Text style={[styles.helper, { color: theme.muted }]}>
-                    Si no aparece, es porque la web cambió o bloqueó el scraping. El resto del panel sigue funcionando.
-                  </Text>
-                )}
+                ) : null}
                 {winnersTop.length === 0 ? null : (
                   <View style={[styles.incomeTable, { gap: 6 }]}>
                     <View style={[styles.incomeHeaderRow, { borderColor: theme.border }]}>
