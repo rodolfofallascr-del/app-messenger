@@ -5,15 +5,15 @@
 4 silly config load:file:C:\app-mesajeria\.npmrc
 5 silly config load:file:C:\Users\rfall\.npmrc
 6 silly config load:file:C:\Users\rfall\AppData\Roaming\npm\etc\npmrc
-7 verbose title npm exec expo config --json
-8 verbose argv "exec" "--" "expo" "config" "--json"
-9 verbose logfile logs-max:10 dir:C:\app-mesajeria\.npm-cache\_logs\2026-04-25T17_28_06_896Z-
-10 verbose logfile C:\app-mesajeria\.npm-cache\_logs\2026-04-25T17_28_06_896Z-debug-0.log
+7 verbose title npm exec expo export --platform web
+8 verbose argv "exec" "--" "expo" "export" "--platform" "web"
+9 verbose logfile logs-max:10 dir:C:\app-mesajeria\.npm-cache\_logs\2026-04-26T01_31_53_668Z-
+10 verbose logfile C:\app-mesajeria\.npm-cache\_logs\2026-04-26T01_31_53_668Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd C:\app-mesajeria
 14 verbose os Windows_NT 10.0.26200
 15 verbose node v22.22.1
 16 verbose npm  v10.9.4
-17 verbose exit 0
-18 info ok
+17 verbose exit 1
+18 verbose code 1
