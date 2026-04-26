@@ -27,10 +27,10 @@ type PlayedNumberRow = { value: string; count: number };
 type TrendRow = { value: string; current: number; previous: number; delta: number };
 type WinnerRow = { value: string; count: number };
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+function withTimeout<T>(promise: PromiseLike<T>, timeoutMs: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const t = setTimeout(() => reject(new Error(`Timeout: ${label} (${Math.round(timeoutMs / 1000)}s)`)), timeoutMs);
-    promise
+    Promise.resolve(promise as any)
       .then((v) => {
         clearTimeout(t);
         resolve(v);
@@ -81,17 +81,18 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
 
       const supabase = getSupabaseClient();
       const since = new Date(Date.now() - incomeRangeDays * 24 * 60 * 60 * 1000).toISOString();
-      const { data: messages, error: msgError } = await withTimeout(
+      const msgRes = await withTimeout<any>(
         supabase
           .from('messages')
           .select('id, sender_id, body, created_at, message_type')
           .eq('message_type', 'text')
           .gte('created_at', since)
           .order('created_at', { ascending: false })
-          .limit(2000),
+          .limit(2000) as any,
         20000,
         'Cargar mensajes (ingresos)'
       );
+      const { data: messages, error: msgError } = msgRes as { data: any[] | null; error: any | null };
 
       if (msgError) {
         throw msgError;
@@ -109,11 +110,12 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
       const ids = Array.from(new Set(detected.map((d) => d.senderId)));
       const profilesById = new Map<string, { full_name?: string | null; email?: string | null; admin_alias?: string | null }>();
       if (ids.length > 0) {
-        const { data: profs, error: profErr } = await withTimeout(
-          supabase.from('profiles').select('id, full_name, email, admin_alias').in('id', ids),
+        const profRes = await withTimeout<any>(
+          supabase.from('profiles').select('id, full_name, email, admin_alias').in('id', ids) as any,
           15000,
           'Cargar perfiles (ingresos)'
         );
+        const { data: profs, error: profErr } = profRes as { data: any[] | null; error: any | null };
         if (profErr) throw profErr;
         (profs ?? []).forEach((p: any) => {
           profilesById.set(String(p.id), { full_name: p.full_name ?? null, email: p.email ?? null, admin_alias: p.admin_alias ?? null });
@@ -162,7 +164,8 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
           .gte('created_at', startIso);
 
         if (endIso) q = q.lt('created_at', endIso);
-        const { data, error: e } = await withTimeout(q.order('created_at', { ascending: false }).limit(5000), 20000, 'Cargar mensajes (numeros)');
+        const res = await withTimeout<any>(q.order('created_at', { ascending: false }).limit(5000) as any, 20000, 'Cargar mensajes (numeros)');
+        const { data, error: e } = res as { data: any[] | null; error: any | null };
         if (e) throw e;
         return (data ?? []) as Array<{ body: string | null; created_at: string; message_type: string }>;
       };
