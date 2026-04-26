@@ -27,6 +27,21 @@ type PlayedNumberRow = { value: string; count: number };
 type TrendRow = { value: string; current: number; previous: number; delta: number };
 type WinnerRow = { value: string; count: number };
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout: ${label} (${Math.round(timeoutMs / 1000)}s)`)), timeoutMs);
+    promise
+      .then((v) => {
+        clearTimeout(t);
+        resolve(v);
+      })
+      .catch((e) => {
+        clearTimeout(t);
+        reject(e);
+      });
+  });
+}
+
 export function ReportsWebApp({ session, profile }: { session: Session; profile: ProfileRecord }) {
   const [themeMode, setThemeMode] = useState<AdminThemeMode>('dark');
   const theme = adminThemes[themeMode];
@@ -57,7 +72,7 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
     setLoading(true);
     setError(null);
     try {
-      const users = await fetchAdminUsers();
+      const users = await withTimeout(fetchAdminUsers(), 15000, 'Cargar usuarios (admin)');
       const totalUsers = users.length;
       const pendingUsers = users.filter((u) => u.status === 'pending').length;
       const blockedUsers = users.filter((u) => u.status === 'blocked').length;
@@ -66,13 +81,17 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
 
       const supabase = getSupabaseClient();
       const since = new Date(Date.now() - incomeRangeDays * 24 * 60 * 60 * 1000).toISOString();
-      const { data: messages, error: msgError } = await supabase
-        .from('messages')
-        .select('id, sender_id, body, created_at, message_type')
-        .eq('message_type', 'text')
-        .gte('created_at', since)
-        .order('created_at', { ascending: false })
-        .limit(2000);
+      const { data: messages, error: msgError } = await withTimeout(
+        supabase
+          .from('messages')
+          .select('id, sender_id, body, created_at, message_type')
+          .eq('message_type', 'text')
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(2000),
+        20000,
+        'Cargar mensajes (ingresos)'
+      );
 
       if (msgError) {
         throw msgError;
@@ -90,10 +109,11 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
       const ids = Array.from(new Set(detected.map((d) => d.senderId)));
       const profilesById = new Map<string, { full_name?: string | null; email?: string | null; admin_alias?: string | null }>();
       if (ids.length > 0) {
-        const { data: profs, error: profErr } = await supabase
-          .from('profiles')
-          .select('id, full_name, email, admin_alias')
-          .in('id', ids);
+        const { data: profs, error: profErr } = await withTimeout(
+          supabase.from('profiles').select('id, full_name, email, admin_alias').in('id', ids),
+          15000,
+          'Cargar perfiles (ingresos)'
+        );
         if (profErr) throw profErr;
         (profs ?? []).forEach((p: any) => {
           profilesById.set(String(p.id), { full_name: p.full_name ?? null, email: p.email ?? null, admin_alias: p.admin_alias ?? null });
@@ -142,7 +162,7 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
           .gte('created_at', startIso);
 
         if (endIso) q = q.lt('created_at', endIso);
-        const { data, error: e } = await q.order('created_at', { ascending: false }).limit(5000);
+        const { data, error: e } = await withTimeout(q.order('created_at', { ascending: false }).limit(5000), 20000, 'Cargar mensajes (numeros)');
         if (e) throw e;
         return (data ?? []) as Array<{ body: string | null; created_at: string; message_type: string }>;
       };
@@ -165,9 +185,13 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
 
       // External "más ganadores": scraped via Supabase Edge Function (avoids browser CORS).
       // If the source site changes, this may fail gracefully.
-      const { data: winners, error: winnersErr } = await supabase.functions.invoke('winning-numbers', {
-        body: { limit: 20 },
-      });
+      const { data: winners, error: winnersErr } = await withTimeout(
+        supabase.functions.invoke('winning-numbers', {
+          body: { limit: 20 },
+        }),
+        20000,
+        'Cargar ganadores (scraping)'
+      );
       if (winnersErr) {
         // Keep the rest of report working even if scraping fails.
         setWinnersTop([]);
@@ -188,7 +212,10 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
       setTrendTop([]);
       setWinnersTop([]);
       setWinnersMeta(null);
-      setError(err instanceof Error ? err.message : 'No fue posible cargar reportes.');
+      const msg = err instanceof Error ? err.message : 'No fue posible cargar reportes.';
+      setError(
+        `${msg}\n\nTip: en Vercel, EXPO_PUBLIC_SUPABASE_URL debe ser exactamente "https://unheokgkwybhzyvgzcbi.supabase.co" (sin /rest/v1).`
+      );
     } finally {
       setLoading(false);
     }
