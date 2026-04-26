@@ -4,6 +4,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, V
 import { fetchAdminUsers } from './lib/adminService';
 import { getSupabaseClient } from './lib/supabase';
 import { detectPaymentFromText } from './lib/paymentDetection';
+import { computeDeltas, countNumbers, extractLotteryNumbers00to99, topNumbers } from './lib/lotteryNumberDetection';
 import { adminThemes, AdminThemeMode, palette } from './theme/palette';
 import { ProfileRecord } from './types/chat';
 
@@ -22,6 +23,10 @@ type IncomeRow = {
   payments: number;
 };
 
+type PlayedNumberRow = { value: string; count: number };
+type TrendRow = { value: string; current: number; previous: number; delta: number };
+type WinnerRow = { value: string; count: number };
+
 export function ReportsWebApp({ session, profile }: { session: Session; profile: ProfileRecord }) {
   const [themeMode, setThemeMode] = useState<AdminThemeMode>('dark');
   const theme = adminThemes[themeMode];
@@ -31,6 +36,11 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
   const [incomeRows, setIncomeRows] = useState<IncomeRow[]>([]);
   const [incomeRangeDays, setIncomeRangeDays] = useState(7);
   const [incomeSummary, setIncomeSummary] = useState<{ crc: number; usd: number; payments: number } | null>(null);
+  const [numbersRangeDays, setNumbersRangeDays] = useState(7);
+  const [playedTop, setPlayedTop] = useState<PlayedNumberRow[]>([]);
+  const [trendTop, setTrendTop] = useState<TrendRow[]>([]);
+  const [winnersTop, setWinnersTop] = useState<WinnerRow[]>([]);
+  const [winnersMeta, setWinnersMeta] = useState<{ sourceUrl: string; fetchedAt: string; totalCandidates: number } | null>(null);
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -115,10 +125,69 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
       const rows = Array.from(byUser.values()).sort((a, b) => b.crc + b.usd * 550 - (a.crc + a.usd * 550));
       setIncomeRows(rows.slice(0, 25));
       setIncomeSummary(totals);
+
+      // Module 2: Números más jugados y tendencias (heurística).
+      // Compare selected range against the previous same-length range.
+      const rangeMs = numbersRangeDays * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      const currentStart = new Date(now - rangeMs).toISOString();
+      const prevStart = new Date(now - rangeMs * 2).toISOString();
+      const prevEnd = currentStart;
+
+      const fetchNumberMessages = async (startIso: string, endIso?: string) => {
+        let q = supabase
+          .from('messages')
+          .select('body, created_at, message_type')
+          .eq('message_type', 'text')
+          .gte('created_at', startIso);
+
+        if (endIso) q = q.lt('created_at', endIso);
+        const { data, error: e } = await q.order('created_at', { ascending: false }).limit(5000);
+        if (e) throw e;
+        return (data ?? []) as Array<{ body: string | null; created_at: string; message_type: string }>;
+      };
+
+      const [currentMsgs, prevMsgs] = await Promise.all([fetchNumberMessages(currentStart), fetchNumberMessages(prevStart, prevEnd)]);
+
+      const currentNums = currentMsgs.flatMap((m) => extractLotteryNumbers00to99(String(m.body ?? '')));
+      const prevNums = prevMsgs.flatMap((m) => extractLotteryNumbers00to99(String(m.body ?? '')));
+
+      const currentMap = countNumbers(currentNums);
+      const prevMap = countNumbers(prevNums);
+
+      setPlayedTop(topNumbers(currentMap, 20));
+
+      const deltas = computeDeltas(currentMap, prevMap)
+        .filter((r) => r.current > 0 || r.previous > 0)
+        .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || b.current - a.current || a.value.localeCompare(b.value))
+        .slice(0, 20);
+      setTrendTop(deltas);
+
+      // External "más ganadores": scraped via Supabase Edge Function (avoids browser CORS).
+      // If the source site changes, this may fail gracefully.
+      const { data: winners, error: winnersErr } = await supabase.functions.invoke('winning-numbers', {
+        body: { limit: 20 },
+      });
+      if (winnersErr) {
+        // Keep the rest of report working even if scraping fails.
+        setWinnersTop([]);
+        setWinnersMeta(null);
+      } else if (winners) {
+        setWinnersTop(((winners as any).top ?? []) as WinnerRow[]);
+        setWinnersMeta({
+          sourceUrl: String((winners as any).sourceUrl ?? ''),
+          fetchedAt: String((winners as any).fetchedAt ?? ''),
+          totalCandidates: Number((winners as any).totalCandidates ?? 0),
+        });
+      }
     } catch (err) {
       setSnapshot(null);
       setIncomeRows([]);
       setIncomeSummary(null);
+      setPlayedTop([]);
+      setTrendTop([]);
+      setWinnersTop([]);
+      setWinnersMeta(null);
       setError(err instanceof Error ? err.message : 'No fue posible cargar reportes.');
     } finally {
       setLoading(false);
@@ -268,6 +337,130 @@ export function ReportsWebApp({ session, profile }: { session: Session; profile:
               </View>
             </>
           ) : null}
+        </View>
+
+        <View style={[styles.card, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+          <View style={styles.cardHeader}>
+            <Text style={[styles.cardTitle, { color: theme.title }]}>Números más jugados y tendencias (beta)</Text>
+            <View style={styles.rangeRow}>
+              <Pressable
+                onPress={() => {
+                  setNumbersRangeDays(7);
+                  void reload();
+                }}
+                style={[
+                  styles.rangeChip,
+                  {
+                    backgroundColor: numbersRangeDays === 7 ? theme.accent : theme.input,
+                    borderColor: numbersRangeDays === 7 ? theme.accent : theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.rangeChipText, { color: numbersRangeDays === 7 ? theme.buttonText : theme.title }]}>7 días</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  setNumbersRangeDays(30);
+                  void reload();
+                }}
+                style={[
+                  styles.rangeChip,
+                  {
+                    backgroundColor: numbersRangeDays === 30 ? theme.accent : theme.input,
+                    borderColor: numbersRangeDays === 30 ? theme.accent : theme.border,
+                  },
+                ]}
+              >
+                <Text style={[styles.rangeChipText, { color: numbersRangeDays === 30 ? theme.buttonText : theme.title }]}>30 días</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          <Text style={[styles.helper, { color: theme.muted }]}>
+            Se extraen automáticamente números 00-99 de los mensajes (ej: “12 25 54” o “12+25+54”). Tendencias compara contra el rango anterior (mismos días).
+          </Text>
+
+          {loading ? null : (
+            <View style={{ gap: 14 }}>
+              <View>
+                <Text style={[styles.metricLabel, { color: theme.muted, marginBottom: 6 }]}>Más jugados</Text>
+                {playedTop.length === 0 ? (
+                  <Text style={[styles.paragraph, { color: theme.text }]}>No se detectaron números en los últimos {numbersRangeDays} días.</Text>
+                ) : (
+                  <View style={[styles.incomeTable, { gap: 6 }]}>
+                    <View style={[styles.incomeHeaderRow, { borderColor: theme.border }]}>
+                      <Text style={[styles.incomeHeader, { color: theme.muted }]}>Número</Text>
+                      <Text style={[styles.incomeHeader, { color: theme.muted, textAlign: 'right' }]}>Veces</Text>
+                    </View>
+                    {playedTop.map((row) => (
+                      <View key={row.value} style={[styles.incomeRow, { borderColor: theme.border }]}>
+                        <Text style={[styles.incomeCell, { color: theme.title }]}>{row.value}</Text>
+                        <Text style={[styles.incomeCellRight, { color: theme.text }]}>{row.count}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <View>
+                <Text style={[styles.metricLabel, { color: theme.muted, marginBottom: 6 }]}>Tendencias (vs rango anterior)</Text>
+                {trendTop.length === 0 ? (
+                  <Text style={[styles.paragraph, { color: theme.text }]}>Sin suficientes datos para tendencias.</Text>
+                ) : (
+                  <View style={[styles.incomeTable, { gap: 6 }]}>
+                    <View style={[styles.incomeHeaderRow, { borderColor: theme.border }]}>
+                      <Text style={[styles.incomeHeader, { color: theme.muted }]}>Número</Text>
+                      <Text style={[styles.incomeHeader, { color: theme.muted, textAlign: 'right' }]}>Ahora</Text>
+                      <Text style={[styles.incomeHeader, { color: theme.muted, textAlign: 'right' }]}>Antes</Text>
+                      <Text style={[styles.incomeHeader, { color: theme.muted, textAlign: 'right' }]}>Δ</Text>
+                    </View>
+                    {trendTop.map((row) => (
+                      <View key={row.value} style={[styles.incomeRow, { borderColor: theme.border }]}>
+                        <Text style={[styles.incomeCell, { color: theme.title }]}>{row.value}</Text>
+                        <Text style={[styles.incomeCellRight, { color: theme.text }]}>{row.current}</Text>
+                        <Text style={[styles.incomeCellRight, { color: theme.text }]}>{row.previous}</Text>
+                        <Text
+                          style={[
+                            styles.incomeCellRight,
+                            { color: row.delta > 0 ? theme.accent : row.delta < 0 ? theme.danger : theme.muted },
+                          ]}
+                        >
+                          {row.delta > 0 ? `+${row.delta}` : String(row.delta)}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              <View>
+                <Text style={[styles.metricLabel, { color: theme.muted, marginBottom: 6 }]}>Más ganadores (scraping)</Text>
+                {winnersMeta ? (
+                  <Text style={[styles.helper, { color: theme.muted }]}>
+                    Fuente: {winnersMeta.sourceUrl || 'externa'} · actualizado {new Date(winnersMeta.fetchedAt).toLocaleString('es-CR')} · muestras {winnersMeta.totalCandidates}
+                  </Text>
+                ) : (
+                  <Text style={[styles.helper, { color: theme.muted }]}>
+                    Si no aparece, es porque la web cambió o bloqueó el scraping. El resto del panel sigue funcionando.
+                  </Text>
+                )}
+                {winnersTop.length === 0 ? null : (
+                  <View style={[styles.incomeTable, { gap: 6 }]}>
+                    <View style={[styles.incomeHeaderRow, { borderColor: theme.border }]}>
+                      <Text style={[styles.incomeHeader, { color: theme.muted }]}>Número</Text>
+                      <Text style={[styles.incomeHeader, { color: theme.muted, textAlign: 'right' }]}>Apariciones</Text>
+                    </View>
+                    {winnersTop.map((row) => (
+                      <View key={row.value} style={[styles.incomeRow, { borderColor: theme.border }]}>
+                        <Text style={[styles.incomeCell, { color: theme.title }]}>{row.value}</Text>
+                        <Text style={[styles.incomeCellRight, { color: theme.text }]}>{row.count}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={[styles.card, { backgroundColor: theme.panel, borderColor: theme.border }]}>
