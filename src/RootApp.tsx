@@ -2,11 +2,12 @@ import { Session } from '@supabase/supabase-js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { useShareIntentContext } from 'expo-share-intent';
-import { AdminWebApp } from './AdminWebApp';
-import { MessagingApp } from './MessagingApp';
-import { AccessStatusScreen } from './components/AccessStatusScreen';
-import { AuthScreen } from './components/AuthScreen';
-import { SetupGuide } from './components/SetupGuide';
+import { AdminWebApp } from './AdminWebApp'; 
+import { MessagingApp } from './MessagingApp'; 
+import { ReportsWebApp } from './ReportsWebApp';
+import { AccessStatusScreen } from './components/AccessStatusScreen'; 
+import { AuthScreen } from './components/AuthScreen'; 
+import { SetupGuide } from './components/SetupGuide'; 
 import { fetchCurrentProfile } from './lib/profileService';
 import { getSupabaseClient, hasSupabaseConfig } from './lib/supabase';
 import { palette } from './theme/palette';
@@ -21,7 +22,7 @@ function getWebHostname() {
   }
 }
 
-function isClientWebEnabled() {
+function isClientWebEnabled() { 
   if (Platform.OS !== 'web') return false;
 
   // Set in Vercel for the client web deployment.
@@ -30,7 +31,17 @@ function isClientWebEnabled() {
 
   // Safety net: enable automatically on the intended subdomain.
   const host = getWebHostname().toLowerCase();
-  return host === 'app.chatsantanita.com';
+  return host === 'app.chatsantanita.com'; 
+} 
+
+function isReportsWebEnabled() {
+  if (Platform.OS !== 'web') return false;
+
+  const envVariant = String(process.env.EXPO_PUBLIC_APP_VARIANT ?? '').toLowerCase();
+  if (envVariant === 'reports') return true;
+
+  const host = getWebHostname().toLowerCase();
+  return host === 'reportes.chatsantanita.com';
 }
 
 export function RootApp() {
@@ -229,9 +240,12 @@ export function RootApp() {
     );
   }
 
-  if (profile.role === 'admin' && Platform.OS === 'web') {
-    return <AdminWebApp session={session} profile={profile} />;
-  }
+  if (profile.role === 'admin' && Platform.OS === 'web') { 
+    if (isReportsWebEnabled()) {
+      return <ReportsWebApp session={session} profile={profile} />;
+    }
+    return <AdminWebApp session={session} profile={profile} />; 
+  } 
 
   if (profile.role === 'admin' && Platform.OS !== 'web') {
     return (
