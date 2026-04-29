@@ -1607,14 +1607,28 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
               </View>
               <ScrollView style={styles.libraryScroll} showsVerticalScrollIndicator persistentScrollbar>
                 <View style={styles.libraryStack}>
-                  {announcements.map((item) => (
+                  {announcements.map((item, index) => (
                     <View key={item.id} style={[styles.libraryItemCard, { backgroundColor: theme.cardAlt, borderColor: theme.border }]}>
                       <View style={styles.announcementRow}>
                         <Text style={styles.announcementIcon}>📣</Text>
                         <View style={styles.announcementCopy}>
-                          <Text style={[styles.libraryItemTitle, { color: theme.title }]} numberOfLines={1}>
-                            {item.title?.trim() || 'Anuncio'}
-                          </Text>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View
+                              style={{
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: 999,
+                                borderWidth: 1,
+                                borderColor: theme.border,
+                                backgroundColor: theme.input,
+                              }}
+                            >
+                              <Text style={{ fontSize: 11, fontWeight: '900', color: theme.muted }}>{`#${index + 1}`}</Text>
+                            </View>
+                            <Text style={[styles.libraryItemTitle, { color: theme.title, flex: 1 }]} numberOfLines={1}>
+                              {item.title?.trim() || 'Anuncio'}
+                            </Text>
+                          </View>
                           <Text style={[styles.libraryBody, { color: theme.text }]} numberOfLines={3}>
                             {item.body}
                           </Text>
