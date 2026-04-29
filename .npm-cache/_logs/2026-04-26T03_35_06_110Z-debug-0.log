@@ -1,0 +1,23 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@10.9.4
+2 info using node@v22.22.1
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\app-mesajeria\.npmrc
+5 silly config load:file:C:\Users\rfall\.npmrc
+6 silly config load:file:C:\Users\rfall\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm exec supabase@latest functions deploy winning-numbers --project-ref unheokgkwybhzyvgzcbi
+8 verbose argv "exec" "--" "supabase@latest" "functions" "deploy" "winning-numbers" "--project-ref" "unheokgkwybhzyvgzcbi"
+9 verbose logfile logs-max:10 dir:C:\app-mesajeria\.npm-cache\_logs\2026-04-26T03_35_06_110Z-
+10 verbose logfile C:\app-mesajeria\.npm-cache\_logs\2026-04-26T03_35_06_110Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly logfile done cleaning log files
+13 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+14 http fetch GET 200 https://registry.npmjs.org/supabase 495ms (cache revalidated)
+15 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+16 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+17 verbose cwd C:\app-mesajeria
+18 verbose os Windows_NT 10.0.26200
+19 verbose node v22.22.1
+20 verbose npm  v10.9.4
+21 verbose exit 0
+22 info ok

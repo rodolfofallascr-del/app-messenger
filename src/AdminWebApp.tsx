@@ -69,6 +69,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const [libraryLoading, setLibraryLoading] = useState(true);
   const [announcements, setAnnouncements] = useState<AnnouncementRecord[]>([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+  const ANNOUNCEMENTS_PAGE_SIZE = 50;
+  const [announcementsOffset, setAnnouncementsOffset] = useState(0);
+  const [announcementsHasMore, setAnnouncementsHasMore] = useState(true);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementBody, setAnnouncementBody] = useState('');
   const [announcementActive, setAnnouncementActive] = useState(true);
@@ -186,28 +189,43 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   }, []);
 
-  const loadAnnouncements = useCallback(async () => {
+  const loadAnnouncements = useCallback(async (options?: { reset?: boolean }) => {
     setAnnouncementsLoading(true);
 
     try {
       const supabase = getSupabaseClient();
+      const reset = options?.reset ?? false;
+      const offset = reset ? 0 : announcementsOffset;
+      const to = offset + ANNOUNCEMENTS_PAGE_SIZE - 1;
+
       const { data, error } = await supabase
         .from('announcements')
         .select('id,title,body,active,starts_at,ends_at,is_recurring,days_of_week,start_time,end_time,timezone,created_by,created_at,updated_at')
         .order('updated_at', { ascending: false })
-        .limit(50);
+        .range(offset, to);
 
       if (error) {
         throw error;
       }
 
-      setAnnouncements((data ?? []) as AnnouncementRecord[]);
+      const page = (data ?? []) as AnnouncementRecord[];
+
+      setAnnouncements((current) => (reset ? page : mergeAnnouncements(current, page)));
+      setAnnouncementsOffset(offset + page.length);
+      setAnnouncementsHasMore(page.length === ANNOUNCEMENTS_PAGE_SIZE);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los anuncios.');
     } finally {
       setAnnouncementsLoading(false);
     }
-  }, []);
+  }, [ANNOUNCEMENTS_PAGE_SIZE, announcementsOffset]);
+
+  const mergeAnnouncements = (current: AnnouncementRecord[], incoming: AnnouncementRecord[]) => {
+    const byId = new Map<string, AnnouncementRecord>();
+    current.forEach((a) => byId.set(a.id, a));
+    incoming.forEach((a) => byId.set(a.id, a));
+    return Array.from(byId.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  };
 
   useEffect(() => {
     if (section === 'users') {
@@ -219,7 +237,10 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
 
     if (section === 'announcements') {
-      void loadAnnouncements();
+      // Reset pagination when entering the section so older items don't "disappear".
+      setAnnouncementsOffset(0);
+      setAnnouncementsHasMore(true);
+      void loadAnnouncements({ reset: true });
     }
   }, [loadAnnouncements, loadLibrary, loadUsers, section]);
 
@@ -1681,6 +1702,21 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                       </View>
                     </View>
                   ))}
+                  {announcementsHasMore ? (
+                    <View style={{ paddingTop: 10 }}>
+                      <ActionButton
+                        label={announcementsLoading ? 'Cargando…' : 'Cargar más'}
+                        tone="neutral"
+                        disabled={resourceBusy || announcementsLoading}
+                        onPress={() => void loadAnnouncements()}
+                        themeMode={themeMode}
+                      />
+                    </View>
+                  ) : announcements.length > 0 ? (
+                    <Text style={[styles.helperText, { color: theme.muted, textAlign: 'center', paddingTop: 10 }]}>
+                      No hay más anuncios para cargar.
+                    </Text>
+                  ) : null}
                 </View>
               </ScrollView>
             </View>
