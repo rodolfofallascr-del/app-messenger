@@ -7,8 +7,8 @@
 6 silly config load:file:C:\Users\rfall\AppData\Roaming\npm\etc\npmrc
 7 verbose title npm exec tsc -p tsconfig.json --noEmit
 8 verbose argv "exec" "--" "tsc" "-p" "tsconfig.json" "--noEmit"
-9 verbose logfile logs-max:10 dir:C:\app-mesajeria\.npm-cache\_logs\2026-04-26T01_41_39_920Z-
-10 verbose logfile C:\app-mesajeria\.npm-cache\_logs\2026-04-26T01_41_39_920Z-debug-0.log
+9 verbose logfile logs-max:10 dir:C:\app-mesajeria\.npm-cache\_logs\2026-04-29T21_25_10_316Z-
+10 verbose logfile C:\app-mesajeria\.npm-cache\_logs\2026-04-29T21_25_10_316Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd C:\app-mesajeria

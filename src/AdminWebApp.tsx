@@ -72,6 +72,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
   const ANNOUNCEMENTS_PAGE_SIZE = 50;
   const [announcementsOffset, setAnnouncementsOffset] = useState(0);
   const [announcementsHasMore, setAnnouncementsHasMore] = useState(true);
+  const announcementsOffsetRef = useRef(0);
+  const announcementsHasMoreRef = useRef(true);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementBody, setAnnouncementBody] = useState('');
   const [announcementActive, setAnnouncementActive] = useState(true);
@@ -202,7 +204,7 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     try {
       const supabase = getSupabaseClient();
       const reset = options?.reset ?? false;
-      const offset = reset ? 0 : announcementsOffset;
+      const offset = reset ? 0 : announcementsOffsetRef.current;
       const to = offset + ANNOUNCEMENTS_PAGE_SIZE - 1;
 
       const { data, error } = await supabase
@@ -218,14 +220,18 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       const page = (data ?? []) as AnnouncementRecord[];
 
       setAnnouncements((current) => (reset ? page : mergeAnnouncements(current, page)));
-      setAnnouncementsOffset((current) => (reset ? page.length : current + page.length));
-      setAnnouncementsHasMore(page.length === ANNOUNCEMENTS_PAGE_SIZE);
+      const nextOffset = reset ? page.length : offset + page.length;
+      const hasMore = page.length === ANNOUNCEMENTS_PAGE_SIZE;
+      announcementsOffsetRef.current = nextOffset;
+      announcementsHasMoreRef.current = hasMore;
+      setAnnouncementsOffset(nextOffset);
+      setAnnouncementsHasMore(hasMore);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los anuncios.');
     } finally {
       setAnnouncementsLoading(false);
     }
-  }, [ANNOUNCEMENTS_PAGE_SIZE, announcementsOffset, mergeAnnouncements]);
+  }, [ANNOUNCEMENTS_PAGE_SIZE, mergeAnnouncements]);
 
   useEffect(() => {
     if (section === 'users') {
@@ -238,6 +244,8 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
 
     if (section === 'announcements') {
       // Reset pagination when entering the section so older items don't "disappear".
+      announcementsOffsetRef.current = 0;
+      announcementsHasMoreRef.current = true;
       setAnnouncementsOffset(0);
       setAnnouncementsHasMore(true);
       void loadAnnouncements({ reset: true });
