@@ -189,6 +189,13 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
     }
   }, []);
 
+  const mergeAnnouncements = useCallback((current: AnnouncementRecord[], incoming: AnnouncementRecord[]) => {
+    const byId = new Map<string, AnnouncementRecord>();
+    current.forEach((a) => byId.set(a.id, a));
+    incoming.forEach((a) => byId.set(a.id, a));
+    return Array.from(byId.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  }, []);
+
   const loadAnnouncements = useCallback(async (options?: { reset?: boolean }) => {
     setAnnouncementsLoading(true);
 
@@ -211,21 +218,14 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
       const page = (data ?? []) as AnnouncementRecord[];
 
       setAnnouncements((current) => (reset ? page : mergeAnnouncements(current, page)));
-      setAnnouncementsOffset(offset + page.length);
+      setAnnouncementsOffset((current) => (reset ? page.length : current + page.length));
       setAnnouncementsHasMore(page.length === ANNOUNCEMENTS_PAGE_SIZE);
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'No fue posible cargar los anuncios.');
     } finally {
       setAnnouncementsLoading(false);
     }
-  }, [ANNOUNCEMENTS_PAGE_SIZE, announcementsOffset]);
-
-  const mergeAnnouncements = (current: AnnouncementRecord[], incoming: AnnouncementRecord[]) => {
-    const byId = new Map<string, AnnouncementRecord>();
-    current.forEach((a) => byId.set(a.id, a));
-    incoming.forEach((a) => byId.set(a.id, a));
-    return Array.from(byId.values()).sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
-  };
+  }, [ANNOUNCEMENTS_PAGE_SIZE, announcementsOffset, mergeAnnouncements]);
 
   useEffect(() => {
     if (section === 'users') {
@@ -1711,6 +1711,9 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
                         onPress={() => void loadAnnouncements()}
                         themeMode={themeMode}
                       />
+                      <Text style={[styles.helperText, { color: theme.muted, textAlign: 'center', paddingTop: 8 }]}>
+                        Mostrando {announcements.length} anuncios.
+                      </Text>
                     </View>
                   ) : announcements.length > 0 ? (
                     <Text style={[styles.helperText, { color: theme.muted, textAlign: 'center', paddingTop: 10 }]}>
