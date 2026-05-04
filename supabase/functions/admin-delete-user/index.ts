@@ -14,23 +14,49 @@ type DeleteBody = {
   caller_access_token?: string;
 };
 
-function json(status: number, body: unknown) {
+function getAllowedOrigins(): string[] {
+  const raw =
+    Deno.env.get("ALLOWED_ORIGINS") ??
+    [
+      "https://chatsantanita.com",
+      "https://www.chatsantanita.com",
+      "https://app.chatsantanita.com",
+      "https://reportes.chatsantanita.com",
+      "http://localhost:3000",
+      "http://localhost:19006",
+    ].join(",");
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function corsHeaders(origin: string) {
+  const allowed = getAllowedOrigins();
+  const allowOrigin = origin && allowed.includes(origin) ? origin : "";
+  return {
+    "access-control-allow-origin": allowOrigin || "null",
+    "vary": "Origin",
+  };
+}
+
+function json(status: number, body: unknown, origin = "") {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": "*",
+      ...corsHeaders(origin),
       "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
       "access-control-allow-methods": "POST, OPTIONS",
     },
   });
 }
 
-function noContent() {
+function noContent(origin = "") {
   return new Response(null, {
     status: 204,
     headers: {
-      "access-control-allow-origin": "*",
+      ...corsHeaders(origin),
       "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
       "access-control-allow-methods": "POST, OPTIONS",
     },
@@ -78,8 +104,14 @@ async function probeAuthUserEndpoint(url: string, anonKey: string, accessToken: 
 
 Deno.serve(async (req) => {
   try {
-    if (req.method === "OPTIONS") return noContent();
-    if (req.method !== "POST") return json(405, { error: "Method not allowed" });
+    const origin = req.headers.get("origin") ?? "";
+    const allowed = getAllowedOrigins();
+    if (origin && !allowed.includes(origin)) {
+      return json(403, { error: "Origin not allowed" }, origin);
+    }
+
+    if (req.method === "OPTIONS") return noContent(origin);
+    if (req.method !== "POST") return json(405, { error: "Method not allowed" }, origin);
 
     const authHeader = req.headers.get("authorization") ?? "";
 
@@ -103,7 +135,7 @@ Deno.serve(async (req) => {
     const callerToken = (body.caller_access_token ?? "").trim();
 
     if (!targetUserId || !looksLikeUuid(targetUserId)) {
-      return json(400, { error: "Invalid target_user_id" });
+      return json(400, { error: "Invalid target_user_id" }, origin);
     }
 
     // Identify the caller. We accept either:
@@ -141,7 +173,7 @@ Deno.serve(async (req) => {
           userError: userError?.message ?? null,
           probe,
         },
-      });
+      }, origin);
     }
 
     // Use a DB client with the caller JWT for RLS-protected reads (profiles/admin check).
@@ -157,7 +189,7 @@ Deno.serve(async (req) => {
 
     // Prevent accidental lockout.
     if (targetUserId === user.id) {
-      return json(400, { error: "No puedes eliminar tu propio usuario admin desde aqui." });
+      return json(400, { error: "No puedes eliminar tu propio usuario admin desde aqui." }, origin);
     }
 
     // Verify caller is an approved admin (via RLS-protected table).
@@ -168,11 +200,11 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (adminCheck.error) {
-      return json(400, { error: adminCheck.error.message });
+      return json(400, { error: adminCheck.error.message }, origin);
     }
 
     if (!adminCheck.data || adminCheck.data.role !== "admin" || adminCheck.data.status !== "approved") {
-      return json(403, { error: "Forbidden" });
+      return json(403, { error: "Forbidden" }, origin);
     }
 
     const service = createClient(url, serviceRoleKey);
@@ -180,17 +212,18 @@ Deno.serve(async (req) => {
     // Remove public data first (cascades to chats/messages via FK ON DELETE CASCADE).
     const profileDelete = await service.from("profiles").delete().eq("id", targetUserId);
     if (profileDelete.error) {
-      return json(400, { error: profileDelete.error.message });
+      return json(400, { error: profileDelete.error.message }, origin);
     }
 
     // Remove Auth user (in case profile was already removed).
     const authDelete = await service.auth.admin.deleteUser(targetUserId);
     if (authDelete.error) {
-      return json(400, { error: authDelete.error.message });
+      return json(400, { error: authDelete.error.message }, origin);
     }
 
-    return json(200, { ok: true });
+    return json(200, { ok: true }, origin);
   } catch (error) {
-    return json(500, { error: error instanceof Error ? error.message : "Unknown error" });
+    const origin = req.headers.get("origin") ?? "";
+    return json(500, { error: error instanceof Error ? error.message : "Unknown error" }, origin);
   }
 });

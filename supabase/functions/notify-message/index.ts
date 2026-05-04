@@ -18,23 +18,49 @@ type NotifyBody = {
   preview?: string;
 };
 
-function json(status: number, body: unknown) {
+function getAllowedOrigins(): string[] {
+  const raw =
+    Deno.env.get("ALLOWED_ORIGINS") ??
+    [
+      "https://chatsantanita.com",
+      "https://www.chatsantanita.com",
+      "https://app.chatsantanita.com",
+      "https://reportes.chatsantanita.com",
+      "http://localhost:3000",
+      "http://localhost:19006",
+    ].join(",");
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function corsHeaders(origin: string) {
+  const allowed = getAllowedOrigins();
+  const allowOrigin = origin && allowed.includes(origin) ? origin : "";
+  return {
+    "access-control-allow-origin": allowOrigin || "null",
+    "vary": "Origin",
+  };
+}
+
+function json(status: number, body: unknown, origin = "") {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": "*",
+      ...corsHeaders(origin),
       "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
       "access-control-allow-methods": "POST, OPTIONS",
     },
   });
 }
 
-function noContent() {
+function noContent(origin = "") {
   return new Response(null, {
     status: 204,
     headers: {
-      "access-control-allow-origin": "*",
+      ...corsHeaders(origin),
       "access-control-allow-headers": "authorization, x-client-info, apikey, content-type",
       "access-control-allow-methods": "POST, OPTIONS",
     },
@@ -58,13 +84,19 @@ function safePreview(text: string) {
 
 Deno.serve(async (req) => {
   try {
+    const origin = req.headers.get("origin") ?? "";
+    const allowed = getAllowedOrigins();
+    if (origin && !allowed.includes(origin)) {
+      return json(403, { error: "Origin not allowed" }, origin);
+    }
+
     // CORS preflight
     if (req.method === "OPTIONS") {
-      return noContent();
+      return noContent(origin);
     }
 
     if (req.method !== "POST") {
-      return json(405, { error: "Method not allowed" });
+      return json(405, { error: "Method not allowed" }, origin);
     }
 
     const authHeader = req.headers.get("authorization") ?? "";
@@ -103,7 +135,7 @@ Deno.serve(async (req) => {
           authHeaderPrefix: authHeader ? authHeader.slice(0, 16) : "",
           hasApiKeyHeader: Boolean(apiKeyHeader),
         },
-      });
+      }, origin);
     }
 
     const body = (await req.json().catch(() => ({}))) as NotifyBody;
@@ -111,11 +143,11 @@ Deno.serve(async (req) => {
     const senderId = (body.senderId ?? "").trim();
 
     if (!chatId || !senderId) {
-      return json(400, { error: "Missing chatId/senderId" });
+      return json(400, { error: "Missing chatId/senderId" }, origin);
     }
 
     if (senderId !== user.id) {
-      return json(403, { error: "senderId mismatch" });
+      return json(403, { error: "senderId mismatch" }, origin);
     }
 
     // Require sender to be an approved admin.
@@ -126,12 +158,12 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (adminCheck.error) {
-      return json(400, { error: adminCheck.error.message });
+      return json(400, { error: adminCheck.error.message }, origin);
     }
 
     if (!adminCheck.data || adminCheck.data.role !== "admin" || adminCheck.data.status !== "approved") {
       // Only admin messages create push notifications (as requested).
-      return json(200, { ok: true, skipped: "not-admin" });
+      return json(200, { ok: true, skipped: "not-admin" }, origin);
     }
 
     // Ensure sender is a member of chat.
@@ -143,10 +175,10 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (membership.error) {
-      return json(400, { error: membership.error.message });
+      return json(400, { error: membership.error.message }, origin);
     }
     if (!membership.data) {
-      return json(403, { error: "Sender is not a chat member" });
+      return json(403, { error: "Sender is not a chat member" }, origin);
     }
 
     // Use service role for token lookup (bypasses RLS).
@@ -159,7 +191,7 @@ Deno.serve(async (req) => {
       .neq("user_id", senderId);
 
     if (recipients.error) {
-      return json(400, { error: recipients.error.message });
+      return json(400, { error: recipients.error.message }, origin);
     }
 
     const recipientIds = (recipients.data ?? [])
@@ -167,7 +199,7 @@ Deno.serve(async (req) => {
       .filter(Boolean);
 
     if (recipientIds.length === 0) {
-      return json(200, { ok: true, sent: 0 });
+      return json(200, { ok: true, sent: 0 }, origin);
     }
 
     const tokens = await service
@@ -176,7 +208,7 @@ Deno.serve(async (req) => {
       .in("user_id", recipientIds);
 
     if (tokens.error) {
-      return json(400, { error: tokens.error.message });
+      return json(400, { error: tokens.error.message }, origin);
     }
 
     const expoTokens = (tokens.data ?? [])
@@ -185,7 +217,7 @@ Deno.serve(async (req) => {
       .filter((t) => typeof t === "string" && /^(Expo|Exponent)PushToken\[/.test(t));
 
     if (expoTokens.length === 0) {
-      return json(200, { ok: true, sent: 0, reason: "no-tokens" });
+      return json(200, { ok: true, sent: 0, reason: "no-tokens" }, origin);
     }
 
     const title = "Chat Santanita";
@@ -210,12 +242,13 @@ Deno.serve(async (req) => {
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      return json(502, { error: "Expo push send failed", status: response.status, body: text });
+      return json(502, { error: "Expo push send failed", status: response.status, body: text }, origin);
     }
 
     const result = await response.json().catch(() => ({}));
-    return json(200, { ok: true, sent: expoTokens.length, result });
+    return json(200, { ok: true, sent: expoTokens.length, result }, origin);
   } catch (error) {
-    return json(500, { error: error instanceof Error ? error.message : "Unknown error" });
+    const origin = req.headers.get("origin") ?? "";
+    return json(500, { error: error instanceof Error ? error.message : "Unknown error" }, origin);
   }
 });

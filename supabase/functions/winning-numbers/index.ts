@@ -19,12 +19,38 @@ type WinningNumbersResponse = {
   top: Array<{ value: string; count: number }>;
 };
 
-function json(status: number, body: unknown) {
+function getAllowedOrigins(): string[] {
+  const raw =
+    Deno.env.get("ALLOWED_ORIGINS") ??
+    [
+      "https://chatsantanita.com",
+      "https://www.chatsantanita.com",
+      "https://app.chatsantanita.com",
+      "https://reportes.chatsantanita.com",
+      "http://localhost:3000",
+      "http://localhost:19006",
+    ].join(",");
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function corsHeaders(origin: string) {
+  const allowed = getAllowedOrigins();
+  const allowOrigin = origin && allowed.includes(origin) ? origin : "";
+  return {
+    "access-control-allow-origin": allowOrigin || "null",
+    "vary": "Origin",
+  };
+}
+
+function json(status: number, body: unknown, origin = "") {
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       'content-type': 'application/json; charset=utf-8',
-      'access-control-allow-origin': '*',
+      ...corsHeaders(origin),
       'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
       'access-control-allow-methods': 'POST, OPTIONS',
     },
@@ -57,8 +83,14 @@ function topCounts(values: string[], limit: number) {
 }
 
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method === 'OPTIONS') return json(204, {});
-  if (req.method !== 'POST') return json(405, { error: 'Method not allowed' });
+  const origin = req.headers.get("origin") ?? "";
+  const allowed = getAllowedOrigins();
+  if (origin && !allowed.includes(origin)) {
+    return json(403, { error: "Origin not allowed" }, origin);
+  }
+
+  if (req.method === 'OPTIONS') return json(204, {}, origin);
+  if (req.method !== 'POST') return json(405, { error: 'Method not allowed' }, origin);
 
   let payload: WinningNumbersRequest = {};
   try {
@@ -84,7 +116,7 @@ export default async function handler(req: Request): Promise<Response> {
     });
 
     if (!res.ok) {
-      return json(502, { error: 'Failed to fetch source', status: res.status, statusText: res.statusText, sourceUrl });
+      return json(502, { error: 'Failed to fetch source', status: res.status, statusText: res.statusText, sourceUrl }, origin);
     }
 
     const html = await res.text();
@@ -97,9 +129,8 @@ export default async function handler(req: Request): Promise<Response> {
       totalCandidates: candidates.length,
       top,
     };
-    return json(200, out);
+    return json(200, out, origin);
   } catch (e) {
-    return json(500, { error: 'Unexpected error', message: e instanceof Error ? e.message : String(e), sourceUrl });
+    return json(500, { error: 'Unexpected error', message: e instanceof Error ? e.message : String(e), sourceUrl }, origin);
   }
 }
-
