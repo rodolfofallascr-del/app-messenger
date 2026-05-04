@@ -1277,7 +1277,9 @@ export function MessagingApp({
     if (!rpc.error && Array.isArray(rpc.data)) {
       const announcements = rpc.data as AnnouncementRecord[];
       const visible = announcements.filter((item) => !dismissedAnnouncementIds.includes(item.id));
-      setActiveAnnouncements(visible.slice(0, 10));
+      // Keep a generous cap so we don't drop older active announcements (some customers keep many active).
+      // The UI still cycles through them, but we avoid the hard 10 limit.
+      setActiveAnnouncements(visible.slice(0, 200));
       return;
     }
 
@@ -1286,7 +1288,9 @@ export function MessagingApp({
       .select('id,title,body,active,starts_at,ends_at,is_recurring,days_of_week,start_time,end_time,timezone,created_by,created_at,updated_at')
       .eq('active', true)
       .order('updated_at', { ascending: false })
-      .limit(50);
+      // Fallback path (when RPC is missing / errors): avoid dropping active announcements past 50.
+      // We still keep an upper bound for performance.
+      .limit(2000);
 
     if (error) {
       setActiveAnnouncements([]);
@@ -1302,7 +1306,7 @@ export function MessagingApp({
       }
     });
     const visible = activeNow.filter((item) => !dismissedAnnouncementIds.includes(item.id));
-    setActiveAnnouncements(visible.slice(0, 10));
+    setActiveAnnouncements(visible.slice(0, 200));
   }, [clientMode, dismissedAnnouncementIds]);
 
   const visibleChats = useMemo(() => {
