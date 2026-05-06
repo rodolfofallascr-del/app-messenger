@@ -1277,9 +1277,9 @@ export function MessagingApp({
     if (!rpc.error && Array.isArray(rpc.data)) {
       const announcements = rpc.data as AnnouncementRecord[];
       const visible = announcements.filter((item) => !dismissedAnnouncementIds.includes(item.id));
-      // Keep a generous cap so we don't drop older active announcements (some customers keep many active).
-      // The UI still cycles through them, but we avoid the hard 10 limit.
-      setActiveAnnouncements(visible.slice(0, 200));
+      // Keep a generous cap so we don't drop older active announcements.
+      // Some customers keep many announcements active/scheduled; the UI still cycles through them.
+      setActiveAnnouncements(visible.slice(0, 2000));
       return;
     }
 
@@ -1306,7 +1306,7 @@ export function MessagingApp({
       }
     });
     const visible = activeNow.filter((item) => !dismissedAnnouncementIds.includes(item.id));
-    setActiveAnnouncements(visible.slice(0, 200));
+    setActiveAnnouncements(visible.slice(0, 2000));
   }, [clientMode, dismissedAnnouncementIds]);
 
   const visibleChats = useMemo(() => {
