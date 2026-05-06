@@ -758,7 +758,15 @@ export function AdminWebApp({ session, profile }: AdminWebAppProps) {
         title: announcementTitle.trim() || null,
         body: announcementBody.trim(),
         active: Boolean(announcementActive),
-        ends_at: parsedEndsAt && !Number.isNaN(parsedEndsAt.getTime()) ? parsedEndsAt.toISOString() : null,
+        // For recurring announcements, ends_at is optional. If set to a past timestamp,
+        // the server-side active-evaluation (RPC) will exclude it even if the daily window matches.
+        // To avoid accidental "expires immediately" mistakes, ignore ends_at for recurring announcements.
+        ends_at:
+          announcementRecurring
+            ? null
+            : parsedEndsAt && !Number.isNaN(parsedEndsAt.getTime())
+              ? parsedEndsAt.toISOString()
+              : null,
         is_recurring: Boolean(announcementRecurring),
         days_of_week: announcementRecurring ? announcementDaysOfWeek : null,
         start_time: announcementRecurring ? toSqlTimeLiteral(announcementStartTime) : null,

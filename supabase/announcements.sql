@@ -42,7 +42,7 @@ for select
 to authenticated
 using (
   active = true
-  and starts_at <= timezone('utc', now())
+  and (starts_at is null or starts_at <= timezone('utc', now()))
   and (ends_at is null or ends_at > timezone('utc', now()))
 );
 

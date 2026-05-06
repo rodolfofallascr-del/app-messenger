@@ -328,6 +328,7 @@ export function MessagingApp({
   const [dismissedAnnouncementIds, setDismissedAnnouncementIds] = useState<string[]>([]);
   const [activeAnnouncements, setActiveAnnouncements] = useState<AnnouncementRecord[]>([]);
   const [activeAnnouncementIndex, setActiveAnnouncementIndex] = useState(0);
+  const [announcementListOpen, setAnnouncementListOpen] = useState(false);
   const [liveChats, setLiveChats] = useState<ChatThread[]>([]);
   const [liveMessages, setLiveMessages] = useState<Record<string, ChatMessage[]>>({});
   const [availableUsers, setAvailableUsers] = useState<SelectableUser[]>([]);
